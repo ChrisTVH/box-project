@@ -22,6 +22,8 @@ from box.runtime.platform import current_architecture
 def main(argv: list[str] | None = None) -> int:
     """Parse command-line arguments and return a process exit status."""
     arguments = build_parser().parse_args(argv)
+    if arguments.command is None:
+        arguments = Namespace(command="launch", game=".", runtime_version=None, sdk=False)
     try:
         return _dispatch(arguments)
     except (BoxError, ValueError) as exc:

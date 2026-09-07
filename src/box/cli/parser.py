@@ -14,7 +14,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Launch RPG Maker MV/MZ exports with managed NW.js runtimes.",
     )
     parser.add_argument("--version", action="version", version=f"box-rpg {__version__}")
-    commands = parser.add_subparsers(dest="command", required=True)
+    commands = parser.add_subparsers(dest="command")
 
     inspect = commands.add_parser("inspect", help="inspect an MV or MZ export without changing it")
     inspect.add_argument("game", type=str)
@@ -32,7 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
         action.add_argument("--sdk", action="store_true", help="use the NW.js SDK build")
 
     launch = commands.add_parser("launch", help="launch an allowed game in an isolated session")
-    launch.add_argument("game", type=str)
+    launch.add_argument("game", nargs="?", default=".", type=str)
     launch.add_argument("--runtime", dest="runtime_version")
     launch.add_argument("--sdk", action="store_true", help="use the NW.js SDK build")
 

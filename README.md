@@ -4,42 +4,69 @@
 **NW.js**. It intentionally does not support other RPG Maker generations or
 other web runtimes.
 
-## Install
+## Install and uninstall
 
-Install a released package for the current user:
-
-```sh
-python3.14 -m pip install --user box-rpg
-```
-
-Ensure Python's user scripts directory is in `PATH`, then verify the command:
+Install the current checkout for the user. The installer performs a dry run by
+default; use `--yes` to skip confirmation:
 
 ```sh
-box-rpg --help
+./install.py --install
+./install.py --install --yes
 ```
 
-For a source checkout, use a Python 3.14+ virtual environment and install the
-project with its documented development dependencies when they are available.
+To uninstall box-rpg and its shell completions:
+
+```sh
+./install.py --uninstall
+./install.py --uninstall --yes
+```
+
+The installer verifies Python 3.14+ and an Arch Linux or Arch-based system. It
+requires no elevated privileges. Use `box-rpg --help` after installation.
+
+## Development
+
+Create the local virtual environment and install development dependencies:
+
+```sh
+python3.14 -m venv .venv
+.venv/bin/python -m pip install -e ".[dev]"
+```
+
+Clean Python caches, virtual environments, and build artifacts with a dry run:
+
+```sh
+./cleaner.py
+```
+
+Apply the cleanup after reviewing the listed paths:
+
+```sh
+./cleaner.py --apply
+./cleaner.py --yes
+```
 
 ## Commands
 
 The command interface is intentionally small:
 
 ```text
+box-rpg
 box-rpg inspect GAME_PATH
 box-rpg runtime list
 box-rpg runtime install VERSION [--architecture ARCHITECTURE] [--sdk]
 box-rpg runtime remove VERSION [--architecture ARCHITECTURE] [--sdk]
-box-rpg launch GAME_PATH [--runtime VERSION] [--sdk]
+box-rpg launch [GAME_PATH] [--runtime VERSION] [--sdk]
 box-rpg config show
 box-rpg config set KEY VALUE
 box-rpg diagnose GAME_PATH [--runtime VERSION] [--sdk]
 ```
 
-`inspect` identifies a supported MV/MZ export. `runtime` manages downloaded
-NW.js versions. `launch` starts an allowed game. `config` displays or changes
-the launcher settings, and `diagnose` creates a local report without launching
-the game.
+Run `box-rpg` from a game directory to launch that directory. `inspect`
+identifies a supported MV/MZ export. `runtime` manages downloaded NW.js
+versions. `launch` starts an allowed game and defaults to the current directory
+when `GAME_PATH` is omitted. `config` displays or changes the launcher settings,
+and `diagnose` creates a local report without launching the game.
 
 See [the manual](docs/manual.md) and
 [the example configuration](res/config/box-rpg.toml.example).

@@ -27,21 +27,24 @@ deterministic across filesystems.
 ## Commands
 
 ```text
+box-rpg
 box-rpg inspect GAME_PATH
 box-rpg runtime list
 box-rpg runtime install VERSION [--architecture ARCHITECTURE] [--sdk]
 box-rpg runtime remove VERSION [--architecture ARCHITECTURE] [--sdk]
-box-rpg launch GAME_PATH [--runtime VERSION] [--sdk]
+box-rpg launch [GAME_PATH] [--runtime VERSION] [--sdk]
 box-rpg config show
 box-rpg config set KEY VALUE
 box-rpg diagnose GAME_PATH [--runtime VERSION] [--sdk]
 ```
 
-Use `inspect` before `launch` to check that a directory is an MV/MZ export.
-`runtime install` fetches a requested NW.js version into the cache; `list` shows
-managed versions; `remove` only removes a managed cached version. `config set`
-updates one TOML value, for example `box-rpg config set preferred-runtime
-0.90.0`. `diagnose` is local-only and does not transmit game data.
+Run `box-rpg` from a game directory to launch it directly. `launch` also uses
+the current directory when `GAME_PATH` is omitted. Use `inspect` before launch
+to check that a directory is an MV/MZ export. `runtime install` fetches a
+requested NW.js version into the cache; `list` shows managed versions; `remove`
+only removes a managed cached version. `config set` updates one TOML value, for
+example `box-rpg config set preferred-runtime 0.90.0`. `diagnose` is local-only
+and does not transmit game data.
 
 Use `--architecture` only with a supported NW.js identifier: `x64`, `ia32`,
 `arm64`, or `arm`. `--sdk` selects an NW.js SDK build instead of a standard

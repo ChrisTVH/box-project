@@ -1,3 +1,3 @@
 """box-rpg package."""
 
-__version__ = "26.9.1"
+__version__ = "26.9.2"
