@@ -16,7 +16,7 @@ def write_manifest(session_root: Path, game: GameInfo) -> Path:
     """Create a wrapper manifest while preserving safe display settings."""
     source = _read_game_manifest(game.manifest)
     payload: dict[str, object] = {
-        "name": source.get("name", game.root.name),
+        "name": _manifest_name(source, game.root),
         "main": f"game/{game.entrypoint.relative_to(game.root).as_posix()}",
     }
     for field in _FORWARDED_FIELDS:
@@ -26,6 +26,14 @@ def write_manifest(session_root: Path, game: GameInfo) -> Path:
     manifest = session_root / "package.json"
     manifest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return manifest
+
+
+def _manifest_name(source: dict[str, object], game_root: Path) -> str:
+    """Return an NW.js-compatible application name for the session manifest."""
+    name = source.get("name")
+    if isinstance(name, str) and name.strip():
+        return name
+    return game_root.name
 
 
 def _read_game_manifest(path: Path) -> dict[str, object]:

@@ -54,6 +54,24 @@ def test_session_links_game_writes_wrapper_and_cleans_up_without_mutation(
     } == original_files
 
 
+def test_session_uses_the_game_directory_name_when_manifest_name_is_empty(
+    tmp_path: Path,
+) -> None:
+    game_root = tmp_path / "Roseliam-1.08"
+    entrypoint = game_root / "index.html"
+    manifest = game_root / "package.json"
+    entrypoint.parent.mkdir()
+    entrypoint.write_text("<html>game</html>", encoding="utf-8")
+    manifest.write_text('{"name": ""}', encoding="utf-8")
+    game = GameInfo(EngineName.RPG_MAKER_MV, game_root, entrypoint, manifest)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+
+    with create_session(paths, game) as session:
+        wrapper = json.loads((session.root / "package.json").read_text(encoding="utf-8"))
+
+    assert wrapper["name"] == "Roseliam-1.08"
+
+
 def test_session_creation_rejects_a_symlinked_cache_root(tmp_path: Path) -> None:
     game_root = tmp_path / "game"
     entrypoint = game_root / "index.html"

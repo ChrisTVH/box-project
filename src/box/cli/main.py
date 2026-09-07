@@ -16,7 +16,7 @@ from box.config.repository import ConfigRepository
 from box.errors import BoxError
 from box.paths import AppPaths
 from box.runtime.catalog import RuntimeCatalog
-from box.runtime.platform import current_architecture
+from box.runtime.platform import current_architecture, normalize_architecture
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -42,7 +42,15 @@ def _dispatch(arguments: Namespace) -> int:
         catalog = RuntimeCatalog(paths)
         if arguments.runtime_command == "list":
             return runtime_command.list_runtimes(catalog)
-        architecture = arguments.architecture or current_architecture()
+        architecture = normalize_architecture(arguments.architecture or current_architecture())
+        if arguments.runtime_command == "available":
+            return runtime_command.available(
+                paths,
+                arguments.page,
+                arguments.interactive,
+                architecture,
+                arguments.sdk,
+            )
         if arguments.runtime_command == "install":
             return runtime_command.install(paths, arguments.version, architecture, arguments.sdk)
         return runtime_command.remove(catalog, arguments.version, architecture, arguments.sdk)

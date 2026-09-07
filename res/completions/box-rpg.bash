@@ -5,7 +5,17 @@ _box_rpg() {
 
     case "${words[1]}" in
         runtime)
-            COMPREPLY=($(compgen -W 'list install remove --architecture --sdk --help' -- "$cur"))
+            case "${words[2]}" in
+                available)
+                    COMPREPLY=($(compgen -W '--page --interactive --architecture --sdk --help' -- "$cur"))
+                    ;;
+                install|remove)
+                    COMPREPLY=($(compgen -W '--architecture --sdk --help' -- "$cur"))
+                    ;;
+                *)
+                    COMPREPLY=($(compgen -W 'list available install remove --help' -- "$cur"))
+                    ;;
+            esac
             ;;
         config)
             COMPREPLY=($(compgen -W 'show set' -- "$cur"))

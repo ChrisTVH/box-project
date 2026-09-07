@@ -34,8 +34,18 @@ def ensure_allowed_root(game: GameInfo, allowed_roots: tuple[Path, ...]) -> None
     if not allowed_roots:
         raise GameValidationError("no allowed_game_roots configured; add one with config set")
     try:
-        resolved_roots = tuple(root.resolve(strict=True) for root in allowed_roots)
+        resolved_roots = tuple(_resolve_configured_root(root) for root in allowed_roots)
     except OSError as exc:
         raise GameValidationError(f"configured game root cannot be resolved: {exc}") from exc
     if not any(game.root.is_relative_to(root) for root in resolved_roots):
         raise GameValidationError(f"game path is outside configured roots: {game.root}")
+
+
+def _resolve_configured_root(root: Path) -> Path:
+    """Resolve a configured root only when none of its components are symlinks."""
+    current = Path(root.anchor)
+    for component in root.parts[1:]:
+        current /= component
+        if current.is_symlink():
+            raise GameValidationError(f"configured game root contains a symlink: {current}")
+    return root.resolve(strict=True)

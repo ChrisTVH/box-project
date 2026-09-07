@@ -54,6 +54,8 @@ The command interface is intentionally small:
 box-rpg
 box-rpg inspect GAME_PATH
 box-rpg runtime list
+box-rpg runtime available [--page PAGE] [--architecture ARCHITECTURE] [--sdk]
+box-rpg runtime available --interactive [--page PAGE] [--architecture ARCHITECTURE] [--sdk]
 box-rpg runtime install VERSION [--architecture ARCHITECTURE] [--sdk]
 box-rpg runtime remove VERSION [--architecture ARCHITECTURE] [--sdk]
 box-rpg launch [GAME_PATH] [--runtime VERSION] [--sdk]
@@ -68,16 +70,26 @@ versions. `launch` starts an allowed game and defaults to the current directory
 when `GAME_PATH` is omitted. `config` displays or changes the launcher settings,
 and `diagnose` creates a local report without launching the game.
 
+`runtime available` queries the official stable NW.js version index in pages of five. Add
+`--interactive` to browse pages, choose a version, and confirm its installation.
+The architecture is detected automatically unless `--architecture` is supplied.
+Runtime downloads use a 60-second connection timeout and resume partial archives after
+temporary connection failures.
+Launches select Wayland only when the session exposes `WAYLAND_DISPLAY`; otherwise they use X11.
+
 See [the manual](docs/manual.md) and
 [the example configuration](res/config/box-rpg.toml.example).
 
 ## Safety and path rules
 
 Game paths are never trusted merely because they contain `package.json`.
-`box-rpg` validates the game structure, resolves paths before use, and only
-launches games below configured `allowed_game_roots`. Runtime removal is limited to
-runtimes managed inside the configured cache; it must not remove arbitrary
-paths.
+`box-rpg` validates the game structure and resolves paths before use. It only
+launches games below configured `allowed_game_roots`; on the first launch with
+an empty configuration, it stores the exact validated game root before launch.
+Runtime removal is limited to runtimes managed inside the configured cache; it
+must not remove arbitrary paths.
+
+Add a library root explicitly to authorize more than one game below it.
 
 Managed runtime paths use lower-case components. Games are resolved before they
 are launched, including symlinks, and must remain below an allowed root.

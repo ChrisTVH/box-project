@@ -16,7 +16,16 @@ _box-rpg() {
   fi
 
   case "$words[2]" in
-    runtime) _arguments '1:runtime action:(list install remove)' '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
+    runtime)
+      if (( CURRENT == 3 )); then
+        _values 'runtime action' list available install remove
+        return
+      fi
+      case "$words[3]" in
+        available) _arguments '--page[select an online version page]:page:' '--interactive[select and install a version]' '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
+        install|remove) _arguments '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
+      esac
+      ;;
     config) _values 'config command' show set ;;
     launch) _arguments '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' ;;
     diagnose) _arguments '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' ;;

@@ -22,6 +22,15 @@ def build_parser() -> argparse.ArgumentParser:
     runtime = commands.add_parser("runtime", help="manage cached NW.js runtimes")
     runtime_commands = runtime.add_subparsers(dest="runtime_command", required=True)
     runtime_commands.add_parser("list", help="list installed runtimes")
+    available = runtime_commands.add_parser("available", help="list online NW.js versions")
+    available.add_argument(
+        "--page", type=int, default=1, help="online version page (five versions)"
+    )
+    available.add_argument(
+        "--interactive", action="store_true", help="select and install a version"
+    )
+    available.add_argument("--architecture", help="override the detected NW.js architecture")
+    available.add_argument("--sdk", action="store_true", help="use the NW.js SDK build")
     for name, help_text in (
         ("install", "download and install a runtime"),
         ("remove", "remove a managed runtime"),

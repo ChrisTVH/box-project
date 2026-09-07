@@ -22,7 +22,9 @@ def select_runtime(
         if runtime.spec.architecture == architecture and runtime.spec.sdk == sdk
     ]
     if not candidates:
-        raise RuntimeError("no matching NW.js runtime is installed; use runtime install")
+        raise RuntimeError(
+            "no matching NW.js runtime is installed; run 'box-rpg runtime available --interactive'"
+        )
     return max(candidates, key=lambda runtime: _version_key(runtime.spec.version))
 
 

@@ -50,3 +50,8 @@ def test_config_repository_adds_each_allowed_root_once(tmp_path: Path) -> None:
 def test_config_rejects_non_integer_schema_versions(version: object) -> None:
     with pytest.raises(ConfigurationError):
         decode_config({"schema_version": version})
+
+
+def test_config_rejects_relative_game_roots() -> None:
+    with pytest.raises(ConfigurationError, match="absolute paths"):
+        decode_config({"allowed_game_roots": ["games"]})

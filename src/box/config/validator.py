@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, cast
 
@@ -24,7 +25,10 @@ def decode_config(data: dict[str, Any]) -> AppConfig:
     for root in root_values:
         if not isinstance(root, str):
             raise ConfigurationError("allowed_game_roots must be an array of paths")
-        normalized_roots_list.append(Path(root).expanduser().resolve(strict=False))
+        candidate = Path(root).expanduser()
+        if not candidate.is_absolute():
+            raise ConfigurationError("allowed_game_roots must contain absolute paths")
+        normalized_roots_list.append(Path(os.path.abspath(candidate)))
     if preferred_runtime is not None and not isinstance(preferred_runtime, str):
         raise ConfigurationError("preferred_runtime must be a string or omitted")
     if not isinstance(prefer_sdk, bool):
