@@ -1,0 +1,15 @@
+# fish completion for box-rpg
+complete -c box-rpg -f
+complete -c box-rpg -n '__fish_use_subcommand' -a inspect -d 'Inspect an MV/MZ game'
+complete -c box-rpg -n '__fish_use_subcommand' -a runtime -d 'Manage NW.js runtimes'
+complete -c box-rpg -n '__fish_use_subcommand' -a launch -d 'Launch an MV/MZ game'
+complete -c box-rpg -n '__fish_use_subcommand' -a config -d 'Show or set configuration'
+complete -c box-rpg -n '__fish_use_subcommand' -a diagnose -d 'Check launcher setup'
+complete -c box-rpg -n '__fish_seen_subcommand_from runtime' -a 'list install remove'
+complete -c box-rpg -n '__fish_seen_subcommand_from runtime' -l architecture -d 'Use an NW.js architecture'
+complete -c box-rpg -n '__fish_seen_subcommand_from runtime' -l sdk -d 'Use an NW.js SDK build'
+complete -c box-rpg -n '__fish_seen_subcommand_from config' -a 'show set'
+complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l runtime -d 'Use an NW.js version'
+complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l sdk -d 'Use an NW.js SDK build'
+complete -c box-rpg -n '__fish_seen_subcommand_from diagnose' -l runtime -d 'Use an NW.js version'
+complete -c box-rpg -n '__fish_seen_subcommand_from diagnose' -l sdk -d 'Use an NW.js SDK build'

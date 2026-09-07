@@ -1,0 +1,4 @@
+!/box/**/*.py
+!/box/**/py.typed
+!/box/**/locale/**/*.po
+!/box/**/locale/**/*.mo

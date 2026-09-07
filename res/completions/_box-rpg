@@ -1,0 +1,26 @@
+#compdef box-rpg
+
+_box-rpg() {
+  local -a commands
+  commands=(
+    'inspect:inspect an MV/MZ game'
+    'runtime:manage NW.js runtimes'
+    'launch:launch an MV/MZ game'
+    'config:show or set configuration'
+    'diagnose:check launcher setup'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe -t commands 'box-rpg command' commands
+    return
+  fi
+
+  case "$words[2]" in
+    runtime) _arguments '1:runtime action:(list install remove)' '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
+    config) _values 'config command' show set ;;
+    launch) _arguments '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' ;;
+    diagnose) _arguments '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' ;;
+  esac
+}
+
+_box-rpg "$@"

@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "box-rpg"
+version = "26.9.1"
+description = "A safe NW.js launcher for RPG Maker MV and MZ exports"
+readme = "README.md"
+requires-python = ">=3.14"
+license = "BSD-3-Clause"
+authors = [
+    { name = "ChrisTVH" },
+]
+keywords = ["rpg-maker", "mv", "mz", "nwjs", "launcher"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: POSIX :: Linux",
+    "Environment :: Console",
+]
+dependencies = []
+
+[project.scripts]
+box-rpg = "box.cli.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pyright>=1.1.390",
+    "ruff>=0.9",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.data-files]
+"share/box-rpg/config" = ["res/config/box-rpg.toml.example"]
+"share/box-rpg/completions" = [
+    "res/completions/box-rpg.bash",
+    "res/completions/box-rpg.fish",
+    "res/completions/_box-rpg",
+]
+"share/doc/box-rpg" = ["README.md", "docs/manual.md", "docs/translations.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["src", "tests"]
+reportMissingTypeStubs = false
+reportUnusedImport = true
+reportUnusedVariable = true
+reportUntypedFunctionDecorator = false
+venvPath = "."
+venv = ".venv"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "FURB"]
+ignore = [
+    "E501",  # user-facing strings (help, prompts) intentionally long
+]

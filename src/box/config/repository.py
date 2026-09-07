@@ -1,0 +1,49 @@
+"""High-level configuration persistence operations."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+from pathlib import Path
+
+from box.config.models import AppConfig
+from box.config.reader import read_config
+from box.config.writer import write_config
+from box.errors import ConfigurationError
+from box.paths import AppPaths
+
+
+class ConfigRepository:
+    """Read and update the single user configuration file."""
+
+    def __init__(self, paths: AppPaths) -> None:
+        self._path = paths.config_file
+
+    def load(self) -> AppConfig:
+        """Return stored configuration or safe defaults."""
+        return read_config(self._path)
+
+    def save(self, config: AppConfig) -> None:
+        """Persist configuration atomically."""
+        write_config(self._path, config)
+
+    def add_allowed_root(self, root: Path) -> AppConfig:
+        """Add a resolved game root if it is not already configured."""
+        config = self.load()
+        try:
+            resolved = root.expanduser().resolve(strict=True)
+        except OSError as exc:
+            raise ConfigurationError(f"cannot resolve allowed game root {root}: {exc}") from exc
+        if not resolved.is_dir():
+            raise ConfigurationError(f"allowed game root is not a directory: {root}")
+        roots = config.allowed_game_roots
+        updated = (
+            config if resolved in roots else replace(config, allowed_game_roots=(*roots, resolved))
+        )
+        self.save(updated)
+        return updated
+
+    def set_preferred_runtime(self, version: str | None) -> AppConfig:
+        """Set or clear the preferred runtime version."""
+        config = replace(self.load(), preferred_runtime=version)
+        self.save(config)
+        return config

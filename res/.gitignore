@@ -1,0 +1,6 @@
+!completions/_box-rpg
+!completions/*.bash
+!completions/*.fish
+
+!config/box-rpg.toml.example
+!config/*.conf

@@ -1,0 +1,9 @@
+# Copy to $XDG_CONFIG_HOME/box-rpg/config.toml (or ~/.config/box-rpg/config.toml).
+schema_version = 1
+
+# Only games below these resolved roots may be launched.
+allowed_game_roots = ["/home/alice/games"]
+
+# Omit this to select the newest matching local runtime.
+preferred_runtime = "v0.90.0"
+prefer_sdk = false
