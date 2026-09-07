@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """Install box-rpg on the system.
 
-Verifies that the system is Arch Linux (or Arch-based) and installs the
-package at user level with pip (--user --break-system-packages for PEP 668),
-then places the shell completions in each shell's user directory. No sudo is
-needed. By default it only verifies the OS, reports the installed / repo
-versions and shows the exact commands; pass --install to actually run them
-(with a confirmation prompt) and --yes to skip the prompt. Pass --uninstall
-to remove the package and its completions.
+Checks that the system is Linux with Python 3.14+ and pip, then installs the
+package at user level and places the shell completions in each shell's user
+directory. No sudo is needed. By default it only verifies the prerequisites,
+reports the installed / repo versions and shows the exact commands; pass
+--install to actually run them (with a confirmation prompt) and --yes to skip
+the prompt. Pass --uninstall to remove the package and its completions.
 """
 
 from __future__ import annotations
@@ -21,8 +20,6 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
-OS_RELEASE = Path("/etc/os-release")
-PACMAN = Path("/usr/bin/pacman")
 PACKAGE = "box-rpg"
 INIT_PY = REPO_ROOT / "src/box/__init__.py"
 
@@ -44,28 +41,9 @@ COMPLETION_TARGETS = [
 ]
 
 
-def _read_os_release() -> str:
-    try:
-        return OS_RELEASE.read_text(encoding="utf-8")
-    except OSError:
-        return ""
-
-
-def _field(content: str, name: str) -> str:
-    prefix = f"{name}="
-    for line in content.splitlines():
-        if line.startswith(prefix):
-            return line[len(prefix) :].strip().strip('"')
-    return ""
-
-
-def is_arch() -> bool:
-    """True if the system is Arch Linux or Arch-based (ID / ID_LIKE / pacman)."""
-    content = _read_os_release()
-    ids = " ".join(value for field in ("ID", "ID_LIKE") if (value := _field(content, field)))
-    if "arch" in ids.lower():
-        return True
-    return PACMAN.exists()
+def is_linux() -> bool:
+    """Return whether the active Python interpreter runs on Linux."""
+    return sys.platform.startswith("linux")
 
 
 def _check_python_version() -> bool:
@@ -128,18 +106,52 @@ def system_python() -> str:
     return sys.executable
 
 
+def has_pip() -> bool:
+    """Return whether the system Python can invoke pip."""
+    try:
+        result = subprocess.run(
+            [system_python(), "-m", "pip", "--version"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
+
+
+def _break_system_packages_args() -> list[str]:
+    """Return the PEP 668 override when the installed pip supports it."""
+    try:
+        result = subprocess.run(
+            [system_python(), "-m", "pip", "install", "--help"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return []
+    return ["--break-system-packages"] if "--break-system-packages" in result.stdout else []
+
+
 def _pip_install_args() -> list[str]:
-    return [
+    args = [
         system_python(),
         "-m",
         "pip",
         "install",
         "--user",
         str(REPO_ROOT),
-        "--break-system-packages",
         "--no-input",
         "--disable-pip-version-check",
     ]
+    return [*args, *_break_system_packages_args()]
+
+
+def _pip_uninstall_args() -> list[str]:
+    """Build pip's user-level uninstall command."""
+    args = [system_python(), "-m", "pip", "uninstall", "-y", PACKAGE]
+    return [*args, *_break_system_packages_args()]
 
 
 def install_commands() -> list[str]:
@@ -174,9 +186,7 @@ def run_install() -> bool:
 
 
 def uninstall_commands() -> list[str]:
-    cmds = [
-        f"{system_python()} -m pip uninstall -y {PACKAGE} --break-system-packages",
-    ]
+    cmds = [shlex.join(_pip_uninstall_args())]
     for _, target in COMPLETION_TARGETS:
         cmds.append(f"rm -f {target}")
     return cmds
@@ -184,20 +194,7 @@ def uninstall_commands() -> list[str]:
 
 def run_uninstall() -> bool:
     ok = True
-    if (
-        run(
-            [
-                system_python(),
-                "-m",
-                "pip",
-                "uninstall",
-                "-y",
-                PACKAGE,
-                "--break-system-packages",
-            ]
-        )
-        != 0
-    ):
+    if run(_pip_uninstall_args()) != 0:
         print("error: pip uninstall failed", file=sys.stderr)
         ok = False
     for _, target in COMPLETION_TARGETS:
@@ -238,14 +235,10 @@ def main() -> int:
         print("error: --install and --uninstall are mutually exclusive", file=sys.stderr)
         return 1
 
-    if not is_arch():
-        print(
-            "error: this script is meant for Arch Linux or Arch-based systems "
-            "(no /etc/os-release 'arch' ID/ID_LIKE and no /usr/bin/pacman)",
-            file=sys.stderr,
-        )
+    if not is_linux():
+        print("error: this script requires Linux", file=sys.stderr)
         return 1
-    print("OK: Arch Linux (or Arch-based) system detected.")
+    print("OK: Linux system detected.")
 
     if not _check_python_version():
         print(
@@ -254,6 +247,11 @@ def main() -> int:
         )
         return 1
     print(f"OK: Python {sys.version_info.major}.{sys.version_info.minor} found.")
+
+    if not has_pip():
+        print("error: pip is required for the system Python", file=sys.stderr)
+        return 1
+    print("OK: pip found for the system Python.")
 
     installed = installed_version()
     repo = repo_version()

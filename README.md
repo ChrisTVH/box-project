@@ -21,8 +21,8 @@ To uninstall box-rpg and its shell completions:
 ./install.py --uninstall --yes
 ```
 
-The installer verifies Python 3.14+ and an Arch Linux or Arch-based system. It
-requires no elevated privileges. Use `box-rpg --help` after installation.
+The installer verifies Linux, Python 3.14+, and pip. It requires no elevated
+privileges. Use `box-rpg --help` after installation.
 
 ## Development
 
