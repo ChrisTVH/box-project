@@ -10,7 +10,7 @@ from box.models import EngineName, GameInfo
 from box.paths import AppPaths
 
 
-def test_authorize_game_registers_the_detected_game_root_when_configuration_is_empty(
+def test_authorize_game_registers_the_detected_game_root_after_confirmation(
     tmp_path: Path,
 ) -> None:
     game_root = tmp_path / "games" / "sample"
@@ -23,13 +23,36 @@ def test_authorize_game_registers_the_detected_game_root_when_configuration_is_e
     )
     paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
     repository = ConfigRepository(paths)
-    config = authorize_game(game, repository.load(), repository)
+    config = authorize_game(game, repository.load(), repository, read=lambda _: "yes")
 
     assert config.allowed_game_roots == (game_root,)
     assert repository.load() == config
 
 
-def test_authorize_game_requires_existing_configuration_to_allow_the_game(tmp_path: Path) -> None:
+def test_authorize_game_requires_confirmation_for_an_unregistered_game(tmp_path: Path) -> None:
+    game_root = tmp_path / "games" / "sample"
+    other_root = tmp_path / "games" / "other"
+    game_root.mkdir(parents=True)
+    other_root.mkdir()
+    game = GameInfo(
+        EngineName.RPG_MAKER_MZ,
+        game_root,
+        game_root / "index.html",
+        game_root / "package.json",
+    )
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(other_root)
+
+    with pytest.raises(GameValidationError, match="was not authorized"):
+        authorize_game(game, repository.load(), repository, read=lambda _: "no")
+
+    assert repository.load().allowed_game_roots == (other_root,)
+
+
+def test_authorize_game_rejects_unregistered_games_without_an_interactive_reader(
+    tmp_path: Path,
+) -> None:
     game_root = tmp_path / "games" / "sample"
     other_root = tmp_path / "games" / "other"
     game_root.mkdir(parents=True)
@@ -59,7 +82,7 @@ def test_authorize_game_rejects_a_registered_root_replaced_by_a_symlink(tmp_path
     )
     paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
     repository = ConfigRepository(paths)
-    authorize_game(game, repository.load(), repository)
+    authorize_game(game, repository.load(), repository, read=lambda _: "yes")
     outside = tmp_path / "outside"
     outside.mkdir()
     game_root.rmdir()

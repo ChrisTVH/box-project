@@ -75,6 +75,32 @@ class AppPaths:
         """Validate a runtime path is a lower-case directory owned by the launcher."""
         return self._ensure_managed_child(self.runtimes_root, path, "runtime")
 
+    def ensure_managed_download_path(self, path: Path) -> Path:
+        """Validate a direct download-cache file path owned by the launcher."""
+        managed = self._ensure_managed_child(self.downloads_root, path, "download")
+        downloads_root = self.downloads_root.resolve(strict=True)
+        if managed.parent != downloads_root:
+            raise ConfigurationError(f"refusing to manage nested download path: {path}")
+        return managed
+
+    def open_managed_cache_directory(self, *components: str) -> int:
+        """Open a cache subdirectory from the filesystem root without following symlinks."""
+        self.ensure()
+        descriptor = _open_directory_without_symlinks(self.cache_root)
+        try:
+            for component in components:
+                if Path(component).name != component or component in {"", ".", ".."}:
+                    raise ConfigurationError(f"invalid managed cache component: {component}")
+                child = os.open(
+                    component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor
+                )
+                os.close(descriptor)
+                descriptor = child
+            return descriptor
+        except Exception:
+            os.close(descriptor)
+            raise
+
     def ensure_managed_session_path(self, path: Path) -> Path:
         """Validate a session path is owned by the launcher cache."""
         return self._ensure_managed_child(self.sessions_root, path, "session")
@@ -104,3 +130,20 @@ class AppPaths:
         if any(component != component.lower() for component in relative.parts):
             raise ConfigurationError(f"managed {label} path contains upper-case components: {path}")
         return resolved
+
+
+def _open_directory_without_symlinks(path: Path) -> int:
+    """Open every absolute directory component through descriptor-relative operations."""
+    absolute = Path(os.path.abspath(path))
+    descriptor = os.open(absolute.anchor, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for component in absolute.parts[1:]:
+            child = os.open(
+                component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor
+            )
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise

@@ -16,6 +16,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"box-rpg {__version__}")
     commands = parser.add_subparsers(dest="command")
 
+    commands.add_parser("cleanup", help="interactively remove launcher-managed data")
+
     inspect = commands.add_parser("inspect", help="inspect an MV or MZ export without changing it")
     inspect.add_argument("game", type=str)
 

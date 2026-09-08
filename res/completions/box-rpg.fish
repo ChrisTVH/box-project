@@ -1,5 +1,6 @@
 # fish completion for box-rpg
 complete -c box-rpg -f
+complete -c box-rpg -n '__fish_use_subcommand' -a cleanup -d 'Interactively remove launcher-managed data'
 complete -c box-rpg -n '__fish_use_subcommand' -a inspect -d 'Inspect an MV/MZ game'
 complete -c box-rpg -n '__fish_use_subcommand' -a runtime -d 'Manage NW.js runtimes'
 complete -c box-rpg -n '__fish_use_subcommand' -a launch -d 'Launch an MV/MZ game'

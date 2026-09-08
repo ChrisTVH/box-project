@@ -42,6 +42,26 @@ class ConfigRepository:
         self.save(updated)
         return updated
 
+    def remove_allowed_root(self, root: Path) -> AppConfig:
+        """Remove one exact configured game root without accessing the game path."""
+        config = self.load()
+        updated = replace(
+            config,
+            allowed_game_roots=tuple(
+                configured_root
+                for configured_root in config.allowed_game_roots
+                if configured_root != root
+            ),
+        )
+        self.save(updated)
+        return updated
+
+    def clear_allowed_roots(self) -> AppConfig:
+        """Remove all configured game roots without accessing their paths."""
+        config = replace(self.load(), allowed_game_roots=())
+        self.save(config)
+        return config
+
     def set_preferred_runtime(self, version: str | None) -> AppConfig:
         """Set or clear the preferred runtime version."""
         config = replace(self.load(), preferred_runtime=version)

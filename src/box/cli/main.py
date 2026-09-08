@@ -6,6 +6,7 @@ import sys
 from argparse import Namespace
 from pathlib import Path
 
+from box.cli import cleanup as cleanup_command
 from box.cli import config as config_command
 from box.cli import diagnose as diagnose_command
 from box.cli import inspect as inspect_command
@@ -13,7 +14,9 @@ from box.cli import launch as launch_command
 from box.cli import runtime as runtime_command
 from box.cli.parser import build_parser
 from box.config.repository import ConfigRepository
-from box.errors import BoxError
+from box.engines.registry import default_registry
+from box.errors import BoxError, GameValidationError
+from box.games.detector import detect_game
 from box.paths import AppPaths
 from box.runtime.catalog import RuntimeCatalog
 from box.runtime.platform import current_architecture, normalize_architecture
@@ -21,8 +24,18 @@ from box.runtime.platform import current_architecture, normalize_architecture
 
 def main(argv: list[str] | None = None) -> int:
     """Parse command-line arguments and return a process exit status."""
-    arguments = build_parser().parse_args(argv)
+    parser = build_parser()
+    arguments = parser.parse_args(argv)
     if arguments.command is None:
+        try:
+            detect_game(Path("."), default_registry())
+        except GameValidationError:
+            print(
+                "error: no RPG Maker MV/MZ game was found here; run box-rpg from the game directory.",
+                file=sys.stderr,
+            )
+            parser.print_help()
+            return 1
         arguments = Namespace(command="launch", game=".", runtime_version=None, sdk=False)
     try:
         return _dispatch(arguments)
@@ -36,6 +49,8 @@ def _dispatch(arguments: Namespace) -> int:
     paths = AppPaths.from_environment()
     paths.ensure()
     repository = ConfigRepository(paths)
+    if arguments.command == "cleanup":
+        return cleanup_command.execute(paths, repository, interactive=sys.stdin.isatty())
     if arguments.command == "inspect":
         return inspect_command.execute(Path(arguments.game))
     if arguments.command == "runtime":

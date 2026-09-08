@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from box.config.models import AppConfig
 from box.config.repository import ConfigRepository
 from box.engines.registry import default_registry
+from box.errors import GameValidationError
 from box.games.detector import detect_game, ensure_allowed_root
 from box.launch.command import build_command
 from box.launch.process import run_process
@@ -35,15 +37,31 @@ def execute(
         config.preferred_runtime if version is None else version,
         sdk or config.prefer_sdk,
     )
-    config = authorize_game(game, config, repository)
+    read = input if sys.stdin.isatty() else None
+    authorize_game(game, config, repository, read)
     with create_session(paths, game) as session:
         return run_process(build_command(runtime, session.root))
 
 
-def authorize_game(game: GameInfo, config: AppConfig, repository: ConfigRepository) -> AppConfig:
-    """Authorize a detected game, registering its exact root on first launch."""
-    if not config.allowed_game_roots:
-        config = replace(config, allowed_game_roots=(game.root,))
-        repository.save(config)
+def authorize_game(
+    game: GameInfo,
+    config: AppConfig,
+    repository: ConfigRepository,
+    read: Callable[[str], str] | None = None,
+) -> AppConfig:
+    """Authorize a game or interactively ask to store its exact root."""
+    if any(game.root.is_relative_to(root) for root in config.allowed_game_roots):
+        ensure_allowed_root(game, config.allowed_game_roots)
+        return config
+    if read is None:
+        ensure_allowed_root(game, config.allowed_game_roots)
+        return config
+    try:
+        answer = read(f"Add {game.root} to allowed game roots? [y/N] ").strip().lower()
+    except EOFError as exc:
+        raise GameValidationError("game root was not authorized") from exc
+    if answer not in {"y", "yes"}:
+        raise GameValidationError("game root was not authorized")
+    config = repository.add_allowed_root(game.root)
     ensure_allowed_root(game, config.allowed_game_roots)
     return config

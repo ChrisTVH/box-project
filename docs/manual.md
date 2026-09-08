@@ -20,9 +20,9 @@ To authorize an entire game library instead of individual games, add its root:
 box-rpg config set allowed-game-root /home/alice/games
 ```
 
-When no allowed roots are configured, box-rpg registers the exact root of the
-first valid game it launches. Add a library root explicitly to authorize more
-than one game below it.
+When a game is outside configured roots, an interactive box-rpg launch asks before
+registering its exact root. Non-interactive launches remain restricted to configured
+roots. Add a library root explicitly to authorize more than one game below it.
 
 All game paths are resolved before launch and must remain below an allowed root.
 Managed runtime path components are lower-case to keep deletion checks
@@ -32,6 +32,7 @@ deterministic across filesystems.
 
 ```text
 box-rpg
+box-rpg cleanup
 box-rpg inspect GAME_PATH
 box-rpg runtime list
 box-rpg runtime available [--page PAGE] [--architecture ARCHITECTURE] [--sdk]
@@ -52,12 +53,20 @@ only removes a managed cached version. `config set` updates one TOML value, for
 example `box-rpg config set preferred-runtime 0.90.0`. `diagnose` is local-only
 and does not transmit game data.
 
+`cleanup` requires an interactive terminal. It presents paginated lists of
+authorized roots, managed runtimes, and cached NW.js archives. Removing a root
+only removes its authorization; it never deletes games. Its global cleanup
+requires typing `DELETE ALL` and does not remove `config.toml`, sessions, or reports.
+
+Running `box-rpg` without arguments requires the current directory to contain a
+supported game. Otherwise it prints help and explains how to launch one.
+
 `runtime available` reads the official stable NW.js version index in pages of five. With
 `--interactive`, enter a number to choose a version, `n` for the next page, `p`
 for the previous page, or `q` to quit. A selected version is installed only after
 confirmation. The architecture is detected automatically unless overridden.
 Runtime downloads use a 60-second connection timeout and resume partial archives after
-temporary connection failures.
+temporary connection failures. Interactive terminals display a progress bar.
 
 At launch, box-rpg selects NW.js Wayland only when both `XDG_SESSION_TYPE=wayland`
 and `WAYLAND_DISPLAY` are present; otherwise it uses X11.

@@ -1,3 +1,4 @@
+from io import StringIO
 from pathlib import Path
 from urllib.request import Request
 
@@ -31,6 +32,11 @@ class FakeResponse:
         return chunk
 
 
+class FakeTerminal(StringIO):
+    def isatty(self) -> bool:
+        return True
+
+
 def test_validate_download_source_accepts_official_https_mirrors() -> None:
     validate_download_source("https://dl.nwjs.io/v0.90.0/runtime.tar.gz")
     validate_download_source("https://dl.node-webkit.org/v0.90.0/runtime.tar.gz")
@@ -53,6 +59,7 @@ def test_download_retries_and_resumes_a_reset_connection(
 ) -> None:
     destination = tmp_path / "runtime.tar.gz"
     requests: list[Request] = []
+    updates: list[tuple[int, int | None]] = []
     responses = iter(
         (
             FakeResponse(200, {"Content-Length": "4"}, [b"ab", ConnectionResetError("reset")]),
@@ -71,11 +78,16 @@ def test_download_retries_and_resumes_a_reset_connection(
     monkeypatch.setattr("box.runtime.downloader.urlopen", open_request)
     monkeypatch.setattr("box.runtime.downloader.time.sleep", no_sleep)
 
-    download_archive("https://dl.nwjs.io/v0.90.0/runtime.tar.gz", destination)
+    download_archive(
+        "https://dl.nwjs.io/v0.90.0/runtime.tar.gz",
+        destination,
+        progress=lambda completed, total: updates.append((completed, total)),
+    )
 
     assert destination.read_bytes() == b"abcd"
     assert not destination.with_suffix(".gz.part").exists()
     assert requests[1].get_header("Range") == "bytes=2-"
+    assert updates == [(0, 4), (2, 4), (2, 4), (4, 4)]
 
 
 def test_download_restarts_when_a_server_ignores_a_resume_range(
@@ -95,6 +107,25 @@ def test_download_restarts_when_a_server_ignores_a_resume_range(
     download_archive("https://dl.nwjs.io/v0.90.0/runtime.tar.gz", destination)
 
     assert destination.read_bytes() == b"fresh"
+
+
+def test_download_renders_a_progress_bar_for_an_interactive_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "runtime.tar.gz"
+    response = FakeResponse(200, {"Content-Length": "2"}, [b"ok"])
+    terminal = FakeTerminal()
+
+    def open_request(_: Request, timeout: int) -> FakeResponse:
+        assert timeout == 60
+        return response
+
+    monkeypatch.setattr("box.runtime.downloader.urlopen", open_request)
+    monkeypatch.setattr("box.runtime.downloader.sys.stderr", terminal)
+
+    download_archive("https://dl.nwjs.io/v0.90.0/runtime.tar.gz", destination)
+
+    assert "Downloading NW.js: [##############################] 100%\n" in terminal.getvalue()
 
 
 def test_download_keeps_partial_archive_after_exhausting_retries(

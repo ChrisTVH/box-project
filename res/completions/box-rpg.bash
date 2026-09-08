@@ -27,7 +27,7 @@ _box_rpg() {
             COMPREPLY=($(compgen -W '--runtime --sdk --help' -- "$cur"))
             ;;
         *)
-            COMPREPLY=($(compgen -W 'inspect runtime launch config diagnose --help --version' -- "$cur"))
+            COMPREPLY=($(compgen -W 'cleanup inspect runtime launch config diagnose --help --version' -- "$cur"))
             ;;
     esac
 }

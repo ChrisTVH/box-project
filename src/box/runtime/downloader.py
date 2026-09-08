@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from http.client import IncompleteRead
 from pathlib import Path
 from typing import BinaryIO, Protocol, Self, cast
@@ -24,6 +25,7 @@ OFFICIAL_DOWNLOAD_HOSTS = frozenset({"dl.nwjs.io", "dl.node-webkit.org"})
 DOWNLOAD_TIMEOUT_SECONDS = 60
 DOWNLOAD_RETRY_DELAYS = (1, 2, 4)
 RETRYABLE_HTTP_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
+ProgressReporter = Callable[[int, int | None], None]
 
 
 class _DownloadResponse(Protocol):
@@ -71,16 +73,21 @@ def install_runtime(
     return RuntimeInfo(spec, target, executable)
 
 
-def download_archive(url: str, destination: Path) -> None:
+def download_archive(
+    url: str,
+    destination: Path,
+    progress: ProgressReporter | None = None,
+) -> None:
     """Resume a private temporary archive across transient connection failures."""
     _ensure_regular_download_path(destination)
     if destination.exists():
         return
     temporary = destination.with_suffix(destination.suffix + ".part")
     _ensure_regular_download_path(temporary)
+    reporter = _report_download_progress if progress is None else progress
     for attempt, delay in enumerate((*DOWNLOAD_RETRY_DELAYS, None), start=1):
         try:
-            _download_attempt(url, temporary)
+            _download_attempt(url, temporary, reporter)
             temporary.chmod(0o600)
             os.replace(temporary, destination)
             return
@@ -100,7 +107,7 @@ def download_archive(url: str, destination: Path) -> None:
             time.sleep(delay)
 
 
-def _download_attempt(url: str, temporary: Path) -> None:
+def _download_attempt(url: str, temporary: Path, progress: ProgressReporter) -> None:
     """Request the remaining archive bytes and append them when the server supports Range."""
     offset = temporary.stat().st_size if temporary.exists() else 0
     headers = {"User-Agent": "Mozilla/5.0 (compatible; box-rpg)"}
@@ -120,19 +127,56 @@ def _download_attempt(url: str, temporary: Path) -> None:
             mode = "wb"
         else:
             raise RuntimeError(f"NW.js download returned unexpected HTTP status {status}")
+        completed = offset if mode == "ab" else 0
+        total = _archive_size(response, completed)
         with temporary.open(mode) as target:
-            _copy_response(response, target)
+            _copy_response(response, target, completed, total, progress)
 
 
-def _copy_response(response: _DownloadResponse, target: BinaryIO) -> None:
+def _copy_response(
+    response: _DownloadResponse,
+    target: BinaryIO,
+    completed: int,
+    total: int | None,
+    progress: ProgressReporter,
+) -> None:
     """Copy an HTTP body and reject a body shorter than its declared length."""
     received = 0
+    progress(completed, total)
     while chunk := response.read(1024 * 1024):
         target.write(chunk)
         received += len(chunk)
+        progress(completed + received, total)
     content_length = response.headers.get("Content-Length")
     if content_length is not None and received != int(content_length):
         raise IncompleteRead(b"", int(content_length))
+
+
+def _archive_size(response: _DownloadResponse, completed: int) -> int | None:
+    """Return the complete archive size from HTTP response metadata when available."""
+    content_range = response.headers.get("Content-Range")
+    if content_range is not None and "/" in content_range:
+        total = content_range.rsplit("/", maxsplit=1)[1]
+        if total.isdigit():
+            return int(total)
+    content_length = response.headers.get("Content-Length")
+    if content_length is not None:
+        return completed + int(content_length)
+    return None
+
+
+def _report_download_progress(completed: int, total: int | None) -> None:
+    """Render a compact progress bar only when the invoking terminal is interactive."""
+    if total is None or not sys.stderr.isatty():
+        return
+    visible_completed = min(completed, total)
+    percentage = 100 if total == 0 else visible_completed * 100 // total
+    filled = 30 if total == 0 else visible_completed * 30 // total
+    bar = "#" * filled + "-" * (30 - filled)
+    sys.stderr.write(f"\rDownloading NW.js: [{bar}] {percentage:3d}%")
+    if visible_completed == total:
+        sys.stderr.write("\n")
+    sys.stderr.flush()
 
 
 def _ensure_regular_download_path(path: Path) -> None:

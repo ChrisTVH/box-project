@@ -46,6 +46,83 @@ def test_config_repository_adds_each_allowed_root_once(tmp_path: Path) -> None:
     assert repository.load() == first
 
 
+def test_config_repository_removes_an_exact_allowed_root_without_deleting_it(
+    tmp_path: Path,
+) -> None:
+    game_root = tmp_path / "games" / "example"
+    other_root = game_root / "other"
+    game_root.mkdir(parents=True)
+    other_root.mkdir()
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.save(
+        AppConfig(
+            allowed_game_roots=(game_root, other_root),
+            preferred_runtime="v0.90.0",
+            prefer_sdk=True,
+        )
+    )
+
+    updated = repository.remove_allowed_root(game_root)
+
+    assert updated == AppConfig(
+        allowed_game_roots=(other_root,),
+        preferred_runtime="v0.90.0",
+        prefer_sdk=True,
+    )
+    assert repository.load() == updated
+    assert game_root.is_dir()
+
+
+def test_config_repository_removes_missing_or_symlinked_allowed_roots(tmp_path: Path) -> None:
+    missing_root = tmp_path / "games" / "missing"
+    symlink_root = tmp_path / "games" / "symlink"
+    outside = tmp_path / "outside"
+    missing_root.mkdir(parents=True)
+    symlink_root.mkdir()
+    outside.mkdir()
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.save(AppConfig(allowed_game_roots=(missing_root, symlink_root)))
+    missing_root.rmdir()
+    symlink_root.rmdir()
+    symlink_root.symlink_to(outside, target_is_directory=True)
+
+    updated = repository.remove_allowed_root(missing_root)
+    updated = repository.remove_allowed_root(symlink_root)
+
+    assert updated.allowed_game_roots == ()
+    assert repository.load() == updated
+    assert not missing_root.exists()
+    assert symlink_root.is_symlink()
+    assert outside.is_dir()
+
+
+def test_config_repository_clears_allowed_roots_without_deleting_directories(
+    tmp_path: Path,
+) -> None:
+    game_root = tmp_path / "games" / "example"
+    other_root = tmp_path / "games" / "other"
+    game_root.mkdir(parents=True)
+    other_root.mkdir()
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.save(
+        AppConfig(
+            allowed_game_roots=(game_root, other_root),
+            preferred_runtime="v0.90.0",
+            prefer_sdk=True,
+        )
+    )
+
+    updated = repository.clear_allowed_roots()
+
+    assert updated == AppConfig(preferred_runtime="v0.90.0", prefer_sdk=True)
+    assert repository.load() == updated
+    assert game_root.is_dir()
+    assert other_root.is_dir()
+
+
 @pytest.mark.parametrize("version", [True, 1.0])
 def test_config_rejects_non_integer_schema_versions(version: object) -> None:
     with pytest.raises(ConfigurationError):

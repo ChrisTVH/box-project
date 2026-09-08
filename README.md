@@ -52,6 +52,7 @@ The command interface is intentionally small:
 
 ```text
 box-rpg
+box-rpg cleanup
 box-rpg inspect GAME_PATH
 box-rpg runtime list
 box-rpg runtime available [--page PAGE] [--architecture ARCHITECTURE] [--sdk]
@@ -70,11 +71,18 @@ versions. `launch` starts an allowed game and defaults to the current directory
 when `GAME_PATH` is omitted. `config` displays or changes the launcher settings,
 and `diagnose` creates a local report without launching the game.
 
+`cleanup` requires an interactive terminal. It can remove individual or all
+authorized roots, managed runtimes, and cached NW.js archives; it never deletes
+game directories, `config.toml`, sessions, or reports.
+
+Running `box-rpg` without arguments requires the current directory to contain a
+supported game; otherwise it prints help and explains how to launch one.
+
 `runtime available` queries the official stable NW.js version index in pages of five. Add
 `--interactive` to browse pages, choose a version, and confirm its installation.
 The architecture is detected automatically unless `--architecture` is supplied.
 Runtime downloads use a 60-second connection timeout and resume partial archives after
-temporary connection failures.
+temporary connection failures. Interactive terminals display a progress bar.
 Launches select Wayland only when the session exposes `WAYLAND_DISPLAY`; otherwise they use X11.
 
 See [the manual](docs/manual.md) and
@@ -84,10 +92,10 @@ See [the manual](docs/manual.md) and
 
 Game paths are never trusted merely because they contain `package.json`.
 `box-rpg` validates the game structure and resolves paths before use. It only
-launches games below configured `allowed_game_roots`; on the first launch with
-an empty configuration, it stores the exact validated game root before launch.
-Runtime removal is limited to runtimes managed inside the configured cache; it
-must not remove arbitrary paths.
+launches games below configured `allowed_game_roots`; in an interactive terminal,
+it asks before storing an unregistered game's exact validated root. Runtime removal
+is limited to runtimes managed inside the configured cache; it must not remove
+arbitrary paths.
 
 Add a library root explicitly to authorize more than one game below it.
 

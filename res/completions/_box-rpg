@@ -3,6 +3,7 @@
 _box-rpg() {
   local -a commands
   commands=(
+    'cleanup:interactively remove launcher-managed data'
     'inspect:inspect an MV/MZ game'
     'runtime:manage NW.js runtimes'
     'launch:launch an MV/MZ game'

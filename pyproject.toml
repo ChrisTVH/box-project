@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "box-rpg"
-version = "26.9.4"
+version = "26.9.5"
 description = "A safe NW.js launcher for RPG Maker MV and MZ exports"
 readme = "README.md"
 requires-python = ">=3.14"
