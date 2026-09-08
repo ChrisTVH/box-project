@@ -31,6 +31,7 @@ def extract_runtime_at(archive_descriptor: int, destination_descriptor: int) -> 
             tarfile.open(fileobj=archive_file, mode="r:gz") as archive,
         ):
             archive.extractall(f"/proc/self/fd/{destination_descriptor}", filter="data")
+        os.lseek(destination_descriptor, 0, os.SEEK_SET)
         entries = tuple(os.scandir(destination_descriptor))
     except (OSError, tarfile.TarError) as exc:
         raise RuntimeError(f"cannot extract NW.js archive: {exc}") from exc

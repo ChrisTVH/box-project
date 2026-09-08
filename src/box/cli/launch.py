@@ -14,7 +14,7 @@ from box.engines.registry import default_registry
 from box.errors import GameValidationError
 from box.games.detector import detect_game, ensure_allowed_root
 from box.launch.command import build_command
-from box.launch.links import descriptor_reference, open_game_root
+from box.launch.links import descriptor_path, open_game_root
 from box.launch.process import run_process
 from box.launch.session import create_session
 from box.models import EngineName, GameInfo
@@ -47,7 +47,7 @@ def execute(
                 )
             runtime = EasyRPGCatalog(paths).latest()
             authorize_game(game, config, repository, read)
-            game_reference = descriptor_reference(game_descriptor)
+            game_reference = descriptor_path(game_descriptor)
             return run_process(
                 [
                     str(easyrpg_executable(runtime)),
@@ -56,7 +56,6 @@ def execute(
                     "--fullscreen",
                 ],
                 cwd=game_reference,
-                pass_fds=(game_descriptor,),
             )
         runtime = select_runtime(
             RuntimeCatalog(paths),
@@ -71,7 +70,6 @@ def execute(
             return run_process(
                 build_command(runtime, session.reference),
                 cwd=session.game_reference if game_cwd else None,
-                pass_fds=session.process_descriptors,
             )
 
 

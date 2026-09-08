@@ -19,9 +19,15 @@ def open_game_root(game_root: Path) -> int:
         raise LaunchError(f"game root is missing or unsafe: {game_root}") from exc
 
 
-def descriptor_reference(descriptor: int) -> Path:
-    """Return the Linux path that names an inherited open descriptor."""
-    return Path(f"/proc/self/fd/{descriptor}")
+def descriptor_path(descriptor: int) -> Path:
+    """Resolve the current stable pathname for an open game directory descriptor."""
+    try:
+        path = Path(os.readlink(f"/proc/self/fd/{descriptor}"))
+    except OSError as exc:
+        raise LaunchError("cannot resolve the open game directory") from exc
+    if path.name.endswith(" (deleted)"):
+        raise LaunchError("game root disappeared before launch")
+    return path
 
 
 def link_game(
@@ -33,7 +39,7 @@ def link_game(
     """Create the only game reference used by a launch session."""
     link = session_root / "game"
     try:
-        os.symlink(descriptor_reference(game_descriptor), "game", dir_fd=session_descriptor)
+        os.symlink(descriptor_path(game_descriptor), "game", dir_fd=session_descriptor)
     except OSError as exc:
         raise LaunchError(f"cannot link game into session: {exc}") from exc
     return link

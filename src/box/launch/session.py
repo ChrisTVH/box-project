@@ -13,7 +13,7 @@ from uuid import uuid4
 from box.errors import LaunchError
 from box.games.identity import game_id
 from box.launch.cleanup import remove_session
-from box.launch.links import copy_game_root_file, descriptor_reference, link_game, open_game_root
+from box.launch.links import copy_game_root_file, descriptor_path, link_game, open_game_root
 from box.launch.manifest import write_manifest
 from box.models import GameInfo
 from box.paths import AppPaths
@@ -30,22 +30,23 @@ class LaunchSession:
     parent_descriptor: int
     name: str
     game_descriptor: int
+    game_reference_path: Path
     owns_game_descriptor: bool
 
     @property
     def reference(self) -> Path:
-        """Return the descriptor-backed path used to launch this session."""
-        return descriptor_reference(self.session_descriptor)
+        """Return the stable session pathname used to launch this session."""
+        return self.root
 
     @property
     def game_reference(self) -> Path:
-        """Return the descriptor-backed path used as the game's working directory."""
-        return descriptor_reference(self.game_descriptor)
+        """Return the validated game pathname used as the working directory."""
+        return self.game_reference_path
 
     @property
     def process_descriptors(self) -> tuple[int, ...]:
-        """Return descriptors that must remain open in the runtime process."""
-        return (self.session_descriptor, self.game_descriptor)
+        """Return descriptors retained by the launcher while its session is active."""
+        return ()
 
     def cleanup(self) -> None:
         """Remove this session directory."""
@@ -88,6 +89,12 @@ def create_session(
     owns_game_descriptor = game_descriptor is None
     if game_descriptor is None:
         game_descriptor = open_game_root(game.root)
+    try:
+        game_reference_path = descriptor_path(game_descriptor)
+    except Exception:
+        if owns_game_descriptor:
+            os.close(game_descriptor)
+        raise
     identifier = _game_identifier(game)
     name = uuid4().hex
     root = paths.sessions_root / identifier / name
@@ -167,6 +174,7 @@ def create_session(
         parent_descriptor,
         name,
         game_descriptor,
+        game_reference_path,
         owns_game_descriptor,
     )
 
@@ -190,8 +198,13 @@ def _open_or_create_private_directory(parent_descriptor: int, name: str) -> None
         raise LaunchError(f"cannot create launch session directory: {exc}") from exc
     try:
         metadata = os.fstat(descriptor)
-        if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
+        if metadata.st_uid != os.getuid():
             raise LaunchError("launch session directory has unsafe ownership or permissions")
+        if stat.S_IMODE(metadata.st_mode) != 0o700:
+            os.fchmod(descriptor, 0o700)
+            metadata = os.fstat(descriptor)
+            if stat.S_IMODE(metadata.st_mode) != 0o700:
+                raise LaunchError("launch session directory has unsafe ownership or permissions")
     finally:
         os.close(descriptor)
 

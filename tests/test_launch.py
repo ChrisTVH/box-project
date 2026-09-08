@@ -331,7 +331,6 @@ def test_execute_keeps_the_game_pinned_when_authorization_replaces_its_path(
     def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
         assert cwd is None
         assert (Path(command[-1]) / "game" / "index.html").read_text(encoding="utf-8") == "original"
-        assert pass_fds
         return 0
 
     def detect(_: Path, __: EngineRegistry) -> GameInfo:

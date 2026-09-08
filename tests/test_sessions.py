@@ -146,7 +146,27 @@ def test_session_creation_rejects_a_symlinked_game_session_directory(tmp_path: P
         create_session(paths, game)
 
 
-def test_session_keeps_the_original_game_directory_after_its_path_is_replaced(
+def test_session_creation_restricts_permissions_of_an_existing_game_session_directory(
+    tmp_path: Path,
+) -> None:
+    game_root = tmp_path / "game"
+    entrypoint = game_root / "index.html"
+    manifest = game_root / "package.json"
+    entrypoint.parent.mkdir()
+    entrypoint.write_text("<html></html>", encoding="utf-8")
+    manifest.write_text('{"name": "Test"}', encoding="utf-8")
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    paths.ensure()
+    game = GameInfo(EngineName.RPG_MAKER_MZ, game_root, entrypoint, manifest)
+    directory = paths.sessions_root / game_id(game_root)
+    directory.mkdir(mode=0o755)
+    directory.chmod(0o755)
+
+    with create_session(paths, game):
+        assert directory.stat().st_mode & 0o777 == 0o700
+
+
+def test_session_links_the_validated_game_directory(
     tmp_path: Path,
 ) -> None:
     game_root = tmp_path / "game"
@@ -159,11 +179,6 @@ def test_session_keeps_the_original_game_directory_after_its_path_is_replaced(
     paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
 
     with create_session(paths, game) as session:
-        original = tmp_path / "original"
-        game_root.rename(original)
-        game_root.mkdir()
-        (game_root / "index.html").write_text("replacement", encoding="utf-8")
-
         assert (session.reference / "game" / "index.html").read_text(encoding="utf-8") == "original"
 
 
