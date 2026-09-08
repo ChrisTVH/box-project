@@ -46,6 +46,38 @@ def test_config_repository_adds_each_allowed_root_once(tmp_path: Path) -> None:
     assert repository.load() == first
 
 
+def test_config_repository_prunes_missing_allowed_roots_without_deleting_data(
+    tmp_path: Path,
+) -> None:
+    missing_root = tmp_path / "games" / "missing"
+    dangling_root = tmp_path / "games" / "dangling"
+    existing_root = tmp_path / "games" / "existing"
+    existing_root.mkdir(parents=True)
+    dangling_root.symlink_to(missing_root, target_is_directory=True)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.save(AppConfig(allowed_game_roots=(missing_root, dangling_root, existing_root)))
+
+    updated = repository.prune_missing_allowed_roots()
+
+    assert updated.allowed_game_roots == (existing_root,)
+    assert repository.load() == updated
+    assert existing_root.is_dir()
+
+
+def test_config_repository_add_prunes_missing_allowed_roots(tmp_path: Path) -> None:
+    missing_root = tmp_path / "games" / "missing"
+    new_root = tmp_path / "games" / "new"
+    new_root.mkdir(parents=True)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.save(AppConfig(allowed_game_roots=(missing_root,)))
+
+    updated = repository.add_allowed_root(new_root)
+
+    assert updated.allowed_game_roots == (new_root,)
+
+
 def test_config_repository_removes_an_exact_allowed_root_without_deleting_it(
     tmp_path: Path,
 ) -> None:

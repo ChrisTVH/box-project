@@ -74,6 +74,52 @@ def test_authorize_game_rejects_unregistered_games_without_an_interactive_reader
         authorize_game(game, repository.load(), repository)
 
 
+def test_authorize_game_prunes_a_deleted_root_before_adding_a_new_game(tmp_path: Path) -> None:
+    deleted_root = tmp_path / "games" / "deleted"
+    game_root = tmp_path / "games" / "new"
+    deleted_root.mkdir(parents=True)
+    game_root.mkdir()
+    game = GameInfo(
+        EngineName.RPG_MAKER_MZ,
+        game_root,
+        game_root / "index.html",
+        game_root / "package.json",
+    )
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(deleted_root)
+    deleted_root.rmdir()
+
+    config = authorize_game(game, repository.load(), repository, read=lambda _: "yes")
+
+    assert config.allowed_game_roots == (game_root,)
+    assert repository.load() == config
+
+
+def test_authorize_game_prunes_deleted_roots_before_validating_an_allowed_game(
+    tmp_path: Path,
+) -> None:
+    deleted_root = tmp_path / "games" / "deleted"
+    game_root = tmp_path / "games" / "allowed"
+    deleted_root.mkdir(parents=True)
+    game_root.mkdir()
+    game = GameInfo(
+        EngineName.RPG_MAKER_MZ,
+        game_root,
+        game_root / "index.html",
+        game_root / "package.json",
+    )
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.save(AppConfig(allowed_game_roots=(deleted_root, game_root)))
+    deleted_root.rmdir()
+
+    config = authorize_game(game, repository.load(), repository)
+
+    assert config.allowed_game_roots == (game_root,)
+    assert repository.load() == config
+
+
 def test_authorize_game_rejects_a_registered_root_replaced_by_a_symlink(tmp_path: Path) -> None:
     game_root = tmp_path / "games" / "sample"
     game_root.mkdir(parents=True)

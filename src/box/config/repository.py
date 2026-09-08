@@ -28,7 +28,7 @@ class ConfigRepository:
 
     def add_allowed_root(self, root: Path) -> AppConfig:
         """Add a resolved game root if it is not already configured."""
-        config = self.load()
+        config = self.prune_missing_allowed_roots()
         try:
             resolved = root.expanduser().resolve(strict=True)
         except OSError as exc:
@@ -40,6 +40,25 @@ class ConfigRepository:
             config if resolved in roots else replace(config, allowed_game_roots=(*roots, resolved))
         )
         self.save(updated)
+        return updated
+
+    def prune_missing_allowed_roots(self) -> AppConfig:
+        """Remove configured roots that no longer exist without deleting game data."""
+        config = self.load()
+        roots: list[Path] = []
+        for root in config.allowed_game_roots:
+            try:
+                root.resolve(strict=True)
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                raise ConfigurationError(
+                    f"cannot inspect configured game root {root}: {exc}"
+                ) from exc
+            roots.append(root)
+        updated = replace(config, allowed_game_roots=tuple(roots))
+        if updated != config:
+            self.save(updated)
         return updated
 
     def remove_allowed_root(self, root: Path) -> AppConfig:

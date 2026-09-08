@@ -61,6 +61,7 @@ def authorize_game(
     read: Callable[[str], str] | None = None,
 ) -> AppConfig:
     """Authorize a game or interactively ask to store its exact root."""
+    config = repository.prune_missing_allowed_roots()
     if any(game.root.is_relative_to(root) for root in config.allowed_game_roots):
         ensure_allowed_root(game, config.allowed_game_roots)
         return config
