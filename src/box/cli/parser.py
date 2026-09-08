@@ -52,8 +52,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     runtime = commands.add_parser("runtime", help="manage cached game runtimes")
     runtime_commands = runtime.add_subparsers(dest="runtime_command", required=True)
-    runtime_commands.add_parser("list", help="list installed runtimes")
-    available = runtime_commands.add_parser("available", help="list online NW.js versions")
+    nwjs = runtime_commands.add_parser("nwjs", help="manage NW.js runtimes")
+    nwjs_commands = nwjs.add_subparsers(dest="nwjs_command", required=True)
+    nwjs_commands.add_parser("list", help="list installed NW.js runtimes")
+    available = nwjs_commands.add_parser("available", help="list online NW.js versions")
     available.add_argument(
         "--page", type=int, default=1, help="online version page (five versions)"
     )
@@ -66,7 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("install", "download and install a runtime"),
         ("remove", "remove a managed runtime"),
     ):
-        action = runtime_commands.add_parser(name, help=help_text)
+        action = nwjs_commands.add_parser(name, help=help_text)
         action.add_argument("version")
         action.add_argument("--architecture")
         action.add_argument("--sdk", action="store_true", help="use the NW.js SDK build")

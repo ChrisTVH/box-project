@@ -70,13 +70,13 @@ def _dispatch(arguments: Namespace) -> int:
             has_tty=sys.stdin.isatty(),
         )
     if arguments.command == "runtime":
-        catalog = RuntimeCatalog(paths)
         if arguments.runtime_command == "easyrpg":
             return runtime_command.easyrpg(paths, arguments.easyrpg_command, arguments)
-        if arguments.runtime_command == "list":
+        catalog = RuntimeCatalog(paths)
+        if arguments.nwjs_command == "list":
             return runtime_command.list_runtimes(catalog)
         architecture = normalize_architecture(arguments.architecture or current_architecture())
-        if arguments.runtime_command == "available":
+        if arguments.nwjs_command == "available":
             return runtime_command.available(
                 paths,
                 arguments.page,
@@ -84,7 +84,7 @@ def _dispatch(arguments: Namespace) -> int:
                 architecture,
                 arguments.sdk,
             )
-        if arguments.runtime_command == "install":
+        if arguments.nwjs_command == "install":
             return runtime_command.install(paths, arguments.version, architecture, arguments.sdk)
         return runtime_command.remove(catalog, arguments.version, architecture, arguments.sdk)
     if arguments.command == "launch":

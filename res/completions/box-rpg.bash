@@ -6,14 +6,21 @@ _box_rpg() {
     case "${words[1]}" in
         runtime)
             case "${words[2]}" in
-                available)
-                    COMPREPLY=($(compgen -W '--page --interactive --architecture --sdk --help' -- "$cur"))
-                    ;;
-                install|remove)
-                    COMPREPLY=($(compgen -W '--architecture --sdk --help' -- "$cur"))
-                    ;;
-                list)
-                    COMPREPLY=($(compgen -W '--help' -- "$cur"))
+                nwjs)
+                    case "${words[3]}" in
+                        available)
+                            COMPREPLY=($(compgen -W '--page --interactive --architecture --sdk --help' -- "$cur"))
+                            ;;
+                        install|remove)
+                            COMPREPLY=($(compgen -W '--architecture --sdk --help' -- "$cur"))
+                            ;;
+                        list)
+                            COMPREPLY=($(compgen -W '--help' -- "$cur"))
+                            ;;
+                        *)
+                            COMPREPLY=($(compgen -W 'list available install remove --help' -- "$cur"))
+                            ;;
+                    esac
                     ;;
                 easyrpg)
                     case "${words[3]}" in
@@ -26,7 +33,7 @@ _box_rpg() {
                     esac
                     ;;
                 *)
-                    COMPREPLY=($(compgen -W 'list available install remove easyrpg --help' -- "$cur"))
+                    COMPREPLY=($(compgen -W 'nwjs easyrpg --help' -- "$cur"))
                     ;;
             esac
             ;;

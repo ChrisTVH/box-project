@@ -119,7 +119,7 @@ def _print_available(
         write(f"  {index}. {version}")
     sdk_argument = " --sdk" if sdk else ""
     write(
-        f"Install with: box-rpg runtime install VERSION --architecture {architecture}{sdk_argument}"
+        f"Install with: box-rpg runtime nwjs install VERSION --architecture {architecture}{sdk_argument}"
     )
 
 

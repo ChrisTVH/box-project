@@ -19,12 +19,20 @@ _box-rpg() {
   case "$words[2]" in
     runtime)
       if (( CURRENT == 3 )); then
-        _values 'runtime action' list available install remove easyrpg
+        _values 'runtime provider' 'nwjs:manage NW.js runtimes' 'easyrpg:manage EasyRPG Player runtimes'
         return
       fi
       case "$words[3]" in
-        available) _arguments '--page[select an online version page]:page:' '--interactive[select and install a version]' '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
-        install|remove) _arguments '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
+        nwjs)
+          if (( CURRENT == 4 )); then
+            _values 'NW.js action' list available install remove
+            return
+          fi
+          case "$words[4]" in
+            available) _arguments '--page[select an online version page]:page:' '--interactive[select and install a version]' '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
+            install|remove) _arguments '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
+          esac
+          ;;
         easyrpg)
           if (( CURRENT == 4 )); then
             _values 'EasyRPG action' list available install remove

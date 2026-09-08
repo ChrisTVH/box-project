@@ -33,7 +33,7 @@ MV/MZ games need NW.js. Choose a stable version from the interactive list; the
 architecture is detected automatically.
 
 ```sh
-box-rpg runtime available --interactive
+box-rpg runtime nwjs available --interactive
 ```
 
 Use `n` and `p` to browse version pages, enter a number to choose a version,

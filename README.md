@@ -58,11 +58,11 @@ box-rpg cleanup list [roots|runtimes|downloads|profiles]
 box-rpg cleanup remove CATEGORY SELECTOR [--yes]
 box-rpg cleanup remove CATEGORY --all [--yes]
 box-rpg inspect GAME_PATH
-box-rpg runtime list
-box-rpg runtime available [--page PAGE] [--architecture ARCHITECTURE] [--sdk]
-box-rpg runtime available --interactive [--page PAGE] [--architecture ARCHITECTURE] [--sdk]
-box-rpg runtime install VERSION [--architecture ARCHITECTURE] [--sdk]
-box-rpg runtime remove VERSION [--architecture ARCHITECTURE] [--sdk]
+box-rpg runtime nwjs list
+box-rpg runtime nwjs available [--page PAGE] [--architecture ARCHITECTURE] [--sdk]
+box-rpg runtime nwjs available --interactive [--page PAGE] [--architecture ARCHITECTURE] [--sdk]
+box-rpg runtime nwjs install VERSION [--architecture ARCHITECTURE] [--sdk]
+box-rpg runtime nwjs remove VERSION [--architecture ARCHITECTURE] [--sdk]
 box-rpg runtime easyrpg list
 box-rpg runtime easyrpg available [--page PAGE]
 box-rpg runtime easyrpg available --interactive [--page PAGE]
@@ -93,11 +93,12 @@ sessions, or reports.
 Running `box-rpg` without arguments requires the current directory to contain a
 supported game; otherwise it prints help and explains how to launch one.
 
-`runtime available` queries the official stable NW.js version index in pages of five. Add
-`--interactive` to browse pages, choose a version, and confirm its installation.
-The architecture is detected automatically unless `--architecture` is supplied.
-Runtime downloads use a 60-second connection timeout and resume partial archives after
-temporary connection failures. Interactive terminals display a progress bar.
+`runtime nwjs available` queries the official stable NW.js version index in pages
+of five. Add `--interactive` to browse pages, choose a version, and confirm its
+installation. The architecture is detected automatically unless `--architecture`
+is supplied. Runtime downloads use a 60-second connection timeout and resume
+partial archives after temporary connection failures. Interactive terminals display
+a progress bar.
 Launches select Wayland only when the session exposes both
 `XDG_SESSION_TYPE=wayland` and `WAYLAND_DISPLAY`; otherwise they use X11.
 

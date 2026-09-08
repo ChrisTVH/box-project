@@ -161,7 +161,7 @@ def test_execute_does_not_register_a_game_when_no_runtime_is_available(
 
     monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
 
-    with pytest.raises(RuntimeError, match=r"no matching NW\.js runtime"):
+    with pytest.raises(RuntimeError, match=r"box-rpg runtime nwjs available --interactive"):
         execute(paths, repository, game_root, None, False)
 
     assert repository.load().allowed_game_roots == ()

@@ -172,16 +172,36 @@ def test_easyrpg_runtime_parser_accepts_interactive_version_selection() -> None:
     assert arguments.interactive
 
 
-def test_runtime_available_defaults_to_the_detected_architecture() -> None:
-    arguments = build_parser().parse_args(["runtime", "available"])
+def test_nwjs_runtime_parser_accepts_all_actions() -> None:
+    listed = build_parser().parse_args(["runtime", "nwjs", "list"])
+    available = build_parser().parse_args(["runtime", "nwjs", "available"])
+    installed = build_parser().parse_args(["runtime", "nwjs", "install", "v0.115.0"])
+    removed = build_parser().parse_args(["runtime", "nwjs", "remove", "v0.115.0"])
 
+    assert (listed.runtime_command, listed.nwjs_command) == ("nwjs", "list")
+    assert (available.runtime_command, available.nwjs_command) == ("nwjs", "available")
+    assert (installed.nwjs_command, installed.version) == ("install", "v0.115.0")
+    assert (removed.nwjs_command, removed.version) == ("remove", "v0.115.0")
+
+
+def test_nwjs_runtime_parser_rejects_legacy_direct_actions() -> None:
+    for action in ("list", "available", "install", "remove"):
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(["runtime", action])
+
+
+def test_nwjs_runtime_available_defaults_to_the_detected_architecture() -> None:
+    arguments = build_parser().parse_args(["runtime", "nwjs", "available"])
+
+    assert arguments.runtime_command == "nwjs"
+    assert arguments.nwjs_command == "available"
     assert arguments.page == 1
     assert not arguments.interactive
     assert arguments.architecture is None
     assert not arguments.sdk
 
 
-def test_runtime_available_uses_the_detected_architecture(
+def test_nwjs_runtime_available_uses_the_detected_architecture(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[tuple[int, bool, str, bool]] = []
@@ -204,15 +224,15 @@ def test_runtime_available_uses_the_detected_architecture(
     monkeypatch.setattr("box.cli.main.current_architecture", detect_architecture)
     monkeypatch.setattr("box.cli.main.runtime_command.available", list_available)
 
-    assert main(["runtime", "available"]) == 0
+    assert main(["runtime", "nwjs", "available"]) == 0
     assert calls == [(1, False, "arm64", False)]
 
 
-def test_runtime_available_rejects_an_unsupported_architecture(
+def test_nwjs_runtime_available_rejects_an_unsupported_architecture(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
 
-    assert main(["runtime", "available", "--architecture", "invalid"]) == 1
+    assert main(["runtime", "nwjs", "available", "--architecture", "invalid"]) == 1
     assert "unsupported NW.js architecture" in capsys.readouterr().err
