@@ -12,14 +12,20 @@ the prompt. Pass --uninstall to remove the package and its completions.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import gettext
+import json
 import os
 import re
 import shlex
 import site
+import stat
 import subprocess
 import sys
+import uuid
+from collections.abc import Generator
 from pathlib import Path
+from typing import cast
 
 REPO_ROOT = Path(__file__).resolve().parent
 PACKAGE = "box-rpg"
@@ -50,7 +56,7 @@ def _configure_translation() -> None:
         languages=_languages(),
         fallback=True,
     ).gettext
-    argparse._ = _
+    argparse._ = _  # pyright: ignore[reportAttributeAccessIssue]
 
 
 # User-level completion dirs (no root required); the parent dirs are created
@@ -150,18 +156,143 @@ def has_pip() -> bool:
     return result.returncode == 0
 
 
+allow_system_packages = False
+
+
 def _break_system_packages_args() -> list[str]:
-    """Return the PEP 668 override when the installed pip supports it."""
+    """Override PEP 668 only with separate, explicit consent."""
+    return ["--break-system-packages"] if allow_system_packages else []
+
+
+@contextlib.contextmanager
+def open_directory(path: Path, *, create: bool = False) -> Generator[int]:
+    """Open every absolute path component without following symbolic links."""
+    if not path.is_absolute() or ".." in path.parts:
+        raise PermissionError(path)
+    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for component in path.parts[1:]:
+            if create:
+                with contextlib.suppress(FileExistsError):
+                    os.mkdir(component, mode=0o700, dir_fd=descriptor)
+            child = os.open(
+                component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor
+            )
+            os.close(descriptor)
+            descriptor = child
+        yield descriptor
+    finally:
+        os.close(descriptor)
+
+
+def read_regular(parent: int, name: str) -> bytes:
+    """Read a regular file, never a symlink, FIFO or device."""
+    descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+    with os.fdopen(descriptor, "rb") as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise PermissionError(name)
+        return stream.read()
+
+
+def remove_matching(parent: int, name: str, expected: bytes) -> None:
+    """Capture before checking ownership; never unlink a raced replacement.
+
+    A conflicting replacement is retained in the private recovery directory if
+    its original name is occupied. No existing name is overwritten on recovery.
+    """
+    recovery = f".box-rpg-recovery-{uuid.uuid4().hex}"
+    os.mkdir(recovery, mode=0o700, dir_fd=parent)
+    with contextlib.ExitStack() as stack:
+        descriptor = os.open(recovery, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+        stack.callback(os.close, descriptor)
+        captured = False
+        try:
+            os.rename(name, "entry", src_dir_fd=parent, dst_dir_fd=descriptor)
+            captured = True
+            if read_regular(descriptor, "entry") != expected:
+                raise PermissionError(f"Modified or unowned file: {name}")
+            os.unlink("entry", dir_fd=descriptor)
+            captured = False
+        finally:
+            if captured:
+                try:
+                    os.link(
+                        "entry",
+                        name,
+                        src_dir_fd=descriptor,
+                        dst_dir_fd=parent,
+                        follow_symlinks=False,
+                    )
+                except OSError as exc:
+                    raise PermissionError(f"File preserved in {recovery}/entry") from exc
+                os.unlink("entry", dir_fd=descriptor)
+            os.rmdir(recovery, dir_fd=parent)
+
+
+def update_completion(source: Path, target: Path, *, uninstall: bool = False) -> None:
+    """Publish without replacement; remove only exact copies of this source."""
+    home = Path.home()
+    if target == home or not target.is_relative_to(home) or ".." in target.parts:
+        raise PermissionError(f"Completion outside home: {target}")
+    with open_directory(source.parent) as source_parent:
+        expected = read_regular(source_parent, source.name)
+    try:
+        with open_directory(target.parent, create=not uninstall) as parent:
+            try:
+                existing = read_regular(parent, target.name)
+            except FileNotFoundError:
+                if uninstall:
+                    return
+            else:
+                if existing != expected:
+                    raise PermissionError(f"Modified or unowned completion: {target}")
+                if uninstall:
+                    remove_matching(parent, target.name, expected)
+                return
+            temporary = f".box-rpg-{uuid.uuid4().hex}"
+            descriptor = os.open(
+                temporary,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                0o600,
+                dir_fd=parent,
+            )
+            try:
+                with os.fdopen(descriptor, "wb") as stream:
+                    stream.write(expected)
+                os.link(temporary, target.name, src_dir_fd=parent, dst_dir_fd=parent)
+            finally:
+                os.unlink(temporary, dir_fd=parent)
+    except FileNotFoundError:
+        if not uninstall:
+            raise
+
+
+def _user_distribution_verified() -> bool:
+    """Verify what the base interpreter (and therefore pip) will select."""
+    probe = (
+        "import importlib.metadata as m,json,site; "
+        "from pathlib import Path; "
+        "d=m.distribution('box-rpg'); "
+        "print(json.dumps([str(Path(d.locate_file('')).resolve()), "
+        "str(Path(site.getusersitepackages()).resolve())]))"
+    )
     try:
         result = subprocess.run(
-            [system_python(), "-m", "pip", "install", "--help"],
-            check=False,
-            capture_output=True,
-            text=True,
+            [system_python(), "-c", probe], check=False, capture_output=True, text=True
         )
-    except OSError:
-        return []
-    return ["--break-system-packages"] if "--break-system-packages" in result.stdout else []
+        payload: object = json.loads(result.stdout)
+        if not isinstance(payload, list):
+            return False
+        locations = cast(list[object], payload)
+        return (
+            result.returncode == 0
+            and len(locations) == 2
+            and isinstance(locations[0], str)
+            and locations[0] == locations[1]
+            and Path(locations[0]).is_relative_to(Path.home())
+        )
+    except OSError, ValueError:
+        return False
 
 
 def _pip_install_args() -> list[str]:
@@ -187,12 +318,16 @@ def _pip_uninstall_args() -> list[str]:
 def install_commands() -> list[str]:
     cmds = [shlex.join(_pip_install_args())]
     for source, target in COMPLETION_TARGETS:
-        cmds.append(shlex.join(["mkdir", "-p", str(target.parent)]))
-        cmds.append(shlex.join(["cp", str(source), str(target)]))
+        cmds.append(
+            f"safe completion install: {shlex.quote(str(source))} -> {shlex.quote(str(target))}"
+        )
     return cmds
 
 
 def run_install() -> bool:
+    if os.geteuid() == 0:
+        print(_("error: refusing to run as root"), file=sys.stderr)
+        return False
     ok = True
     if run(_pip_install_args()) != 0:
         print(_("error: pip install failed"), file=sys.stderr)
@@ -205,43 +340,46 @@ def run_install() -> bool:
             )
             continue
         try:
-            target.parent.mkdir(parents=True, exist_ok=True)
+            update_completion(source, target)
         except OSError as exc:
             print(
-                _("error: cannot create directory {directory}: {error}").format(
-                    directory=target.parent, error=exc
+                _("error: cannot install completion {target}: {error}").format(
+                    target=target, error=exc
                 ),
                 file=sys.stderr,
             )
             ok = False
             continue
-        if run(["cp", str(source), str(target)]) != 0:
-            print(
-                _("error: failed to install completion to {target}").format(target=target),
-                file=sys.stderr,
-            )
-            ok = False
-        else:
-            print(_("installed completion {target}").format(target=target))
+        print(_("installed completion {target}").format(target=target))
     return ok
 
 
 def uninstall_commands() -> list[str]:
     cmds = [shlex.join(_pip_uninstall_args())]
     for _source, target in COMPLETION_TARGETS:
-        cmds.append(shlex.join(["rm", "-f", str(target)]))
+        cmds.append(f"safe completion removal (matching content only): {shlex.quote(str(target))}")
     return cmds
 
 
 def run_uninstall() -> bool:
+    if os.geteuid() == 0 or not _user_distribution_verified():
+        print(
+            _("error: uninstall requires a verified user-site package and a non-root user"),
+            file=sys.stderr,
+        )
+        return False
     ok = True
     if run(_pip_uninstall_args()) != 0:
         print(_("error: pip uninstall failed"), file=sys.stderr)
         ok = False
-    for _source, target in COMPLETION_TARGETS:
-        if run(["rm", "-f", str(target)]) != 0:
+    for source, target in COMPLETION_TARGETS:
+        try:
+            update_completion(source, target, uninstall=True)
+        except OSError as exc:
             print(
-                _("error: failed to remove completion {target}").format(target=target),
+                _("error: failed to remove completion {target}: {error}").format(
+                    target=target, error=exc
+                ),
                 file=sys.stderr,
             )
             ok = False
@@ -266,6 +404,7 @@ def _prompt(prompt: str) -> str | None:
 
 
 def main() -> int:
+    global allow_system_packages
     _configure_translation()
     parser = argparse.ArgumentParser(
         description=_(
@@ -294,7 +433,13 @@ prompt. Pass --uninstall to remove the package and its completions."""
         action="store_true",
         help=_("skip the confirmation prompts"),
     )
+    parser.add_argument(
+        "--break-system-packages",
+        action="store_true",
+        help="explicitly allow pip to override PEP 668 (not implied by --yes)",
+    )
     args = parser.parse_args()
+    allow_system_packages = args.break_system_packages
 
     if args.install and args.uninstall:
         print(_("error: --install and --uninstall are mutually exclusive"), file=sys.stderr)

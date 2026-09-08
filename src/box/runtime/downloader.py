@@ -9,19 +9,21 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable, Mapping
-from contextlib import suppress
+from contextlib import ExitStack, suppress
 from http.client import IncompleteRead
 from pathlib import Path
 from typing import BinaryIO, Protocol, Self, cast
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from box.errors import RuntimeError
 from box.models import RuntimeInfo, RuntimeSpec
 from box.paths import AppPaths
+from box.runtime import limits
 from box.runtime.archive import extract_runtime_at
+from box.runtime.http import open_official, validate_source
 from box.runtime.platform import normalize_architecture
+from box.runtime.security import cache_lock, validate_private_file
 from box.runtime.validator import normalize_version, validate_runtime_executable_at
 from box.utils.i18n import _
 
@@ -66,7 +68,10 @@ def install_runtime(
     download_descriptor = _open_downloads_directory(paths)
     archive_name = f"{spec.directory_name}-linux-{spec.architecture}.tar.gz"
     temporary_name: str | None = None
+    locks = ExitStack()
     try:
+        locks.enter_context(cache_lock(runtime_descriptor, spec.directory_name))
+        locks.enter_context(cache_lock(download_descriptor, archive_name))
         try:
             os.stat(spec.directory_name, dir_fd=runtime_descriptor, follow_symlinks=False)
         except FileNotFoundError:
@@ -108,11 +113,14 @@ def install_runtime(
             _("cannot securely install NW.js runtime: {error}").format(error=exc)
         ) from exc
     finally:
-        if temporary_name is not None:
-            with suppress(FileNotFoundError):
-                shutil.rmtree(temporary_name, dir_fd=runtime_descriptor)
-        os.close(download_descriptor)
-        os.close(runtime_descriptor)
+        try:
+            if temporary_name is not None:
+                with suppress(FileNotFoundError):
+                    shutil.rmtree(temporary_name, dir_fd=runtime_descriptor)
+        finally:
+            locks.close()
+            os.close(download_descriptor)
+            os.close(runtime_descriptor)
 
 
 def download_archive(
@@ -121,7 +129,7 @@ def download_archive(
     progress: ProgressReporter | None = None,
     allowed_hosts: frozenset[str] = OFFICIAL_DOWNLOAD_HOSTS,
 ) -> None:
-    """Resume a private temporary archive across transient connection failures."""
+    """Download a private archive, restarting transient failures without mixing bodies."""
     descriptor = _open_directory_without_symlinks(destination.parent)
     try:
         download_archive_at(url, destination.name, descriptor, progress, allowed_hosts)
@@ -137,15 +145,33 @@ def download_archive_at(
     allowed_hosts: frozenset[str] = OFFICIAL_DOWNLOAD_HOSTS,
 ) -> None:
     """Download an archive through a pinned containing-directory descriptor."""
+    with cache_lock(directory_descriptor, destination_name):
+        _download_archive_locked(
+            url, destination_name, directory_descriptor, progress, allowed_hosts
+        )
+
+
+def _download_archive_locked(
+    url: str,
+    destination_name: str,
+    directory_descriptor: int,
+    progress: ProgressReporter | None,
+    allowed_hosts: frozenset[str],
+) -> None:
+    validate_download_source(url, allowed_hosts)
     _ensure_regular_download_entry(destination_name, directory_descriptor)
     if _entry_exists(destination_name, directory_descriptor):
         return
     temporary_name = f"{destination_name}.part"
     _ensure_regular_download_entry(temporary_name, directory_descriptor)
     reporter = _report_download_progress if progress is None else progress
+    budget = limits.Budget(limits.MAX_TRANSFER_BYTES)
     for attempt, delay in enumerate((*DOWNLOAD_RETRY_DELAYS, None), start=1):
         try:
-            _download_attempt(url, temporary_name, directory_descriptor, reporter, allowed_hosts)
+            _download_attempt(
+                url, temporary_name, directory_descriptor, reporter, allowed_hosts, budget
+            )
+            budget.check()
             _chmod_regular_file(temporary_name, directory_descriptor, 0o600)
             os.replace(
                 temporary_name,
@@ -155,6 +181,7 @@ def download_archive_at(
             )
             return
         except HTTPError as exc:
+            exc.close()
             if exc.code not in RETRYABLE_HTTP_STATUSES:
                 raise RuntimeError(
                     _("cannot download NW.js from {url}: {error}").format(url=url, error=exc)
@@ -165,7 +192,7 @@ def download_archive_at(
                         url=url, attempt=attempt, error=exc
                     )
                 ) from exc
-            time.sleep(delay)
+            time.sleep(min(delay, budget.check()))
         except (IncompleteRead, OSError, URLError) as exc:
             if delay is None:
                 raise RuntimeError(
@@ -173,7 +200,7 @@ def download_archive_at(
                         url=url, attempt=attempt, error=exc
                     )
                 ) from exc
-            time.sleep(delay)
+            time.sleep(min(delay, budget.check()))
 
 
 def _download_attempt(
@@ -182,44 +209,46 @@ def _download_attempt(
     directory_descriptor: int,
     progress: ProgressReporter,
     allowed_hosts: frozenset[str],
+    budget: limits.Budget,
 ) -> None:
-    """Request the remaining archive bytes and append them when the server supports Range."""
-    try:
-        offset = os.stat(temporary_name, dir_fd=directory_descriptor, follow_symlinks=False).st_size
-    except FileNotFoundError:
-        offset = 0
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; box-rpg)"}
-    if offset:
-        headers["Range"] = f"bytes={offset}-"
+    """Restart each attempt: no persisted partial is trusted as a representation.
+
+    Without a persisted strong validator, Range could splice different releases.
+    Full requests deliberately trade bandwidth for representation integrity.
+    """
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; box-rpg)", "Accept-Encoding": "identity"}
     request = Request(url, headers=headers)
-    response = cast(_DownloadResponse, urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS))
+    response = cast(
+        _DownloadResponse,
+        open_official(
+            request,
+            timeout=min(DOWNLOAD_TIMEOUT_SECONDS, budget.check()),
+            allowed_hosts=allowed_hosts,
+        ),
+    )
     with response:
+        budget.check()
         validate_download_source(response.geturl(), allowed_hosts)
         status = response.status
-        if offset and status == 206:
-            content_range = response.headers.get("Content-Range", "")
-            if not content_range.startswith(f"bytes {offset}-"):
-                raise RuntimeError(_("NW.js download returned an invalid resume range"))
-            mode = "ab"
-        elif status == 200:
-            mode = "wb"
-        else:
+        if status != 200:
             raise RuntimeError(
                 _("NW.js download returned unexpected HTTP status {status}").format(status=status)
             )
-        completed = offset if mode == "ab" else 0
-        total = _archive_size(response, completed)
+        if response.headers.get("Content-Encoding", "identity") != "identity":
+            raise RuntimeError("unexpected archive content encoding")
+        total = _archive_size(response, 0)
+        if total is not None and (total < 0 or total > budget.remaining):
+            raise RuntimeError("runtime resource byte limit exceeded")
         target_descriptor = os.open(
             temporary_name,
-            os.O_WRONLY
-            | os.O_CREAT
-            | os.O_NOFOLLOW
-            | (os.O_APPEND if mode == "ab" else os.O_TRUNC),
+            os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK,
             0o600,
             dir_fd=directory_descriptor,
         )
-        with os.fdopen(target_descriptor, mode) as target:
-            _copy_response(response, target, completed, total, progress)
+        with os.fdopen(target_descriptor, "wb") as target:
+            validate_private_file(target.fileno())
+            os.ftruncate(target.fileno(), 0)
+            _copy_response(response, target, 0, total, progress, budget)
 
 
 def _copy_response(
@@ -228,11 +257,18 @@ def _copy_response(
     completed: int,
     total: int | None,
     progress: ProgressReporter,
+    budget: limits.Budget,
 ) -> None:
     """Copy an HTTP body and reject a body shorter than its declared length."""
     received = 0
+    read = cast(Callable[[int], bytes], getattr(response, "read1", response.read))
     progress(completed, total)
-    while chunk := response.read(1024 * 1024):
+    while True:
+        budget.check()
+        chunk = read(min(64 * 1024, budget.remaining + 1))
+        budget.check(len(chunk))
+        if not chunk:
+            break
         target.write(chunk)
         received += len(chunk)
         progress(completed + received, total)
@@ -243,14 +279,12 @@ def _copy_response(
 
 def _archive_size(response: _DownloadResponse, completed: int) -> int | None:
     """Return the complete archive size from HTTP response metadata when available."""
-    content_range = response.headers.get("Content-Range")
-    if content_range is not None and "/" in content_range:
-        total = content_range.rsplit("/", maxsplit=1)[1]
-        if total.isdigit():
-            return int(total)
     content_length = response.headers.get("Content-Length")
     if content_length is not None:
-        return completed + int(content_length)
+        try:
+            return completed + int(content_length)
+        except ValueError as exc:
+            raise RuntimeError("invalid archive content length") from exc
     return None
 
 
@@ -277,7 +311,7 @@ def _ensure_regular_download_entry(name: str, directory_descriptor: int) -> None
         entry = os.stat(name, dir_fd=directory_descriptor, follow_symlinks=False)
     except FileNotFoundError:
         return
-    if not stat.S_ISREG(entry.st_mode):
+    if not stat.S_ISREG(entry.st_mode) or entry.st_uid != os.getuid() or entry.st_nlink != 1:
         raise RuntimeError(_("refusing unsafe download path: {name}").format(name=name))
 
 
@@ -301,10 +335,11 @@ def _chmod_regular_file(name: str, directory_descriptor: int, mode: int) -> None
 
 def _open_regular_file(name: str, directory_descriptor: int) -> int:
     """Open one direct regular file without following a replacement symlink."""
-    descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory_descriptor)
+    descriptor = os.open(
+        name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory_descriptor
+    )
     try:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise RuntimeError(_("refusing unsafe download path: {name}").format(name=name))
+        validate_private_file(descriptor)
         return descriptor
     except Exception:
         os.close(descriptor)
@@ -369,6 +404,4 @@ def validate_download_source(
     url: str, allowed_hosts: frozenset[str] = OFFICIAL_DOWNLOAD_HOSTS
 ) -> None:
     """Reject archive redirects outside the configured official HTTPS hosts."""
-    destination = urlsplit(url)
-    if destination.scheme != "https" or destination.hostname not in allowed_hosts:
-        raise RuntimeError(_("archive redirected outside an official HTTPS mirror or host"))
+    validate_source(url, allowed_hosts)

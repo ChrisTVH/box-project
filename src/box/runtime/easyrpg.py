@@ -8,18 +8,22 @@ import shutil
 import stat
 import tarfile
 import tempfile
+from contextlib import ExitStack
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Protocol, cast
 from urllib.error import URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from box.errors import ConfigurationError, RuntimeError
 from box.paths import AppPaths
 from box.runtime.downloader import download_archive_at
+from box.runtime.http import open_official, validate_source
+from box.runtime.limits import extract_bounded
 from box.runtime.platform import current_architecture
+from box.runtime.security import cache_lock, validate_private_file, validate_runtime_links
 from box.utils.i18n import _
 
 PAGE_SIZE = 5
@@ -106,12 +110,10 @@ def fetch_available_versions(page: int) -> AvailableEasyRPGVersions:
     """Fetch one client-side page from the official EasyRPG Player version index."""
     request = Request(available_url(page), headers={"Accept": "text/html", "User-Agent": "box-rpg"})
     try:
-        with cast(_Response, urlopen(request, timeout=15)) as response:
-            destination = urlsplit(response.geturl())
-            if destination.scheme != "https" or destination.hostname != _OFFICIAL_HOST:
-                raise RuntimeError(
-                    _("EasyRPG Player version lookup redirected outside the official host")
-                )
+        with cast(
+            _Response, open_official(request, timeout=15, allowed_hosts=OFFICIAL_DOWNLOAD_HOSTS)
+        ) as response:
+            validate_source(response.geturl(), OFFICIAL_DOWNLOAD_HOSTS)
             content = response.read(MAX_INDEX_BYTES + 1)
     except (OSError, URLError) as exc:
         raise RuntimeError(
@@ -222,7 +224,9 @@ class EasyRPGCatalog:
                 )
             )
         descriptor = easyrpg_paths.open_managed_cache_directory("runtimes", "easyrpg")
+        locks = ExitStack()
         try:
+            locks.enter_context(cache_lock(descriptor, managed.name))
             entry = os.stat(managed.name, dir_fd=descriptor, follow_symlinks=False)
             if not stat.S_ISDIR(entry.st_mode):
                 raise ConfigurationError(
@@ -232,6 +236,7 @@ class EasyRPGCatalog:
                 )
             shutil.rmtree(managed.name, dir_fd=descriptor)
         finally:
+            locks.close()
             os.close(descriptor)
 
 
@@ -269,7 +274,9 @@ class EasyRPGDownloadCatalog:
                 _("refusing unsafe EasyRPG download archive: {archive}").format(archive=archive)
             )
         descriptor = paths.open_managed_cache_directory("downloads", "easyrpg")
+        locks = ExitStack()
         try:
+            locks.enter_context(cache_lock(descriptor, managed.name))
             entry = os.stat(managed.name, dir_fd=descriptor, follow_symlinks=False)
             if not stat.S_ISREG(entry.st_mode):
                 raise RuntimeError(
@@ -277,6 +284,7 @@ class EasyRPGDownloadCatalog:
                 )
             os.unlink(managed.name, dir_fd=descriptor)
         finally:
+            locks.close()
             os.close(descriptor)
 
 
@@ -290,7 +298,10 @@ def install_runtime(paths: AppPaths, version: str) -> EasyRPGRuntime:
     paths.ensure_managed_easyrpg_runtime_path(target)
     runtime_descriptor = paths.open_managed_cache_directory("runtimes", "easyrpg")
     download_descriptor = paths.open_managed_cache_directory("downloads", "easyrpg")
+    locks = ExitStack()
     try:
+        locks.enter_context(cache_lock(runtime_descriptor, normalized))
+        locks.enter_context(cache_lock(download_descriptor, _archive_name(normalized)))
         try:
             os.stat(normalized, dir_fd=runtime_descriptor, follow_symlinks=False)
         except FileNotFoundError:
@@ -314,10 +325,11 @@ def install_runtime(paths: AppPaths, version: str) -> EasyRPGRuntime:
                     _("EasyRPG archive does not contain an executable easyrpg-player")
                 )
             os.replace(extracted, normalized, dst_dir_fd=runtime_descriptor)
+        return EasyRPGCatalog(paths).get(normalized)
     finally:
+        locks.close()
         os.close(download_descriptor)
         os.close(runtime_descriptor)
-    return EasyRPGCatalog(paths).get(normalized)
 
 
 def _archive_name(version: str) -> str:
@@ -381,24 +393,30 @@ def _executable(root: Path) -> Path | None:
 def extract_runtime(archive_path: Path, destination: Path) -> Path:
     """Safely extract a player archive with either a root directory or root files."""
     try:
-        with tarfile.open(archive_path, "r:gz") as archive:
-            archive.extractall(destination, filter="data")
-        entries = tuple(destination.iterdir())
-        directories = tuple(entry for entry in entries if entry.is_dir())
-        if len(entries) == 1 and len(directories) == 1:
-            return directories[0]
-        staged = destination / "runtime"
-        staged.mkdir(mode=0o700)
-        for entry in entries:
-            if entry != staged:
-                os.replace(entry, staged / entry.name)
-    except (OSError, tarfile.TarError) as exc:
+        descriptor = os.open(archive_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as archive_file:
+            validate_private_file(archive_file.fileno())
+            extract_bounded(archive_file, destination, _prepare_player_layout)
+    except (OSError, EOFError, tarfile.TarError) as exc:
         raise RuntimeError(
             _("cannot stage EasyRPG Player archive {archive}: {error}").format(
                 archive=archive_path, error=exc
             )
         ) from exc
-    return staged
+    return next(destination.iterdir())
+
+
+def _prepare_player_layout(destination: Path) -> None:
+    """Normalize the layout inside disposable staging, before publication."""
+    entries = tuple(destination.iterdir())
+    if len(entries) == 1 and entries[0].is_dir() and not entries[0].is_symlink():
+        validate_runtime_links(entries[0])
+        return
+    staged = destination / "runtime"
+    staged.mkdir(mode=0o700)
+    for entry in entries:
+        os.replace(entry, staged / entry.name)
+    validate_runtime_links(staged)
 
 
 class _VersionIndexParser(HTMLParser):

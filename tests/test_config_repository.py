@@ -62,6 +62,24 @@ def test_config_repository_adds_each_allowed_root_once(tmp_path: Path) -> None:
     assert repository.load() == first
 
 
+def test_confirmed_root_is_not_resolved_again_after_validation(tmp_path: Path) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.save(AppConfig(prefer_sdk=True))
+
+    def validate_then_replace() -> None:
+        game_root.rename(tmp_path / "original")
+        game_root.symlink_to(Path("/"), target_is_directory=True)
+
+    updated = repository.add_confirmed_allowed_root(game_root, validate=validate_then_replace)
+
+    assert updated == AppConfig(allowed_game_roots=(game_root,), prefer_sdk=True)
+    assert repository.load() == updated
+    assert Path("/") not in updated.allowed_game_roots
+
+
 def test_config_repository_prunes_missing_allowed_roots_without_deleting_data(
     tmp_path: Path,
 ) -> None:

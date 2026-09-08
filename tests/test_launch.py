@@ -8,7 +8,6 @@ from box.config.models import AppConfig
 from box.config.repository import ConfigRepository
 from box.engines.registry import EngineRegistry
 from box.errors import GameValidationError, RuntimeError
-from box.games.identity import game_id
 from box.models import EngineName, GameInfo, RuntimeInfo, RuntimeSpec
 from box.paths import AppPaths
 from box.runtime.easyrpg import EasyRPGRuntime
@@ -31,6 +30,82 @@ def test_authorize_game_registers_the_detected_game_root_after_confirmation(
 
     assert config.allowed_game_roots == (game_root,)
     assert repository.load() == config
+
+
+def test_authorize_game_rejects_root_moved_outside_during_prompt(tmp_path: Path) -> None:
+    game_root = tmp_path / "games" / "sample"
+    game_root.mkdir(parents=True)
+    game = GameInfo(EngineName.RPG_MAKER_2000_2003, game_root)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+
+    def confirm(_: str) -> str:
+        game_root.rename(tmp_path / "outside")
+        game_root.mkdir()
+        return "yes"
+
+    with pytest.raises(GameValidationError, match="changed since detection"):
+        authorize_game(game, repository.load(), repository, read=confirm)
+    assert repository.load().allowed_game_roots == ()
+
+
+@pytest.mark.parametrize("replacement", ["symlink", "directory"])
+def test_authorization_revalidates_after_persistence_load_before_saving(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, replacement: str
+) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    game = GameInfo(EngineName.RPG_MAKER_2000_2003, game_root)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    original = AppConfig(preferred_runtime="v0.90.0")
+    repository.save(original)
+    stored = paths.config_file.read_bytes()
+    real_load = repository.load
+    confirmed = False
+
+    def confirm(_: str) -> str:
+        nonlocal confirmed
+        confirmed = True
+        return "yes"
+
+    def racing_load() -> AppConfig:
+        config = real_load()
+        if confirmed:
+            game_root.rename(tmp_path / "original")
+            if replacement == "symlink":
+                game_root.symlink_to(Path("/"), target_is_directory=True)
+            else:
+                game_root.mkdir()
+        return config
+
+    monkeypatch.setattr(repository, "load", racing_load)
+    with pytest.raises(GameValidationError):
+        authorize_game(game, original, repository, read=confirm)
+
+    assert real_load() == original
+    assert paths.config_file.read_bytes() == stored
+
+
+def test_authorization_escapes_prompt_controls_without_changing_stored_path(tmp_path: Path) -> None:
+    game_root = tmp_path / "game\x1b[31m\n\t\x9b\u202e"
+    game_root.mkdir()
+    game = GameInfo(EngineName.RPG_MAKER_2000_2003, game_root)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    prompts: list[str] = []
+
+    def confirm(prompt: str) -> str:
+        prompts.append(prompt)
+        return "yes"
+
+    config = authorize_game(game, repository.load(), repository, read=confirm)
+
+    assert len(prompts) == 1
+    assert r"game\x1b[31m\x0a\x09\x9b\u202e" in prompts[0]
+    assert all(control not in prompts[0] for control in ("\x1b", "\n", "\t", "\x9b", "\u202e"))
+    assert config.allowed_game_roots == (game_root,)
+    assert repository.load().allowed_game_roots == (game_root,)
 
 
 def test_authorize_game_requires_confirmation_for_an_unregistered_game(tmp_path: Path) -> None:
@@ -230,7 +305,7 @@ def test_execute_rejects_nwjs_options_for_rpg_rt_projects(
         execute(paths, repository, game_root, None, False, copy_root_files=("messages.csv",))
 
 
-def test_execute_keeps_the_game_pinned_when_authorization_replaces_its_path(
+def test_execute_rejects_relocation_during_authorization(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     game_root = tmp_path / "game"
@@ -261,13 +336,7 @@ def test_execute_keeps_the_game_pinned_when_authorization_replaces_its_path(
         return repository.load()
 
     def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
-        assert cwd == Path(command[-1])
-        assert (Path(command[-1]) / "game" / "index.html").read_text(encoding="utf-8") == "original"
-        assert (
-            f"--user-data-dir={paths.profiles_root / game_id(tmp_path / 'original') / 'user-data'}"
-            in command
-        )
-        return 0
+        pytest.fail("a relocated game must not launch")
 
     def detect(_: Path, __: EngineRegistry) -> GameInfo:
         return game
@@ -280,4 +349,5 @@ def test_execute_keeps_the_game_pinned_when_authorization_replaces_its_path(
     monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
     monkeypatch.setattr("box.cli.launch.run_process", run)
 
-    assert execute(paths, repository, game_root, None, False) == 0
+    with pytest.raises(GameValidationError, match="changed since detection"):
+        execute(paths, repository, game_root, None, False)

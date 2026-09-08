@@ -21,8 +21,11 @@ To uninstall box-rpg and its shell completions:
 ./install.py --uninstall --yes
 ```
 
-The installer verifies Linux, Python 3.14+, and pip. It requires no elevated
-privileges. Use `box-rpg --help` after installation.
+The installer verifies Linux, Python 3.14+, and pip, and rejects root execution.
+Overriding an externally managed Python environment requires separate consent;
+`--yes` does not grant it. Existing modified completions are preserved, and
+uninstallation requires a package in the base interpreter's user-site.
+Use `box-rpg --help` after installation.
 
 ## Development
 
@@ -33,7 +36,8 @@ python3.14 -m venv .venv
 .venv/bin/python -m pip install -e ".[dev]"
 ```
 
-Clean Python caches, virtual environments, and build artifacts with a dry run:
+Preview conservative cleanup of eligible ignored bytecode and empty root-level
+artifact directories:
 
 ```sh
 ./cleaner.py
@@ -45,6 +49,9 @@ Apply the cleanup after reviewing the listed paths:
 ./cleaner.py --apply
 ./cleaner.py --yes
 ```
+
+Tracked files, nested projects, and nonempty build, cache, and environment trees
+are preserved. Review and remove those trees manually when no longer needed.
 
 ## Commands
 
@@ -79,6 +86,7 @@ identifies a supported game. `runtime` manages downloaded NW.js and EasyRPG
 Player versions. `launch` starts an allowed game and defaults to the current
 directory when `GAME_PATH` is omitted. `config` displays or changes the launcher
 settings, and `diagnose` creates a local report without launching the game.
+Diagnosis does execute the selected runtime with `--version`; use trusted runtimes.
 
 `cleanup all` shows the global cleanup scope and requires `DELETE ALL`. Add
 `--yes` for immediate noninteractive deletion. Use
@@ -96,9 +104,10 @@ supported game; otherwise it prints help and explains how to launch one.
 `runtime nwjs available` queries the official stable NW.js version index in pages
 of five. Add `--interactive` to browse pages, choose a version, and confirm its
 installation. The architecture is detected automatically unless `--architecture`
-is supplied. Runtime downloads use a 60-second connection timeout and resume
-partial archives after temporary connection failures. Interactive terminals display
-a progress bar.
+is supplied. Runtime downloads use a 60-second network timeout and restart from
+zero after temporary failures instead of combining partial representations.
+Interactive terminals display a progress bar. Downloads and extraction enforce
+resource limits; concurrent operations on the same runtime fail with a busy error.
 Launches select Wayland only when the session exposes both
 `XDG_SESSION_TYPE=wayland` and `WAYLAND_DISPLAY`; otherwise they use X11.
 
@@ -139,3 +148,5 @@ are launched, including symlinks, and must remain below an allowed root.
 
 NW.js executes game JavaScript with the permissions available to your user.
 Only launch games and install runtime downloads from sources you trust.
+An isolated session separates launcher files and profiles; it is not a process
+sandbox. See [security and compatibility limits](docs/manual.md#security-and-compatibility-limits).

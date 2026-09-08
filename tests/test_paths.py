@@ -6,6 +6,21 @@ from box.errors import ConfigurationError
 from box.paths import AppPaths
 
 
+@pytest.mark.parametrize("value", ["", ".", "relative", "~/cache"])
+def test_invalid_xdg_values_use_absolute_home_fallback(tmp_path: Path, value: str) -> None:
+    paths = AppPaths.from_environment(
+        {"HOME": str(tmp_path), "XDG_CONFIG_HOME": value, "XDG_CACHE_HOME": value}
+    )
+    assert paths.config_root == tmp_path / ".config" / "box-rpg"
+    assert paths.cache_root == tmp_path / ".cache" / "box-rpg"
+
+
+@pytest.mark.parametrize("value", [".", "relative", "~/home"])
+def test_relative_home_is_rejected(value: str) -> None:
+    with pytest.raises(ConfigurationError, match="HOME must be an absolute path"):
+        AppPaths.from_environment({"HOME": value})
+
+
 def test_app_paths_use_xdg_environment_and_create_managed_directories(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

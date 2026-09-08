@@ -7,12 +7,12 @@ from functools import lru_cache
 from html.parser import HTMLParser
 from typing import Protocol, cast
 from urllib.error import URLError
-from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from box.errors import RuntimeError
 from box.models import RuntimeSpec
 from box.runtime.downloader import download_url
+from box.runtime.http import open_official, validate_source
 from box.runtime.validator import normalize_version
 from box.utils.i18n import _
 
@@ -107,12 +107,15 @@ def runtime_archive_available(spec: RuntimeSpec) -> bool:
 
 
 def _open_official(request: Request) -> _Response:
-    """Open a request only when its final URL remains on the official HTTPS host."""
-    response = cast(_Response, urlopen(request, timeout=15))
-    destination = urlsplit(response.geturl())
-    if destination.scheme != "https" or destination.hostname not in OFFICIAL_DOWNLOAD_HOSTS:
+    """Validate the initial URL and every redirect before contacting official hosts."""
+    response = cast(
+        _Response, open_official(request, timeout=15, allowed_hosts=OFFICIAL_DOWNLOAD_HOSTS)
+    )
+    try:
+        validate_source(response.geturl(), OFFICIAL_DOWNLOAD_HOSTS)
+    except RuntimeError:
         response.close()
-        raise RuntimeError(_("NW.js version lookup redirected outside the official host"))
+        raise
     return response
 
 

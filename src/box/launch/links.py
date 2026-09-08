@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 import os
-import shutil
 import stat
 from contextlib import suppress
 from pathlib import Path
 
 from box.errors import LaunchError
+from box.games.files import MAX_GAME_FILE_BYTES
+from box.paths import open_directory_without_symlinks
 from box.utils.i18n import _
 
 
 def open_game_root(game_root: Path) -> int:
     """Open a game root without following a replacement symlink."""
     try:
-        return os.open(game_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        return open_directory_without_symlinks(game_root)
     except OSError as exc:
         raise LaunchError(
             _("game root is missing or unsafe: {root}").format(root=game_root)
@@ -64,21 +65,26 @@ def copy_game_root_file(
     owns_game_descriptor = game_descriptor is None
     try:
         if session_descriptor is None:
-            session_descriptor = os.open(session_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            session_descriptor = open_directory_without_symlinks(session_root)
         if game_descriptor is None:
             game_descriptor = open_game_root(game_root)
         try:
             source_descriptor = os.open(
-                filename, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=game_descriptor
+                filename, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=game_descriptor
             )
         except OSError as exc:
             raise LaunchError(
                 _("game-root file is missing or unsafe: {filename}").format(filename=filename)
             ) from exc
         try:
-            if not stat.S_ISREG(os.fstat(source_descriptor).st_mode):
+            metadata = os.fstat(source_descriptor)
+            if not stat.S_ISREG(metadata.st_mode):
                 raise LaunchError(
                     _("game-root file is missing or unsafe: {filename}").format(filename=filename)
+                )
+            if metadata.st_size > MAX_GAME_FILE_BYTES:
+                raise LaunchError(
+                    _("game-root file exceeds byte limit: {filename}").format(filename=filename)
                 )
             try:
                 destination_descriptor = os.open(
@@ -96,8 +102,17 @@ def copy_game_root_file(
                     os.fdopen(source_descriptor, "rb", closefd=False) as source_file,
                     os.fdopen(destination_descriptor, "wb", closefd=False) as destination_file,
                 ):
-                    shutil.copyfileobj(source_file, destination_file)
-            except OSError as exc:
+                    remaining = MAX_GAME_FILE_BYTES
+                    while chunk := source_file.read(min(64 * 1024, remaining + 1)):
+                        if len(chunk) > remaining:
+                            raise LaunchError(
+                                _("game-root file exceeds byte limit: {filename}").format(
+                                    filename=filename
+                                )
+                            )
+                        destination_file.write(chunk)
+                        remaining -= len(chunk)
+            except (OSError, LaunchError) as exc:
                 with suppress(OSError):
                     os.unlink(filename, dir_fd=session_descriptor)
                 raise LaunchError(

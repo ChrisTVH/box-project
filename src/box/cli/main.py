@@ -21,6 +21,7 @@ from box.paths import AppPaths
 from box.runtime.catalog import RuntimeCatalog
 from box.runtime.platform import current_architecture, normalize_architecture
 from box.utils.i18n import _, configure
+from box.utils.terminal import safe_terminal_text
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -50,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return _dispatch(arguments)
     except (BoxError, ValueError) as exc:
-        print(f"{_('error')}: {exc}", file=sys.stderr)
+        print(f"{_('error')}: {safe_terminal_text(exc)}", file=sys.stderr)
         return 1
 
 

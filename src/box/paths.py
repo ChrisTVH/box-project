@@ -30,9 +30,15 @@ class AppPaths:
             raise ConfigurationError(
                 _("{home} is required to resolve {xdg} paths").format(home="HOME", xdg="XDG")
             )
-        home = Path(home_value).expanduser()
-        config_home = Path(values.get("XDG_CONFIG_HOME", home / ".config"))
-        cache_home = Path(values.get("XDG_CACHE_HOME", home / ".cache"))
+        home = Path(home_value)
+        if not home.is_absolute():
+            raise ConfigurationError(_("HOME must be an absolute path"))
+        config_home = Path(values.get("XDG_CONFIG_HOME", ""))
+        cache_home = Path(values.get("XDG_CACHE_HOME", ""))
+        if not config_home.is_absolute():
+            config_home = home / ".config"
+        if not cache_home.is_absolute():
+            cache_home = home / ".cache"
         return cls(config_root=config_home / "box-rpg", cache_root=cache_home / "box-rpg")
 
     @property
@@ -123,7 +129,7 @@ class AppPaths:
     def open_managed_cache_directory(self, *components: str) -> int:
         """Open a cache subdirectory from the filesystem root without following symlinks."""
         self.ensure()
-        descriptor = _open_directory_without_symlinks(self.cache_root)
+        descriptor = open_directory_without_symlinks(self.cache_root)
         try:
             for component in components:
                 if Path(component).name != component or component in {"", ".", ".."}:
@@ -145,7 +151,7 @@ class AppPaths:
     def open_or_create_private_cache_directory(self, *components: str) -> int:
         """Open or create private cache subdirectories without following symlinks."""
         self.ensure()
-        descriptor = _open_directory_without_symlinks(self.cache_root)
+        descriptor = open_directory_without_symlinks(self.cache_root)
         try:
             for component in components:
                 if Path(component).name != component or component in {"", ".", ".."}:
@@ -236,7 +242,7 @@ class AppPaths:
         return resolved
 
 
-def _open_directory_without_symlinks(path: Path) -> int:
+def open_directory_without_symlinks(path: Path) -> int:
     """Open every absolute directory component through descriptor-relative operations."""
     absolute = Path(os.path.abspath(path))
     descriptor = os.open(absolute.anchor, os.O_RDONLY | os.O_DIRECTORY)

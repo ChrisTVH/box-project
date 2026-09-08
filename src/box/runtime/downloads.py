@@ -5,10 +5,12 @@ from __future__ import annotations
 import os
 import re
 import stat
+from contextlib import ExitStack
 from pathlib import Path
 
 from box.errors import ConfigurationError, RuntimeError
 from box.paths import AppPaths
+from box.runtime.security import cache_lock
 from box.utils.i18n import _
 
 _DOWNLOAD_ARCHIVE_NAME = re.compile(
@@ -44,7 +46,9 @@ class DownloadCatalog:
                 _("refusing unsafe NW.js download archive: {archive}").format(archive=archive)
             )
         descriptor = _open_downloads_root(self._paths)
+        locks = ExitStack()
         try:
+            locks.enter_context(cache_lock(descriptor, managed.name))
             entry = os.stat(managed.name, dir_fd=descriptor, follow_symlinks=False)
             if not stat.S_ISREG(entry.st_mode):
                 raise RuntimeError(
@@ -52,6 +56,7 @@ class DownloadCatalog:
                 )
             os.unlink(managed.name, dir_fd=descriptor)
         finally:
+            locks.close()
             os.close(descriptor)
 
     def remove_all(self) -> int:

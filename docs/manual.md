@@ -50,7 +50,8 @@ box-rpg launch --copy-root-file game_messages.csv
 
 `--copy-root-file` can be repeated for multiple files. It accepts only direct,
 regular files from the validated game root and rejects paths containing
-directories, symlinks, or session-owned names.
+directories, symlinks, or session-owned names. Each copied file is limited to
+16 MiB; FIFOs and other nonregular files are rejected without waiting for input.
 
 Each NW.js game uses a persistent private Chromium/NW.js profile at
 `$XDG_CACHE_HOME/box-rpg/profiles/<opaque-game-id>` (or
@@ -114,3 +115,36 @@ game. Existing roots are retained because they may be game libraries.
 Game paths must stay below an authorized root. Treat games and downloaded
 runtimes as untrusted software, keep authorized roots limited to directories
 you control, and do not run the launcher with elevated privileges.
+
+## Security and compatibility limits
+
+- Use an absolute `HOME`. Empty or relative XDG variables fall back to
+  `$HOME/.config` and `$HOME/.cache`; they never select the working directory.
+  Configuration must be a regular user-owned file, not a symlink, without
+  group/other write permission, and at most 1 MiB.
+- Keep game directories in place during authorization and launch. The launcher
+  rejects observed identity or location changes and opens inspected files without
+  following symlinks. Terminal output escapes control characters in game metadata
+  and authorization prompts without changing the actual paths.
+- Inspection reads at most 16 MiB per metadata file. Launch manifests are limited
+  to 1 MiB and diagnostic core files to 4 MiB. Runtime version probes have a
+  10-second timeout and a combined 64 KiB output limit.
+- Manifest `chromium-args` and `js-flags` are not forwarded. Only supported,
+  correctly typed window settings are copied. Runtime processes exclude explicit
+  injection hooks such as `LD_*`, `DYLD_*`, `NODE_OPTIONS`, and `NW_ARGS` from
+  their inherited environment. Games relying on these customizations may no
+  longer work unchanged.
+- Runtime requests validate HTTPS origins before each redirect. Each download
+  has a 1 GiB transfer budget across retries. Extraction allows at most 4 GiB
+  of expanded tar data, 1 GiB per member, 50,000 entries/paths, and depth 32.
+  Download and extraction operations each have a cooperative 15-minute deadline;
+  it does not interrupt a blocked system call. Sparse members, archive hardlinks,
+  and symlinks escaping the installed runtime are rejected.
+- Retry busy runtime operations after the other operation finishes. Persistent
+  `.lock` files coordinate cooperating processes and are not stale downloads.
+  Failed `.part` downloads may remain for cleanup but are never resumed.
+- HTTPS and the user's cache remain trust boundaries: artifact signatures are
+  not verified. Session isolation and environment filtering do not confine game
+  code, hide all inherited secrets, or defend against arbitrary processes running
+  as the same user. Use external process isolation for hostile games. `diagnose`
+  executes the runtime even though it does not launch the game.

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Clean generated artifacts from the repository.
 
-Removes caches, virtual environments and build outputs (the patterns
-ignored by .gitignore). By default it only lists what would be removed;
+Removes ignored Python bytecode and empty root build/environment directories.
+Nonempty build outputs, environments and tool caches require manual review:
+their names alone do not prove ownership. By default lists what would be removed;
 pass --apply to actually delete (with a confirmation prompt) and --yes to
 skip the prompt.
 """
@@ -10,52 +11,96 @@ skip the prompt.
 from __future__ import annotations
 
 import argparse
-import fnmatch
-import shutil
+import importlib.util
+import os
+import stat
+import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent
-EXCLUDED = {".git", "cleaner.py"}
+from install import open_directory, read_regular, remove_matching
 
-CACHE_NAMES = {".pytest_cache", ".ruff_cache", "__pycache__"}
-CACHE_FILES = {"*.pyc"}
+REPO_ROOT = Path(__file__).resolve().parent
 VENV_NAMES = {".venv", "venv"}
 BUILD_DIRS = {"dist", "build"}
-BUILD_PATTERNS = {"*.egg-info"}
+PROJECT_MARKERS = {".git", "pyproject.toml", "setup.py", "package.json", "Cargo.toml"}
 
 
-def _category(name: str, is_dir: bool) -> str | None:
-    """Return the category a path name belongs to, or None."""
-    if is_dir:
-        if name in CACHE_NAMES:
-            return "caches"
-        if name in VENV_NAMES:
-            return "venvs"
-        if name in BUILD_DIRS or any(fnmatch.fnmatch(name, p) for p in BUILD_PATTERNS):
-            return "build"
+def _protected(root: Path) -> set[Path]:
+    """Fail closed unless Git identifies tracked and nonignored paths."""
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        check=True,
+        capture_output=True,
+    )
+    return {Path(os.fsdecode(name)) for name in result.stdout.split(b"\0") if name}
+
+
+def _eligible(root: Path, relative: Path, protected: set[Path]) -> str | None:
+    if relative.is_absolute() or ".." in relative.parts or not relative.parts:
         return None
-    if any(fnmatch.fnmatch(name, pattern) for pattern in CACHE_FILES):
-        return "caches"
+    if any(path.is_relative_to(relative) or relative.is_relative_to(path) for path in protected):
+        return None
+    # Only root caches and the launcher's source/test trees are in scope.
+    if len(relative.parts) > 1 and relative.parts[0] not in {"src", "tests", "__pycache__"}:
+        return None
+    if any(part in VENV_NAMES | BUILD_DIRS for part in relative.parts[:-1]):
+        return None
+    for ancestor in relative.parents:
+        if ancestor == Path("."):
+            continue
+        with open_directory(root / ancestor) as descriptor:
+            if PROJECT_MARKERS.intersection(os.listdir(descriptor)):
+                return None
+    with open_directory((root / relative).parent) as parent:
+        info = os.stat(relative.name, dir_fd=parent, follow_symlinks=False)
+        if stat.S_ISDIR(info.st_mode):
+            if len(relative.parts) != 1:
+                return None
+            category = "venvs" if relative.name in VENV_NAMES else "build"
+            if relative.name not in VENV_NAMES | BUILD_DIRS:
+                return None
+            with open_directory(root / relative) as directory:
+                return None if os.listdir(directory) else category
+        if (
+            stat.S_ISREG(info.st_mode)
+            and relative.suffix == ".pyc"
+            and relative.parent.name == "__pycache__"
+        ):
+            data = read_regular(parent, relative.name)
+            if len(data) >= 16 and data[:4] == importlib.util.MAGIC_NUMBER:
+                return "caches"
     return None
 
 
-def _walk(targets: dict[str, list[Path]], root: Path, current: Path) -> None:
-    """Recursively collect removable paths, pruning dirs that are targets."""
-    for child in sorted(current.iterdir()):
-        if child.name in EXCLUDED or child.is_symlink():
-            continue
-        category = _category(child.name, child.is_dir())
-        if category is not None:
-            targets[category].append(child)
-            continue
-        if child.is_dir():
-            _walk(targets, root, child)
+def _walk(root: Path, relative: Path, protected: set[Path], targets: dict[str, list[Path]]) -> None:
+    with open_directory(root / relative) as descriptor:
+        names = sorted(os.listdir(descriptor))
+        if relative != Path(".") and PROJECT_MARKERS.intersection(names):
+            return
+        for name in names:
+            child = relative / name
+            category = _eligible(root, child, protected)
+            if category:
+                targets[category].append(root / child)
+            elif (
+                (relative == Path(".") and name in {"src", "tests", "__pycache__"})
+                or (
+                    relative != Path(".")
+                    and name not in VENV_NAMES | BUILD_DIRS
+                    and not name.startswith(".")
+                )
+            ) and stat.S_ISDIR(os.stat(name, dir_fd=descriptor, follow_symlinks=False).st_mode):
+                _walk(root, child, protected, targets)
 
 
 def collect_targets(root: Path) -> dict[str, list[Path]]:
     targets: dict[str, list[Path]] = {"caches": [], "venvs": [], "build": []}
-    _walk(targets, root, root)
+    try:
+        _walk(root, Path("."), _protected(root), targets)
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"error collecting targets: {exc}", file=sys.stderr)
+        return {"caches": [], "venvs": [], "build": []}
     return targets
 
 
@@ -76,19 +121,25 @@ def print_targets(root: Path, targets: dict[str, list[Path]]) -> None:
 
 def remove(targets: dict[str, list[Path]]) -> bool:
     ok = True
-    root = REPO_ROOT.resolve()
+    root = REPO_ROOT
     for items in targets.values():
         for path in items:
             try:
-                resolved = path.resolve()
-                if path.is_symlink() or resolved == root or not resolved.is_relative_to(root):
+                relative = path.relative_to(root)
+                if _eligible(root, relative, _protected(root)) is None:
                     raise PermissionError(path)
-                if path.is_dir():
-                    shutil.rmtree(path)
-                else:
-                    path.unlink()
+                with open_directory(path.parent) as parent:
+                    info = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+                    if stat.S_ISDIR(info.st_mode):
+                        # Unlike rmtree, rmdir cannot consume newly added foreign files.
+                        os.rmdir(path.name, dir_fd=parent)
+                    else:
+                        expected = read_regular(parent, path.name)
+                        if len(expected) < 16 or expected[:4] != importlib.util.MAGIC_NUMBER:
+                            raise PermissionError(path)
+                        remove_matching(parent, path.name, expected)
                 print(f"removed {path}")
-            except OSError as exc:
+            except (OSError, ValueError, subprocess.SubprocessError) as exc:
                 ok = False
                 print(f"error removing {path}: {exc}", file=sys.stderr)
     return ok

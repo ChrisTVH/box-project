@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import stat
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from box.errors import ConfigurationError, RuntimeError
 from box.models import RuntimeInfo, RuntimeSpec
 from box.paths import AppPaths
 from box.runtime.platform import normalize_architecture
+from box.runtime.security import cache_lock
 from box.runtime.validator import normalize_version, runtime_executable
 from box.utils.i18n import _
 
@@ -90,7 +92,9 @@ class RuntimeCatalog:
         """Delete an enumerated managed runtime after revalidating its directory."""
         managed = self._validate_managed_runtime(runtime)
         descriptor = _open_runtime_platform(self._paths, runtime.spec.architecture)
+        locks = ExitStack()
         try:
+            locks.enter_context(cache_lock(descriptor, managed.name))
             entry = os.stat(managed.name, dir_fd=descriptor, follow_symlinks=False)
             if not stat.S_ISDIR(entry.st_mode):
                 raise ConfigurationError(
@@ -98,6 +102,7 @@ class RuntimeCatalog:
                 )
             shutil.rmtree(managed.name, dir_fd=descriptor)
         finally:
+            locks.close()
             os.close(descriptor)
 
     def _validate_managed_runtime(self, runtime: ManagedRuntime) -> Path:

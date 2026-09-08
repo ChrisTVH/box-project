@@ -8,15 +8,19 @@ import tarfile
 from pathlib import Path
 
 from box.errors import RuntimeError
+from box.runtime.limits import extract_bounded
+from box.runtime.security import validate_private_file, validate_runtime_links
 from box.utils.i18n import _
 
 
 def extract_runtime(archive_path: Path, destination: Path) -> Path:
     """Extract an NW.js archive and return its single validated top-level directory."""
     try:
-        with tarfile.open(archive_path, "r:gz") as archive:
-            archive.extractall(destination, filter="data")
-    except (OSError, tarfile.TarError) as exc:
+        descriptor = os.open(archive_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as archive_file:
+            validate_private_file(archive_file.fileno())
+            extract_bounded(archive_file, destination, _validate_layout)
+    except (OSError, EOFError, tarfile.TarError) as exc:
         raise RuntimeError(
             _("cannot extract NW.js archive {archive}: {error}").format(
                 archive=archive_path, error=exc
@@ -31,14 +35,14 @@ def extract_runtime(archive_path: Path, destination: Path) -> Path:
 def extract_runtime_at(archive_descriptor: int, destination_descriptor: int) -> str:
     """Extract an NW.js archive between pinned directories and return its root name."""
     try:
-        with (
-            os.fdopen(os.dup(archive_descriptor), "rb") as archive_file,
-            tarfile.open(fileobj=archive_file, mode="r:gz") as archive,
-        ):
-            archive.extractall(f"/proc/self/fd/{destination_descriptor}", filter="data")
+        with os.fdopen(os.dup(archive_descriptor), "rb") as archive_file:
+            validate_private_file(archive_file.fileno())
+            extract_bounded(
+                archive_file, Path(f"/proc/self/fd/{destination_descriptor}"), _validate_layout
+            )
         os.lseek(destination_descriptor, 0, os.SEEK_SET)
         entries = tuple(os.scandir(destination_descriptor))
-    except (OSError, tarfile.TarError) as exc:
+    except (OSError, EOFError, tarfile.TarError) as exc:
         raise RuntimeError(_("cannot extract NW.js archive: {error}").format(error=exc)) from exc
     directories = tuple(entry for entry in entries if entry.is_dir(follow_symlinks=False))
     if len(directories) != 1:
@@ -53,3 +57,13 @@ def extract_runtime_at(archive_descriptor: int, destination_descriptor: int) -> 
     if not stat.S_ISDIR(root_status.st_mode):
         raise RuntimeError(_("NW.js archive must contain exactly one top-level directory"))
     return root.name
+
+
+def _validate_layout(destination: Path) -> None:
+    """Reject invalid layouts before publishing any extracted files."""
+    directories = [
+        entry for entry in destination.iterdir() if entry.is_dir() and not entry.is_symlink()
+    ]
+    if len(directories) != 1:
+        raise RuntimeError(_("NW.js archive must contain exactly one top-level directory"))
+    validate_runtime_links(directories[0])

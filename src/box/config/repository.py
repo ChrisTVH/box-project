@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
@@ -44,6 +45,22 @@ class ConfigRepository:
         updated = (
             config if resolved in roots else replace(config, allowed_game_roots=(*roots, resolved))
         )
+        self.save(updated)
+        return updated
+
+    def add_confirmed_allowed_root(self, root: Path, *, validate: Callable[[], None]) -> AppConfig:
+        """Store a canonical confirmed root verbatim, validating its identity before saving.
+
+        The caller must supply a validator bound to the confirmed open directory.
+        Loading must precede validation, and no path resolution or pruning may
+        redirect the confirmed value or write configuration before validation.
+        """
+        if not root.is_absolute() or ".." in root.parts:
+            raise ConfigurationError(_("confirmed game root must be canonical and absolute"))
+        config = self.load()
+        roots = config.allowed_game_roots
+        updated = config if root in roots else replace(config, allowed_game_roots=(*roots, root))
+        validate()
         self.save(updated)
         return updated
 

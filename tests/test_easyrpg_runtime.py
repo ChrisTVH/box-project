@@ -1,8 +1,11 @@
 import os
 import tarfile
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
-from typing import cast
+from typing import BinaryIO, cast
 
 import pytest
 
@@ -192,3 +195,90 @@ def test_easyrpg_malformed_archive_staging_collision_raises_runtime_error(tmp_pa
 
     with pytest.raises(RuntimeError, match="cannot stage EasyRPG Player archive"):
         extract_runtime(archive, destination)
+    assert tuple(destination.iterdir()) == ()
+
+
+def test_easyrpg_install_keeps_archive_locked_through_extraction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from box.runtime import easyrpg
+
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    paths.ensure()
+    archive = paths.easyrpg_downloads_root / "easyrpg-player-0.8.1-linux.tar.gz"
+    with tarfile.open(archive, "w:gz") as tar:
+        member = tarfile.TarInfo("easyrpg-player")
+        member.mode = 0o700
+        tar.addfile(member)
+    extract = easyrpg.extract_runtime
+    checks: list[str] = []
+
+    def checked_extract(source: Path, destination: Path) -> Path:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            with pytest.raises(RuntimeError, match="busy"):
+                executor.submit(EasyRPGDownloadCatalog(paths).remove, archive).result(timeout=5)
+            with pytest.raises(RuntimeError, match="busy"):
+                executor.submit(easyrpg.install_runtime, paths, "0.8.1").result(timeout=5)
+        checks.append("locked")
+        return extract(source, destination)
+
+    monkeypatch.setattr(easyrpg, "current_architecture", lambda: "x64")
+    monkeypatch.setattr(easyrpg, "extract_runtime", checked_extract)
+    runtime = easyrpg.install_runtime(paths, "0.8.1")
+    assert checks == ["locked"]
+    assert (runtime.root / "easyrpg-player").is_file()
+    EasyRPGDownloadCatalog(paths).remove(archive)
+
+
+def test_easyrpg_extraction_rejects_archive_symlinks(tmp_path: Path) -> None:
+    archive = tmp_path / "outside.tar.gz"
+    with tarfile.open(archive, "w:gz") as tar:
+        tar.addfile(tarfile.TarInfo("easyrpg-player"))
+    link = tmp_path / "player.tar.gz"
+    link.symlink_to(archive)
+    destination = tmp_path / "destination"
+    destination.mkdir()
+    with pytest.raises(RuntimeError, match="cannot stage"):
+        extract_runtime(link, destination)
+    assert tuple(destination.iterdir()) == ()
+
+
+def test_easyrpg_uses_the_open_archive_inode_after_name_replacement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from box.runtime import easyrpg
+
+    archive = tmp_path / "player.tar.gz"
+    with tarfile.open(archive, "w:gz") as tar:
+        member = tarfile.TarInfo("easyrpg-player")
+        member.size = 4
+        tar.addfile(member, BytesIO(b"safe"))
+    extract = easyrpg.extract_bounded
+
+    def replace_name(
+        source: BinaryIO, destination: Path, prepare: Callable[[Path], None] | None = None
+    ) -> None:
+        archive.rename(tmp_path / "original.tar.gz")
+        archive.symlink_to(tmp_path / "missing")
+        extract(source, destination, prepare)
+
+    monkeypatch.setattr(easyrpg, "extract_bounded", replace_name)
+    destination = tmp_path / "destination"
+    destination.mkdir()
+    assert (extract_runtime(archive, destination) / "easyrpg-player").read_bytes() == b"safe"
+
+
+def test_easyrpg_extraction_uses_shared_quotas(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("box.runtime.limits.MAX_MEMBER_BYTES", 1)
+    archive = tmp_path / "player.tar.gz"
+    with tarfile.open(archive, "w:gz") as tar:
+        member = tarfile.TarInfo("easyrpg-player")
+        member.size = 2
+        tar.addfile(member, BytesIO(b"ab"))
+    destination = tmp_path / "destination"
+    destination.mkdir()
+    with pytest.raises(RuntimeError, match="limit"):
+        extract_runtime(archive, destination)
+    assert tuple(destination.iterdir()) == ()
