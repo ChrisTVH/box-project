@@ -59,7 +59,21 @@ def test_cleanup_removes_easyrpg_managed_runtime_and_archive(tmp_path: Path) -> 
     assert not archive.exists()
 
 
-def test_cleanup_global_all_removes_only_the_three_managed_categories(tmp_path: Path) -> None:
+def test_cleanup_removes_one_game_profile(tmp_path: Path) -> None:
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    paths.ensure()
+    profile = paths.profiles_root / "0123456789abcdef"
+    profile.mkdir()
+    (profile / "preferences").write_text("data", encoding="utf-8")
+    choices = iter(("4", "1", "yes", "q"))
+
+    assert (
+        execute(paths, ConfigRepository(paths), interactive=True, read=lambda _: next(choices)) == 0
+    )
+    assert not profile.exists()
+
+
+def test_cleanup_global_all_removes_only_the_four_managed_categories(tmp_path: Path) -> None:
     paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
     game_root = tmp_path / "games" / "sample"
     game_root.mkdir(parents=True)
@@ -70,6 +84,8 @@ def test_cleanup_global_all_removes_only_the_three_managed_categories(tmp_path: 
     runtime.mkdir(parents=True)
     archive = paths.downloads_root / "standard-v0.90.0-linux-x64.tar.gz"
     archive.write_bytes(b"archive")
+    profile = paths.profiles_root / "0123456789abcdef"
+    profile.mkdir()
     session = paths.sessions_root / "active"
     report = paths.reports_root / "latest.txt"
     session.mkdir()
@@ -80,6 +96,7 @@ def test_cleanup_global_all_removes_only_the_three_managed_categories(tmp_path: 
     assert repository.load().allowed_game_roots == ()
     assert not runtime.exists()
     assert not archive.exists()
+    assert not profile.exists()
     assert game_root.is_dir()
     assert session.is_dir()
     assert report.read_text(encoding="utf-8") == "report"

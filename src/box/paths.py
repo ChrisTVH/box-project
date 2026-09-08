@@ -67,6 +67,11 @@ class AppPaths:
         """Return the root for local diagnostic reports."""
         return self.cache_root / "reports"
 
+    @property
+    def profiles_root(self) -> Path:
+        """Return the root for persistent NW.js game profiles."""
+        return self.cache_root / "profiles"
+
     def ensure(self) -> None:
         """Create the required user-owned directories with private permissions."""
         for directory in (
@@ -81,6 +86,7 @@ class AppPaths:
             self.cache_root / "sessions",
             self.sessions_root,
             self.reports_root,
+            self.profiles_root,
         ):
             _ensure_private_directory_without_symlinks(directory)
 
@@ -121,9 +127,32 @@ class AppPaths:
             os.close(descriptor)
             raise
 
+    def open_or_create_private_cache_directory(self, *components: str) -> int:
+        """Open or create private cache subdirectories without following symlinks."""
+        self.ensure()
+        descriptor = _open_directory_without_symlinks(self.cache_root)
+        try:
+            for component in components:
+                if Path(component).name != component or component in {"", ".", ".."}:
+                    raise ConfigurationError(f"invalid managed cache component: {component}")
+                child = _open_or_create_private_directory(descriptor, component)
+                os.close(descriptor)
+                descriptor = child
+            return descriptor
+        except Exception:
+            os.close(descriptor)
+            raise
+
     def ensure_managed_session_path(self, path: Path) -> Path:
         """Validate a session path is owned by the launcher cache."""
         return self._ensure_managed_child(self.sessions_root, path, "session")
+
+    def ensure_managed_profile_path(self, path: Path) -> Path:
+        """Validate one direct persistent game-profile directory."""
+        managed = self._ensure_managed_child(self.profiles_root, path, "game profile")
+        if managed.parent != self.profiles_root.resolve(strict=True):
+            raise ConfigurationError(f"refusing to manage nested game profile path: {path}")
+        return managed
 
     def ensure_managed_easyrpg_runtime_path(self, path: Path) -> Path:
         """Validate an EasyRPG runtime path is owned by the launcher cache."""
@@ -177,6 +206,39 @@ def _open_directory_without_symlinks(path: Path) -> int:
             )
             os.close(descriptor)
             descriptor = child
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def _open_or_create_private_directory(parent_descriptor: int, name: str) -> int:
+    """Open or create one private directory through a parent descriptor."""
+    try:
+        metadata = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+            raise ConfigurationError(f"managed directory is unsafe: {name}")
+    except FileNotFoundError:
+        with suppress(FileExistsError):
+            os.mkdir(name, 0o700, dir_fd=parent_descriptor)
+    try:
+        descriptor = os.open(
+            name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_descriptor
+        )
+    except OSError as exc:
+        raise ConfigurationError(f"cannot safely open managed directory: {name}") from exc
+    try:
+        metadata = os.fstat(descriptor)
+        if metadata.st_uid != os.getuid() or metadata.st_mode & 0o022:
+            raise ConfigurationError(
+                f"managed directory has unsafe ownership or permissions: {name}"
+            )
+        if stat.S_IMODE(metadata.st_mode) != 0o700:
+            os.fchmod(descriptor, 0o700)
+            if stat.S_IMODE(os.fstat(descriptor).st_mode) != 0o700:
+                raise ConfigurationError(
+                    f"managed directory has unsafe ownership or permissions: {name}"
+                )
         return descriptor
     except Exception:
         os.close(descriptor)

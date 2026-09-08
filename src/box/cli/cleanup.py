@@ -8,6 +8,7 @@ from pathlib import Path
 from box.cli.menu import MenuSelection, choose_paged
 from box.config.repository import ConfigRepository
 from box.errors import BoxError, RuntimeError
+from box.launch.profiles import ProfileCatalog
 from box.paths import AppPaths
 from box.runtime.catalog import ManagedRuntime, RuntimeCatalog
 from box.runtime.downloads import DownloadCatalog
@@ -29,17 +30,20 @@ def execute(
     easyrpg_runtimes = EasyRPGCatalog(paths)
     downloads = DownloadCatalog(paths)
     easyrpg_downloads = EasyRPGDownloadCatalog(paths)
+    profiles = ProfileCatalog(paths)
     while True:
         roots = repository.load().allowed_game_roots
         managed_runtimes = (*runtimes.list_managed(), *easyrpg_runtimes.list_managed())
         archives = (*downloads.list(), *easyrpg_downloads.list())
+        game_profiles = profiles.list()
         write("Cleanup:")
         write(f"  1. Authorized game roots ({len(roots)})")
         write(f"  2. Managed runtimes ({len(managed_runtimes)})")
         write(f"  3. Download archives ({len(archives)})")
+        write(f"  4. Game profiles ({len(game_profiles)})")
         write("  a. Remove all listed managed data")
         try:
-            action = read("Select 1-3, [a]ll, or [q]uit: ").strip().lower()
+            action = read("Select 1-4, [a]ll, or [q]uit: ").strip().lower()
         except EOFError:
             write("Cleanup cancelled.")
             return 0
@@ -51,6 +55,8 @@ def execute(
             _clean_runtimes(runtimes, easyrpg_runtimes, managed_runtimes, read, write)
         elif action == "3":
             _clean_downloads(downloads, easyrpg_downloads, archives, read, write)
+        elif action == "4":
+            _clean_profiles(profiles, game_profiles, read, write)
         elif action == "a":
             _clean_all(
                 repository,
@@ -61,6 +67,8 @@ def execute(
                 roots,
                 managed_runtimes,
                 archives,
+                profiles,
+                game_profiles,
                 read,
                 write,
             )
@@ -140,6 +148,23 @@ def _clean_downloads(
     )
 
 
+def _clean_profiles(
+    catalog: ProfileCatalog,
+    profiles: tuple[Path, ...],
+    read: Callable[[str], str],
+    write: Callable[[str], None],
+) -> None:
+    selection = choose_paged(
+        "Game profiles",
+        profiles,
+        lambda profile: profile.name,
+        allow_all=True,
+        read=read,
+        write=write,
+    )
+    _clean_selected(selection, profiles, catalog.remove, "game profile", read, write)
+
+
 def _clean_selected[T](
     selection: MenuSelection[T] | None,
     items: tuple[T, ...],
@@ -170,11 +195,14 @@ def _clean_all(
     roots: tuple[Path, ...],
     managed_runtimes: tuple[ManagedRuntime | EasyRPGRuntime, ...],
     archives: tuple[Path, ...],
+    profiles_catalog: ProfileCatalog,
+    profiles: tuple[Path, ...],
     read: Callable[[str], str],
     write: Callable[[str], None],
 ) -> None:
     write(
-        f"This removes {len(roots)} roots, {len(managed_runtimes)} runtimes, and {len(archives)} downloads."
+        f"This removes {len(roots)} roots, {len(managed_runtimes)} runtimes, {len(archives)} downloads, "
+        f"and {len(profiles)} game profiles."
     )
     try:
         confirmation = read("Type DELETE ALL to confirm: ").strip()
@@ -197,8 +225,10 @@ def _clean_all(
         "download archive",
         write,
     )
+    removed_profiles = _remove_all(profiles, profiles_catalog.remove, "game profile", write)
     write(
-        f"Removed {len(roots)} roots, {removed_runtimes} runtimes, and {removed_archives} downloads."
+        f"Removed {len(roots)} roots, {removed_runtimes} runtimes, {removed_archives} downloads, "
+        f"and {removed_profiles} game profiles."
     )
 
 

@@ -24,8 +24,10 @@ def test_build_command_sets_the_detected_ozone_platform(monkeypatch: pytest.Monk
     monkeypatch.setenv("XDG_SESSION_TYPE", "wayland")
     monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
 
-    assert build_command(runtime, Path("/session")) == [
+    assert build_command(runtime, Path("/session"), Path("/profile")) == [
         "/runtime/nw",
         "--ozone-platform=wayland",
+        "--user-data-dir=/profile/user-data",
+        "--disk-cache-dir=/profile/disk-cache",
         "/session",
     ]

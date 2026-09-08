@@ -9,6 +9,7 @@ from box.config.models import AppConfig
 from box.config.repository import ConfigRepository
 from box.engines.registry import EngineRegistry
 from box.errors import GameValidationError, RuntimeError
+from box.games.identity import game_id
 from box.models import EngineName, GameInfo, RuntimeInfo, RuntimeSpec
 from box.paths import AppPaths
 from box.runtime.easyrpg import EasyRPGRuntime
@@ -266,6 +267,7 @@ def test_execute_uses_the_game_root_as_nwjs_working_directory_when_requested(
                 "root": session_root,
                 "reference": session_root,
                 "game_reference": game_root,
+                "profile_root": paths.profiles_root / "0123456789abcdef",
                 "process_descriptors": (),
             },
         )()
@@ -331,6 +333,10 @@ def test_execute_keeps_the_game_pinned_when_authorization_replaces_its_path(
     def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
         assert cwd is None
         assert (Path(command[-1]) / "game" / "index.html").read_text(encoding="utf-8") == "original"
+        assert (
+            f"--user-data-dir={paths.profiles_root / game_id(tmp_path / 'original') / 'user-data'}"
+            in command
+        )
         return 0
 
     def detect(_: Path, __: EngineRegistry) -> GameInfo:

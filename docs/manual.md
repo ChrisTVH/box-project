@@ -59,6 +59,11 @@ box-rpg launch --copy-root-file game_messages.csv
 regular files from the validated game root and rejects paths containing
 directories, symlinks, or session-owned names.
 
+Each NW.js game uses a persistent private Chromium/NW.js profile at
+`$XDG_CACHE_HOME/box-rpg/profiles/<opaque-game-id>` (or
+`~/.cache/box-rpg/profiles/<opaque-game-id>`). The profile stores preferences,
+web storage, and cache. RPG Maker saves in `www/save` stay in the game directory.
+
 ### RPG Maker 2000/2003
 
 These projects are detected from `RPG_RT.ini`, `RPG_RT.ldb`, and `RPG_RT.lmt`.
@@ -79,13 +84,14 @@ Run the interactive cleanup menu to remove launcher-managed data:
 box-rpg cleanup
 ```
 
-Choose authorized game roots, managed runtimes, or downloaded archives. Each
-list is paginated; select one item or all items, then confirm the deletion.
-The global cleanup option requires entering `DELETE ALL`.
+Choose authorized game roots, managed runtimes, downloaded archives, or game
+profiles. Each list is paginated; select one item or all items, then confirm the
+deletion. The global cleanup option requires entering `DELETE ALL`.
 
 Cleanup never deletes game files or saves. It also leaves `config.toml`,
 sessions, and diagnostic reports untouched. It only removes data owned by the
-launcher under `$XDG_CACHE_HOME/box-rpg` (or `~/.cache/box-rpg`).
+launcher under `$XDG_CACHE_HOME/box-rpg` (or `~/.cache/box-rpg`). This includes
+individual or all NW.js game profiles.
 
 ## Configuration and safety
 

@@ -68,7 +68,7 @@ def execute(
             paths, game, copy_root_files, game_descriptor=game_descriptor
         ) as session:
             return run_process(
-                build_command(runtime, session.reference),
+                build_command(runtime, session.reference, session.profile_root),
                 cwd=session.game_reference if game_cwd else None,
             )
 

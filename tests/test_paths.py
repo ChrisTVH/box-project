@@ -25,6 +25,7 @@ def test_app_paths_use_xdg_environment_and_create_managed_directories(
     assert paths.runtimes_root == cache_home / "box-rpg" / "runtimes" / "nwjs"
     assert paths.sessions_root == cache_home / "box-rpg" / "sessions"
     assert paths.reports_root == cache_home / "box-rpg" / "reports"
+    assert paths.profiles_root == cache_home / "box-rpg" / "profiles"
 
     paths.ensure()
 
@@ -36,6 +37,7 @@ def test_app_paths_use_xdg_environment_and_create_managed_directories(
             paths.runtimes_root,
             paths.sessions_root,
             paths.reports_root,
+            paths.profiles_root,
         )
     )
 

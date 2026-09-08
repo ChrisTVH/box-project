@@ -15,6 +15,7 @@ from box.games.identity import game_id
 from box.launch.cleanup import remove_session
 from box.launch.links import copy_game_root_file, descriptor_path, link_game, open_game_root
 from box.launch.manifest import write_manifest
+from box.launch.profiles import ProfileCatalog
 from box.models import GameInfo
 from box.paths import AppPaths
 
@@ -31,6 +32,7 @@ class LaunchSession:
     name: str
     game_descriptor: int
     game_reference_path: Path
+    profile_root: Path
     owns_game_descriptor: bool
 
     @property
@@ -95,7 +97,13 @@ def create_session(
         if owns_game_descriptor:
             os.close(game_descriptor)
         raise
-    identifier = _game_identifier(game)
+    try:
+        identifier = _game_identifier(game)
+        profile_root = ProfileCatalog(paths).create_for_game(game, game_reference_path)
+    except Exception:
+        if owns_game_descriptor:
+            os.close(game_descriptor)
+        raise
     name = uuid4().hex
     root = paths.sessions_root / identifier / name
     try:
@@ -175,6 +183,7 @@ def create_session(
         name,
         game_descriptor,
         game_reference_path,
+        profile_root,
         owns_game_descriptor,
     )
 

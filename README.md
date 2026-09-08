@@ -77,8 +77,8 @@ directory when `GAME_PATH` is omitted. `config` displays or changes the launcher
 settings, and `diagnose` creates a local report without launching the game.
 
 `cleanup` requires an interactive terminal. It can remove individual or all
-authorized roots, managed runtimes, and cached runtime archives; it never deletes
-game directories, `config.toml`, sessions, or reports.
+authorized roots, managed runtimes, cached runtime archives, and game profiles;
+it never deletes game directories, `config.toml`, sessions, or reports.
 
 Running `box-rpg` without arguments requires the current directory to contain a
 supported game; otherwise it prints help and explains how to launch one.
@@ -104,6 +104,12 @@ regular file from the game root instead. For example, use
 `box-rpg launch --copy-root-file game_messages.csv`. The option can be repeated
 for multiple direct files and rejects paths containing directories, symlinks, or
 session-owned names.
+
+Each NW.js game has a persistent private Chromium/NW.js profile at
+`$XDG_CACHE_HOME/box-rpg/profiles/<opaque-game-id>` (or
+`~/.cache/box-rpg/profiles/<opaque-game-id>`). It stores browser preferences,
+web storage, and cache. RPG Maker saves in `www/save` remain in the game
+directory. Use `box-rpg cleanup` to remove an individual profile or all profiles.
 
 See [the manual](docs/manual.md) and
 [the example configuration](res/config/box-rpg.toml.example).
