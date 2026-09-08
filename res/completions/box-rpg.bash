@@ -31,7 +31,7 @@ _box_rpg() {
             COMPREPLY=($(compgen -W 'show set' -- "$cur"))
             ;;
         launch)
-            COMPREPLY=($(compgen -W '--runtime --sdk --help' -- "$cur"))
+            COMPREPLY=($(compgen -W '--runtime --sdk --game-cwd --copy-root-file --help' -- "$cur"))
             ;;
         diagnose)
             COMPREPLY=($(compgen -W '--runtime --sdk --help' -- "$cur"))

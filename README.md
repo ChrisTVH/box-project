@@ -64,7 +64,7 @@ box-rpg runtime easyrpg available [--page PAGE]
 box-rpg runtime easyrpg available --interactive [--page PAGE]
 box-rpg runtime easyrpg install VERSION
 box-rpg runtime easyrpg remove VERSION
-box-rpg launch [GAME_PATH] [--runtime VERSION] [--sdk]
+box-rpg launch [GAME_PATH] [--runtime VERSION] [--sdk] [--game-cwd] [--copy-root-file FILE]
 box-rpg config show
 box-rpg config set KEY VALUE
 box-rpg diagnose GAME_PATH [--runtime VERSION] [--sdk]
@@ -93,6 +93,16 @@ Launches select Wayland only when the session exposes `WAYLAND_DISPLAY`; otherwi
 RPG Maker 2000/2003 projects require `RPG_RT.ini`, `RPG_RT.ldb`, and `RPG_RT.lmt`.
 They launch with the managed x64 EasyRPG Player using `--project-path` and `--fullscreen`.
 Use `box-rpg runtime easyrpg available --interactive` to choose and install a version.
+
+Some NW.js exports load auxiliary files relative to the game root. For those games,
+launch with `box-rpg launch --game-cwd` to use the validated game root as the
+working directory while retaining the isolated launch session.
+
+When an export resets its working directory to the isolated session, copy a direct
+regular file from the game root instead. For example, use
+`box-rpg launch --copy-root-file game_messages.csv`. The option can be repeated
+for multiple direct files and rejects paths containing directories, symlinks, or
+session-owned names.
 
 See [the manual](docs/manual.md) and
 [the example configuration](res/config/box-rpg.toml.example).

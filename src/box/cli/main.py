@@ -36,7 +36,14 @@ def main(argv: list[str] | None = None) -> int:
             )
             parser.print_help()
             return 1
-        arguments = Namespace(command="launch", game=".", runtime_version=None, sdk=False)
+        arguments = Namespace(
+            command="launch",
+            game=".",
+            runtime_version=None,
+            sdk=False,
+            game_cwd=False,
+            copy_root_file=[],
+        )
     try:
         return _dispatch(arguments)
     except (BoxError, ValueError) as exc:
@@ -78,6 +85,8 @@ def _dispatch(arguments: Namespace) -> int:
             Path(arguments.game),
             arguments.runtime_version,
             arguments.sdk,
+            arguments.game_cwd,
+            tuple(arguments.copy_root_file),
         )
     if arguments.command == "config":
         if arguments.config_command == "show":

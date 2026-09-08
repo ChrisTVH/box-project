@@ -37,7 +37,7 @@ _box-rpg() {
       esac
       ;;
     config) _values 'config command' show set ;;
-    launch) _arguments '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' ;;
+    launch) _arguments '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' '--game-cwd[use the game root as the NW.js working directory]' '--copy-root-file[copy a direct game-root file into the isolated session]:file:' ;;
     diagnose) _arguments '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' ;;
   esac
 }

@@ -17,5 +17,7 @@ complete -c box-rpg -n '__fish_seen_subcommand_from runtime; and not __fish_seen
 complete -c box-rpg -n '__fish_seen_subcommand_from config' -a 'show set'
 complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l runtime -d 'Use an NW.js version'
 complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l sdk -d 'Use an NW.js SDK build'
+complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l game-cwd -d 'Use the game root as the NW.js working directory'
+complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l copy-root-file -d 'Copy a direct game-root file into the isolated session' -r
 complete -c box-rpg -n '__fish_seen_subcommand_from diagnose' -l runtime -d 'Use an NW.js version'
 complete -c box-rpg -n '__fish_seen_subcommand_from diagnose' -l sdk -d 'Use an NW.js SDK build'

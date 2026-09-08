@@ -63,6 +63,18 @@ def build_parser() -> argparse.ArgumentParser:
     launch.add_argument("game", nargs="?", default=".", type=str)
     launch.add_argument("--runtime", dest="runtime_version")
     launch.add_argument("--sdk", action="store_true", help="use the NW.js SDK build")
+    launch.add_argument(
+        "--game-cwd",
+        action="store_true",
+        help="run NW.js with the game root as its working directory",
+    )
+    launch.add_argument(
+        "--copy-root-file",
+        action="append",
+        default=[],
+        metavar="FILE",
+        help="copy a direct game-root file into the isolated NW.js session",
+    )
 
     config = commands.add_parser("config", help="show or update launcher configuration")
     config_commands = config.add_subparsers(dest="config_command", required=True)

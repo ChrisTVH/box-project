@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from box.games.identity import game_id
 from box.launch.cleanup import remove_session
-from box.launch.links import link_game
+from box.launch.links import copy_game_root_file, link_game
 from box.launch.manifest import write_manifest
 from box.models import GameInfo
 from box.paths import AppPaths
@@ -41,7 +41,9 @@ class LaunchSession:
         self.cleanup()
 
 
-def create_session(paths: AppPaths, game: GameInfo) -> LaunchSession:
+def create_session(
+    paths: AppPaths, game: GameInfo, copy_root_files: tuple[str, ...] = ()
+) -> LaunchSession:
     """Create an isolated manifest and game link under the XDG cache."""
     paths.ensure()
     root = paths.sessions_root / game_id(game.root) / uuid4().hex
@@ -49,6 +51,8 @@ def create_session(paths: AppPaths, game: GameInfo) -> LaunchSession:
     root.mkdir(parents=True, mode=0o700)
     try:
         link_game(root, game.root)
+        for filename in copy_root_files:
+            copy_game_root_file(root, game.root, filename)
         write_manifest(root, game)
     except Exception:
         remove_session(paths, root)

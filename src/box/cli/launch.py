@@ -29,14 +29,18 @@ def execute(
     game_path: Path,
     version: str | None,
     sdk: bool,
+    game_cwd: bool = False,
+    copy_root_files: tuple[str, ...] = (),
 ) -> int:
     """Launch an allowed game through an isolated session."""
     game = detect_game(game_path, default_registry())
     config = repository.load()
     read = input if sys.stdin.isatty() else None
     if game.engine is EngineName.RPG_MAKER_2000_2003:
-        if version is not None or sdk:
-            raise GameValidationError("--runtime and --sdk are only available for NW.js games")
+        if version is not None or sdk or game_cwd or copy_root_files:
+            raise GameValidationError(
+                "--runtime, --sdk, --game-cwd, and --copy-root-file are only available for NW.js games"
+            )
         runtime = EasyRPGCatalog(paths).latest()
         authorize_game(game, config, repository, read)
         return run_process(
@@ -50,8 +54,10 @@ def execute(
         sdk or config.prefer_sdk,
     )
     authorize_game(game, config, repository, read)
-    with create_session(paths, game) as session:
-        return run_process(build_command(runtime, session.root))
+    with create_session(paths, game, copy_root_files) as session:
+        return run_process(
+            build_command(runtime, session.root), cwd=game.root if game_cwd else None
+        )
 
 
 def authorize_game(

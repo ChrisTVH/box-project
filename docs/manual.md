@@ -40,6 +40,25 @@ Use `n` and `p` to browse version pages, enter a number to choose a version,
 and confirm the installation. NW.js uses Wayland only when the session provides
 both `XDG_SESSION_TYPE=wayland` and `WAYLAND_DISPLAY`; otherwise it uses X11.
 
+Some desktop exports load auxiliary files relative to the game root instead of
+their web directory. For these special cases, retain the isolated launch session
+but set the runtime working directory explicitly:
+
+```sh
+box-rpg launch --game-cwd
+```
+
+If an export resets its working directory to the isolated session, copy the
+required direct game-root file instead:
+
+```sh
+box-rpg launch --copy-root-file game_messages.csv
+```
+
+`--copy-root-file` can be repeated for multiple files. It accepts only direct,
+regular files from the validated game root and rejects paths containing
+directories, symlinks, or session-owned names.
+
 ### RPG Maker 2000/2003
 
 These projects are detected from `RPG_RT.ini`, `RPG_RT.ldb`, and `RPG_RT.lmt`.

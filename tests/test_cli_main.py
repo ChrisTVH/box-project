@@ -12,7 +12,7 @@ from box.paths import AppPaths
 def test_main_launches_the_current_directory_without_arguments(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    calls: list[tuple[Path, str | None, bool]] = []
+    calls: list[tuple[Path, str | None, bool, bool, tuple[str, ...]]] = []
 
     def fake_launch(
         paths: object,
@@ -20,8 +20,10 @@ def test_main_launches_the_current_directory_without_arguments(
         game_path: Path,
         version: str | None,
         sdk: bool,
+        game_cwd: bool,
+        copy_root_files: tuple[str, ...],
     ) -> int:
-        calls.append((game_path, version, sdk))
+        calls.append((game_path, version, sdk, game_cwd, copy_root_files))
         return 0
 
     def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
@@ -36,7 +38,7 @@ def test_main_launches_the_current_directory_without_arguments(
     monkeypatch.setattr("box.cli.main.launch_command.execute", fake_launch)
 
     assert main([]) == 0
-    assert calls == [(Path("."), None, False)]
+    assert calls == [(Path("."), None, False, False, ())]
 
 
 def test_main_without_arguments_shows_help_outside_a_game(
@@ -55,6 +57,22 @@ def test_launch_command_defaults_to_the_current_directory() -> None:
     arguments = build_parser().parse_args(["launch"])
 
     assert arguments.game == "."
+    assert not arguments.game_cwd
+    assert arguments.copy_root_file == []
+
+
+def test_launch_command_accepts_game_root_as_working_directory() -> None:
+    arguments = build_parser().parse_args(["launch", "--game-cwd"])
+
+    assert arguments.game_cwd
+
+
+def test_launch_command_accepts_direct_game_root_file_copies() -> None:
+    arguments = build_parser().parse_args(
+        ["launch", "--copy-root-file", "game_messages.csv", "--copy-root-file", "mod.ini"]
+    )
+
+    assert arguments.copy_root_file == ["game_messages.csv", "mod.ini"]
 
 
 def test_cleanup_command_is_available() -> None:

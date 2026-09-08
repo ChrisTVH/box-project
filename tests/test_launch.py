@@ -1,4 +1,5 @@
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -8,7 +9,7 @@ from box.config.models import AppConfig
 from box.config.repository import ConfigRepository
 from box.engines.registry import EngineRegistry
 from box.errors import GameValidationError, RuntimeError
-from box.models import EngineName, GameInfo
+from box.models import EngineName, GameInfo, RuntimeInfo, RuntimeSpec
 from box.paths import AppPaths
 from box.runtime.easyrpg import EasyRPGRuntime
 
@@ -209,3 +210,76 @@ def test_execute_launches_rpg_rt_projects_with_easyrpg_fullscreen(
     assert calls == [
         ([str(executable), "--project-path", str(game_root), "--fullscreen"], game_root)
     ]
+
+
+def test_execute_rejects_nwjs_options_for_rpg_rt_projects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    game = GameInfo(EngineName.RPG_MAKER_2000_2003, game_root)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+
+    def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
+        return game
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
+
+    with pytest.raises(GameValidationError, match="--copy-root-file"):
+        execute(paths, repository, game_root, None, False, copy_root_files=("messages.csv",))
+
+
+def test_execute_uses_the_game_root_as_nwjs_working_directory_when_requested(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    game = GameInfo(
+        EngineName.RPG_MAKER_MZ,
+        game_root,
+        game_root / "index.html",
+        game_root / "package.json",
+    )
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    runtime = RuntimeInfo(RuntimeSpec("v0.90.0", "x64"), runtime_root, runtime_root / "nw")
+    session_root = tmp_path / "session"
+    session_root.mkdir()
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    calls: list[tuple[Path | None, tuple[str, ...]]] = []
+
+    @contextmanager
+    def session(
+        _: AppPaths, __: GameInfo, copy_root_files: tuple[str, ...] = ()
+    ) -> Generator[object]:
+        calls.append((None, copy_root_files))
+        yield type("Session", (), {"root": session_root})()
+
+    def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
+        return game
+
+    def select(*_: object) -> RuntimeInfo:
+        return runtime
+
+    def authorize(
+        _: GameInfo,
+        __: AppConfig,
+        ___: ConfigRepository,
+        ____: Callable[[str], str] | None = None,
+    ) -> AppConfig:
+        return repository.load()
+
+    def run(_: list[str], cwd: Path | None = None) -> int:
+        calls.append((cwd, ()))
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
+    monkeypatch.setattr("box.cli.launch.select_runtime", select)
+    monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
+    monkeypatch.setattr("box.cli.launch.create_session", session)
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+
+    assert execute(paths, repository, game_root, None, False, game_cwd=True) == 0
+    assert calls == [(None, ()), (game_root, ())]
