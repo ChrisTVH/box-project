@@ -4,6 +4,7 @@ schema_version = 1
 # Only games below these resolved roots may be launched.
 allowed_game_roots = ["/home/alice/games"]
 
-# Omit this to select the newest matching local runtime.
+# NW.js only: omit this to select the newest matching local runtime for MV/MZ games.
 preferred_runtime = "v0.90.0"
+# NW.js only: select SDK builds for MV/MZ games.
 prefer_sdk = false

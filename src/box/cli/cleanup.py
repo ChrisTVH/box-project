@@ -11,6 +11,7 @@ from box.errors import BoxError, RuntimeError
 from box.paths import AppPaths
 from box.runtime.catalog import ManagedRuntime, RuntimeCatalog
 from box.runtime.downloads import DownloadCatalog
+from box.runtime.easyrpg import EasyRPGCatalog, EasyRPGDownloadCatalog, EasyRPGRuntime
 
 
 def execute(
@@ -25,11 +26,13 @@ def execute(
     if not interactive:
         raise RuntimeError("cleanup requires an interactive terminal")
     runtimes = RuntimeCatalog(paths)
+    easyrpg_runtimes = EasyRPGCatalog(paths)
     downloads = DownloadCatalog(paths)
+    easyrpg_downloads = EasyRPGDownloadCatalog(paths)
     while True:
         roots = repository.load().allowed_game_roots
-        managed_runtimes = runtimes.list_managed()
-        archives = downloads.list()
+        managed_runtimes = (*runtimes.list_managed(), *easyrpg_runtimes.list_managed())
+        archives = (*downloads.list(), *easyrpg_downloads.list())
         write("Cleanup:")
         write(f"  1. Authorized game roots ({len(roots)})")
         write(f"  2. Managed runtimes ({len(managed_runtimes)})")
@@ -45,12 +48,21 @@ def execute(
         if action == "1":
             _clean_roots(repository, roots, read, write)
         elif action == "2":
-            _clean_runtimes(runtimes, managed_runtimes, read, write)
+            _clean_runtimes(runtimes, easyrpg_runtimes, managed_runtimes, read, write)
         elif action == "3":
-            _clean_downloads(downloads, archives, read, write)
+            _clean_downloads(downloads, easyrpg_downloads, archives, read, write)
         elif action == "a":
             _clean_all(
-                repository, runtimes, downloads, roots, managed_runtimes, archives, read, write
+                repository,
+                runtimes,
+                easyrpg_runtimes,
+                downloads,
+                easyrpg_downloads,
+                roots,
+                managed_runtimes,
+                archives,
+                read,
+                write,
             )
         else:
             write("Invalid selection.")
@@ -80,23 +92,32 @@ def _clean_roots(
 
 def _clean_runtimes(
     catalog: RuntimeCatalog,
-    runtimes: tuple[ManagedRuntime, ...],
+    easyrpg_catalog: EasyRPGCatalog,
+    runtimes: tuple[ManagedRuntime | EasyRPGRuntime, ...],
     read: Callable[[str], str],
     write: Callable[[str], None],
 ) -> None:
     selection = choose_paged(
         "Managed runtimes",
         runtimes,
-        lambda runtime: f"{runtime.spec.version} {runtime.spec.architecture} {runtime.spec.flavor}",
+        _render_runtime,
         allow_all=True,
         read=read,
         write=write,
     )
-    _clean_selected(selection, runtimes, catalog.remove_managed, "runtime", read, write)
+    _clean_selected(
+        selection,
+        runtimes,
+        lambda runtime: _remove_runtime(runtime, catalog, easyrpg_catalog),
+        "runtime",
+        read,
+        write,
+    )
 
 
 def _clean_downloads(
     catalog: DownloadCatalog,
+    easyrpg_catalog: EasyRPGDownloadCatalog,
     archives: tuple[Path, ...],
     read: Callable[[str], str],
     write: Callable[[str], None],
@@ -109,7 +130,14 @@ def _clean_downloads(
         read=read,
         write=write,
     )
-    _clean_selected(selection, archives, catalog.remove, "download archive", read, write)
+    _clean_selected(
+        selection,
+        archives,
+        lambda archive: _remove_download(archive, catalog, easyrpg_catalog),
+        "download archive",
+        read,
+        write,
+    )
 
 
 def _clean_selected[T](
@@ -136,9 +164,11 @@ def _clean_selected[T](
 def _clean_all(
     repository: ConfigRepository,
     runtimes: RuntimeCatalog,
+    easyrpg_runtimes: EasyRPGCatalog,
     downloads: DownloadCatalog,
+    easyrpg_downloads: EasyRPGDownloadCatalog,
     roots: tuple[Path, ...],
-    managed_runtimes: tuple[ManagedRuntime, ...],
+    managed_runtimes: tuple[ManagedRuntime | EasyRPGRuntime, ...],
     archives: tuple[Path, ...],
     read: Callable[[str], str],
     write: Callable[[str], None],
@@ -155,8 +185,18 @@ def _clean_all(
         write("Cleanup cancelled.")
         return
     repository.clear_allowed_roots()
-    removed_runtimes = _remove_all(managed_runtimes, runtimes.remove_managed, "runtime", write)
-    removed_archives = _remove_all(archives, downloads.remove, "download archive", write)
+    removed_runtimes = _remove_all(
+        managed_runtimes,
+        lambda runtime: _remove_runtime(runtime, runtimes, easyrpg_runtimes),
+        "runtime",
+        write,
+    )
+    removed_archives = _remove_all(
+        archives,
+        lambda archive: _remove_download(archive, downloads, easyrpg_downloads),
+        "download archive",
+        write,
+    )
     write(
         f"Removed {len(roots)} roots, {removed_runtimes} runtimes, and {removed_archives} downloads."
     )
@@ -185,3 +225,30 @@ def _confirm(label: str, read: Callable[[str], str], write: Callable[[str], None
         write("Cleanup cancelled.")
         return False
     return answer in {"y", "yes"}
+
+
+def _render_runtime(runtime: ManagedRuntime | EasyRPGRuntime) -> str:
+    """Render one managed runtime with its owning provider."""
+    if isinstance(runtime, EasyRPGRuntime):
+        return f"EasyRPG Player {runtime.version} x64"
+    return f"NW.js {runtime.spec.version} {runtime.spec.architecture} {runtime.spec.flavor}"
+
+
+def _remove_runtime(
+    runtime: ManagedRuntime | EasyRPGRuntime,
+    nwjs: RuntimeCatalog,
+    easyrpg: EasyRPGCatalog,
+) -> None:
+    """Delegate deletion to the runtime provider that owns the selected directory."""
+    if isinstance(runtime, EasyRPGRuntime):
+        easyrpg.remove_managed(runtime)
+    else:
+        nwjs.remove_managed(runtime)
+
+
+def _remove_download(archive: Path, nwjs: DownloadCatalog, easyrpg: EasyRPGDownloadCatalog) -> None:
+    """Delegate deletion to the download provider that owns the archive path."""
+    if easyrpg.owns(archive):
+        easyrpg.remove(archive)
+    else:
+        nwjs.remove(archive)

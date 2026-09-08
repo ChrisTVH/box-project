@@ -11,17 +11,17 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the box-rpg command tree."""
     parser = argparse.ArgumentParser(
         prog="box-rpg",
-        description="Launch RPG Maker MV/MZ exports with managed NW.js runtimes.",
+        description="Launch RPG Maker games with managed NW.js or EasyRPG Player runtimes.",
     )
     parser.add_argument("--version", action="version", version=f"box-rpg {__version__}")
     commands = parser.add_subparsers(dest="command")
 
     commands.add_parser("cleanup", help="interactively remove launcher-managed data")
 
-    inspect = commands.add_parser("inspect", help="inspect an MV or MZ export without changing it")
+    inspect = commands.add_parser("inspect", help="inspect a supported game without changing it")
     inspect.add_argument("game", type=str)
 
-    runtime = commands.add_parser("runtime", help="manage cached NW.js runtimes")
+    runtime = commands.add_parser("runtime", help="manage cached game runtimes")
     runtime_commands = runtime.add_subparsers(dest="runtime_command", required=True)
     runtime_commands.add_parser("list", help="list installed runtimes")
     available = runtime_commands.add_parser("available", help="list online NW.js versions")
@@ -41,6 +41,23 @@ def build_parser() -> argparse.ArgumentParser:
         action.add_argument("version")
         action.add_argument("--architecture")
         action.add_argument("--sdk", action="store_true", help="use the NW.js SDK build")
+
+    easyrpg = runtime_commands.add_parser("easyrpg", help="manage EasyRPG Player x64 runtimes")
+    easyrpg_commands = easyrpg.add_subparsers(dest="easyrpg_command", required=True)
+    easyrpg_commands.add_parser("list", help="list installed EasyRPG Player runtimes")
+    easyrpg_available = easyrpg_commands.add_parser(
+        "available", help="list online EasyRPG Player versions"
+    )
+    easyrpg_available.add_argument("--page", type=int, default=1, help="online version page")
+    easyrpg_available.add_argument(
+        "--interactive", action="store_true", help="select and install a version"
+    )
+    for name, help_text in (
+        ("install", "download and install an EasyRPG Player runtime"),
+        ("remove", "remove a managed EasyRPG Player runtime"),
+    ):
+        action = easyrpg_commands.add_parser(name, help=help_text)
+        action.add_argument("version")
 
     launch = commands.add_parser("launch", help="launch an allowed game in an isolated session")
     launch.add_argument("game", nargs="?", default=".", type=str)

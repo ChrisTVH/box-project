@@ -14,6 +14,8 @@ _FORWARDED_FIELDS = ("window", "chromium-args", "js-flags")
 
 def write_manifest(session_root: Path, game: GameInfo) -> Path:
     """Create a wrapper manifest while preserving safe display settings."""
+    if game.manifest is None or game.entrypoint is None:
+        raise LaunchError("a NW.js launch session requires a web game manifest and entrypoint")
     source = _read_game_manifest(game.manifest)
     payload: dict[str, object] = {
         "name": _manifest_name(source, game.root),

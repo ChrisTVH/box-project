@@ -4,9 +4,9 @@ _box-rpg() {
   local -a commands
   commands=(
     'cleanup:interactively remove launcher-managed data'
-    'inspect:inspect an MV/MZ game'
-    'runtime:manage NW.js runtimes'
-    'launch:launch an MV/MZ game'
+    'inspect:inspect a supported game'
+    'runtime:manage game runtimes'
+    'launch:launch a supported game'
     'config:show or set configuration'
     'diagnose:check launcher setup'
   )
@@ -19,12 +19,21 @@ _box-rpg() {
   case "$words[2]" in
     runtime)
       if (( CURRENT == 3 )); then
-        _values 'runtime action' list available install remove
+        _values 'runtime action' list available install remove easyrpg
         return
       fi
       case "$words[3]" in
         available) _arguments '--page[select an online version page]:page:' '--interactive[select and install a version]' '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
         install|remove) _arguments '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
+        easyrpg)
+          if (( CURRENT == 4 )); then
+            _values 'EasyRPG action' list available install remove
+            return
+          fi
+          case "$words[4]" in
+            available) _arguments '--page[select an online version page]:page:' '--interactive[select and install a version]' ;;
+          esac
+          ;;
       esac
       ;;
     config) _values 'config command' show set ;;

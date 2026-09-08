@@ -43,6 +43,29 @@ def test_detect_game_recognizes_rpg_maker_mz_export(tmp_path: Path) -> None:
     assert game.manifest == game_root / "package.json"
 
 
+def test_detect_game_recognizes_rpg_maker_2000_2003_project(tmp_path: Path) -> None:
+    game_root = tmp_path / "rpg-rt-game"
+    for filename in ("RPG_RT.ini", "RPG_RT.ldb", "RPG_RT.lmt"):
+        _write_file(game_root / filename)
+
+    game = detect_game(game_root, default_registry())
+
+    assert game.engine is EngineName.RPG_MAKER_2000_2003
+    assert game.root == game_root
+    assert game.entrypoint is None
+    assert game.manifest is None
+
+
+@pytest.mark.parametrize("missing", ("RPG_RT.ini", "RPG_RT.ldb", "RPG_RT.lmt"))
+def test_detect_game_rejects_incomplete_rpg_rt_project(tmp_path: Path, missing: str) -> None:
+    game_root = tmp_path / "rpg-rt-game"
+    for filename in {"RPG_RT.ini", "RPG_RT.ldb", "RPG_RT.lmt"} - {missing}:
+        _write_file(game_root / filename)
+
+    with pytest.raises(GameValidationError, match="unsupported game"):
+        detect_game(game_root, default_registry())
+
+
 def test_detect_game_rejects_export_with_missing_entrypoint(tmp_path: Path) -> None:
     game_root = tmp_path / "incomplete-game"
     _write_file(game_root / "js" / "plugins.js", "var $plugins = [];")

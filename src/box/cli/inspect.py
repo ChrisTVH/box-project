@@ -12,7 +12,7 @@ def execute(path: Path) -> int:
     inspection = inspect_game(path)
     print(f"engine: {inspection.game.engine.value}")
     print(f"root: {inspection.game.root}")
-    print(f"entrypoint: {inspection.game.entrypoint}")
+    print(f"entrypoint: {inspection.game.entrypoint or '(not applicable)'}")
     print(f"title: {inspection.title or '(unknown)'}")
     print(f"plugins: {inspection.plugin_count}")
     return 0

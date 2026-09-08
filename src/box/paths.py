@@ -40,9 +40,19 @@ class AppPaths:
         return self.cache_root / "downloads" / "nwjs"
 
     @property
+    def easyrpg_downloads_root(self) -> Path:
+        """Return the directory containing downloaded EasyRPG Player archives."""
+        return self.cache_root / "downloads" / "easyrpg"
+
+    @property
     def runtimes_root(self) -> Path:
         """Return the root for launcher-owned NW.js runtimes."""
         return self.cache_root / "runtimes" / "nwjs"
+
+    @property
+    def easyrpg_runtimes_root(self) -> Path:
+        """Return the root for launcher-owned EasyRPG Player runtimes."""
+        return self.cache_root / "runtimes" / "easyrpg"
 
     @property
     def sessions_root(self) -> Path:
@@ -61,8 +71,10 @@ class AppPaths:
             self.cache_root,
             self.cache_root / "downloads",
             self.downloads_root,
+            self.easyrpg_downloads_root,
             self.cache_root / "runtimes",
             self.runtimes_root,
+            self.easyrpg_runtimes_root,
             self.cache_root / "sessions",
             self.sessions_root,
             self.reports_root,
@@ -81,6 +93,13 @@ class AppPaths:
         downloads_root = self.downloads_root.resolve(strict=True)
         if managed.parent != downloads_root:
             raise ConfigurationError(f"refusing to manage nested download path: {path}")
+        return managed
+
+    def ensure_managed_easyrpg_download_path(self, path: Path) -> Path:
+        """Validate a direct EasyRPG download-cache file path owned by the launcher."""
+        managed = self._ensure_managed_child(self.easyrpg_downloads_root, path, "EasyRPG download")
+        if managed.parent != self.easyrpg_downloads_root.resolve(strict=True):
+            raise ConfigurationError(f"refusing to manage nested EasyRPG download path: {path}")
         return managed
 
     def open_managed_cache_directory(self, *components: str) -> int:
@@ -104,6 +123,10 @@ class AppPaths:
     def ensure_managed_session_path(self, path: Path) -> Path:
         """Validate a session path is owned by the launcher cache."""
         return self._ensure_managed_child(self.sessions_root, path, "session")
+
+    def ensure_managed_easyrpg_runtime_path(self, path: Path) -> Path:
+        """Validate an EasyRPG runtime path is owned by the launcher cache."""
+        return self._ensure_managed_child(self.easyrpg_runtimes_root, path, "EasyRPG runtime")
 
     def _ensure_managed_child(self, root: Path, path: Path, label: str) -> Path:
         """Reject traversal and symlink escapes from a launcher-owned root."""

@@ -40,6 +40,25 @@ def test_cleanup_removes_all_download_archives_from_their_menu(tmp_path: Path) -
     assert not second.exists()
 
 
+def test_cleanup_removes_easyrpg_managed_runtime_and_archive(tmp_path: Path) -> None:
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    paths.ensure()
+    runtime = paths.easyrpg_runtimes_root / "0.8.1.1"
+    runtime.mkdir()
+    player = runtime / "easyrpg-player"
+    player.write_text("#!/bin/sh\n", encoding="utf-8")
+    player.chmod(0o700)
+    archive = paths.easyrpg_downloads_root / "easyrpg-player-0.8.1.1-linux.tar.gz"
+    archive.write_bytes(b"archive")
+    choices = iter(("2", "1", "yes", "3", "1", "yes", "q"))
+
+    assert (
+        execute(paths, ConfigRepository(paths), interactive=True, read=lambda _: next(choices)) == 0
+    )
+    assert not runtime.exists()
+    assert not archive.exists()
+
+
 def test_cleanup_global_all_removes_only_the_three_managed_categories(tmp_path: Path) -> None:
     paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
     game_root = tmp_path / "games" / "sample"

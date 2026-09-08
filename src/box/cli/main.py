@@ -31,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
             detect_game(Path("."), default_registry())
         except GameValidationError:
             print(
-                "error: no RPG Maker MV/MZ game was found here; run box-rpg from the game directory.",
+                "error: no supported RPG Maker game was found here; run box-rpg from the game directory.",
                 file=sys.stderr,
             )
             parser.print_help()
@@ -55,6 +55,8 @@ def _dispatch(arguments: Namespace) -> int:
         return inspect_command.execute(Path(arguments.game))
     if arguments.command == "runtime":
         catalog = RuntimeCatalog(paths)
+        if arguments.runtime_command == "easyrpg":
+            return runtime_command.easyrpg(paths, arguments.easyrpg_command, arguments)
         if arguments.runtime_command == "list":
             return runtime_command.list_runtimes(catalog)
         architecture = normalize_architecture(arguments.architecture or current_architecture())

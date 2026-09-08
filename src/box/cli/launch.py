@@ -14,9 +14,11 @@ from box.games.detector import detect_game, ensure_allowed_root
 from box.launch.command import build_command
 from box.launch.process import run_process
 from box.launch.session import create_session
-from box.models import GameInfo
+from box.models import EngineName, GameInfo
 from box.paths import AppPaths
 from box.runtime.catalog import RuntimeCatalog
+from box.runtime.easyrpg import EasyRPGCatalog
+from box.runtime.easyrpg import executable as easyrpg_executable
 from box.runtime.platform import current_architecture
 from box.runtime.selector import select_runtime
 
@@ -31,13 +33,22 @@ def execute(
     """Launch an allowed game through an isolated session."""
     game = detect_game(game_path, default_registry())
     config = repository.load()
+    read = input if sys.stdin.isatty() else None
+    if game.engine is EngineName.RPG_MAKER_2000_2003:
+        if version is not None or sdk:
+            raise GameValidationError("--runtime and --sdk are only available for NW.js games")
+        runtime = EasyRPGCatalog(paths).latest()
+        authorize_game(game, config, repository, read)
+        return run_process(
+            [str(easyrpg_executable(runtime)), "--project-path", str(game.root), "--fullscreen"],
+            cwd=game.root,
+        )
     runtime = select_runtime(
         RuntimeCatalog(paths),
         current_architecture(),
         config.preferred_runtime if version is None else version,
         sdk or config.prefer_sdk,
     )
-    read = input if sys.stdin.isatty() else None
     authorize_game(game, config, repository, read)
     with create_session(paths, game) as session:
         return run_process(build_command(runtime, session.root))

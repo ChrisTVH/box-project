@@ -3,8 +3,9 @@
 ## Scope
 
 `box-rpg` is a Python 3.14+ command-line launcher for RPG Maker MV/MZ exports
-using NW.js. Keep the supported-engine boundary explicit; do not add support
-for other RPG Maker generations or runtimes without a documented decision.
+using NW.js and RPG Maker 2000/2003 projects using EasyRPG Player. Keep the
+supported-engine boundary explicit; do not add further generations or runtimes
+without a documented decision.
 
 ## Development
 

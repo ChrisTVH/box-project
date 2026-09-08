@@ -1,8 +1,8 @@
 # box-rpg
 
 `box-rpg` is a Python 3.14+ launcher for **RPG Maker MV/MZ** games running on
-**NW.js**. It intentionally does not support other RPG Maker generations or
-other web runtimes.
+**NW.js** and **RPG Maker 2000/2003** projects running on **EasyRPG Player**.
+It intentionally does not support other RPG Maker generations or runtimes.
 
 ## Install and uninstall
 
@@ -59,6 +59,11 @@ box-rpg runtime available [--page PAGE] [--architecture ARCHITECTURE] [--sdk]
 box-rpg runtime available --interactive [--page PAGE] [--architecture ARCHITECTURE] [--sdk]
 box-rpg runtime install VERSION [--architecture ARCHITECTURE] [--sdk]
 box-rpg runtime remove VERSION [--architecture ARCHITECTURE] [--sdk]
+box-rpg runtime easyrpg list
+box-rpg runtime easyrpg available [--page PAGE]
+box-rpg runtime easyrpg available --interactive [--page PAGE]
+box-rpg runtime easyrpg install VERSION
+box-rpg runtime easyrpg remove VERSION
 box-rpg launch [GAME_PATH] [--runtime VERSION] [--sdk]
 box-rpg config show
 box-rpg config set KEY VALUE
@@ -66,13 +71,13 @@ box-rpg diagnose GAME_PATH [--runtime VERSION] [--sdk]
 ```
 
 Run `box-rpg` from a game directory to launch that directory. `inspect`
-identifies a supported MV/MZ export. `runtime` manages downloaded NW.js
-versions. `launch` starts an allowed game and defaults to the current directory
-when `GAME_PATH` is omitted. `config` displays or changes the launcher settings,
-and `diagnose` creates a local report without launching the game.
+identifies a supported game. `runtime` manages downloaded NW.js and EasyRPG
+Player versions. `launch` starts an allowed game and defaults to the current
+directory when `GAME_PATH` is omitted. `config` displays or changes the launcher
+settings, and `diagnose` creates a local report without launching the game.
 
 `cleanup` requires an interactive terminal. It can remove individual or all
-authorized roots, managed runtimes, and cached NW.js archives; it never deletes
+authorized roots, managed runtimes, and cached runtime archives; it never deletes
 game directories, `config.toml`, sessions, or reports.
 
 Running `box-rpg` without arguments requires the current directory to contain a
@@ -84,6 +89,10 @@ The architecture is detected automatically unless `--architecture` is supplied.
 Runtime downloads use a 60-second connection timeout and resume partial archives after
 temporary connection failures. Interactive terminals display a progress bar.
 Launches select Wayland only when the session exposes `WAYLAND_DISPLAY`; otherwise they use X11.
+
+RPG Maker 2000/2003 projects require `RPG_RT.ini`, `RPG_RT.ldb`, and `RPG_RT.lmt`.
+They launch with the managed x64 EasyRPG Player using `--project-path` and `--fullscreen`.
+Use `box-rpg runtime easyrpg available --interactive` to choose and install a version.
 
 See [the manual](docs/manual.md) and
 [the example configuration](res/config/box-rpg.toml.example).

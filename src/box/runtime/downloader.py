@@ -77,6 +77,7 @@ def download_archive(
     url: str,
     destination: Path,
     progress: ProgressReporter | None = None,
+    allowed_hosts: frozenset[str] = OFFICIAL_DOWNLOAD_HOSTS,
 ) -> None:
     """Resume a private temporary archive across transient connection failures."""
     _ensure_regular_download_path(destination)
@@ -87,7 +88,7 @@ def download_archive(
     reporter = _report_download_progress if progress is None else progress
     for attempt, delay in enumerate((*DOWNLOAD_RETRY_DELAYS, None), start=1):
         try:
-            _download_attempt(url, temporary, reporter)
+            _download_attempt(url, temporary, reporter, allowed_hosts)
             temporary.chmod(0o600)
             os.replace(temporary, destination)
             return
@@ -107,7 +108,9 @@ def download_archive(
             time.sleep(delay)
 
 
-def _download_attempt(url: str, temporary: Path, progress: ProgressReporter) -> None:
+def _download_attempt(
+    url: str, temporary: Path, progress: ProgressReporter, allowed_hosts: frozenset[str]
+) -> None:
     """Request the remaining archive bytes and append them when the server supports Range."""
     offset = temporary.stat().st_size if temporary.exists() else 0
     headers = {"User-Agent": "Mozilla/5.0 (compatible; box-rpg)"}
@@ -116,7 +119,7 @@ def _download_attempt(url: str, temporary: Path, progress: ProgressReporter) -> 
     request = Request(url, headers=headers)
     response = cast(_DownloadResponse, urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS))
     with response:
-        validate_download_source(response.geturl())
+        validate_download_source(response.geturl(), allowed_hosts)
         status = response.status
         if offset and status == 206:
             content_range = response.headers.get("Content-Range", "")
@@ -185,8 +188,10 @@ def _ensure_regular_download_path(path: Path) -> None:
         raise RuntimeError(f"refusing unsafe download path: {path}")
 
 
-def validate_download_source(url: str) -> None:
-    """Reject NW.js archive redirects outside official HTTPS mirrors."""
+def validate_download_source(
+    url: str, allowed_hosts: frozenset[str] = OFFICIAL_DOWNLOAD_HOSTS
+) -> None:
+    """Reject archive redirects outside the configured official HTTPS hosts."""
     destination = urlsplit(url)
-    if destination.scheme != "https" or destination.hostname not in OFFICIAL_DOWNLOAD_HOSTS:
-        raise RuntimeError("NW.js archive redirected outside an official HTTPS mirror")
+    if destination.scheme != "https" or destination.hostname not in allowed_hosts:
+        raise RuntimeError("archive redirected outside an official HTTPS mirror or host")

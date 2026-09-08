@@ -7,6 +7,7 @@ from pathlib import Path
 from box.engines.base import EngineAdapter
 from box.engines.mv import RpgMakerMvAdapter
 from box.engines.mz import RpgMakerMzAdapter
+from box.engines.rpg_rt import RpgMaker2000_2003Adapter
 from box.models import GameInfo
 
 
@@ -26,4 +27,4 @@ class EngineRegistry:
 
 def default_registry() -> EngineRegistry:
     """Return adapters supported by this release."""
-    return EngineRegistry((RpgMakerMvAdapter(), RpgMakerMzAdapter()))
+    return EngineRegistry((RpgMakerMvAdapter(), RpgMakerMzAdapter(), RpgMaker2000_2003Adapter()))

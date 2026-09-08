@@ -2,9 +2,9 @@
 
 ## Scope
 
-`box-rpg` launches exported RPG Maker MV and MZ games with NW.js. It requires
-Python 3.14+ and is not a launcher for RPG Maker XP, VX, VX Ace, or non-NW.js
-applications.
+`box-rpg` launches exported RPG Maker MV/MZ games with NW.js and RPG Maker
+2000/2003 projects with EasyRPG Player. It requires Python 3.14+ and is not a
+launcher for RPG Maker XP, VX, VX Ace, or other runtimes.
 
 ## Configuration and storage
 
@@ -39,6 +39,11 @@ box-rpg runtime available [--page PAGE] [--architecture ARCHITECTURE] [--sdk]
 box-rpg runtime available --interactive [--page PAGE] [--architecture ARCHITECTURE] [--sdk]
 box-rpg runtime install VERSION [--architecture ARCHITECTURE] [--sdk]
 box-rpg runtime remove VERSION [--architecture ARCHITECTURE] [--sdk]
+box-rpg runtime easyrpg list
+box-rpg runtime easyrpg available [--page PAGE]
+box-rpg runtime easyrpg available --interactive [--page PAGE]
+box-rpg runtime easyrpg install VERSION
+box-rpg runtime easyrpg remove VERSION
 box-rpg launch [GAME_PATH] [--runtime VERSION] [--sdk]
 box-rpg config show
 box-rpg config set KEY VALUE
@@ -47,14 +52,15 @@ box-rpg diagnose GAME_PATH [--runtime VERSION] [--sdk]
 
 Run `box-rpg` from a game directory to launch it directly. `launch` also uses
 the current directory when `GAME_PATH` is omitted. Use `inspect` before launch
-to check that a directory is an MV/MZ export. `runtime install` fetches a
-requested NW.js version into the cache; `list` shows managed versions; `remove`
-only removes a managed cached version. `config set` updates one TOML value, for
-example `box-rpg config set preferred-runtime 0.90.0`. `diagnose` is local-only
-and does not transmit game data.
+to check that a directory is a supported game. `runtime install` fetches a
+requested NW.js version into the cache; `runtime easyrpg install` fetches an
+EasyRPG Player version. Each provider can list and remove only its managed
+cached versions. `config set` updates one TOML value, for example
+`box-rpg config set preferred-runtime 0.90.0`. `diagnose` is local-only and
+does not transmit game data.
 
 `cleanup` requires an interactive terminal. It presents paginated lists of
-authorized roots, managed runtimes, and cached NW.js archives. Removing a root
+authorized roots, managed runtimes, and cached runtime archives. Removing a root
 only removes its authorization; it never deletes games. Its global cleanup
 requires typing `DELETE ALL` and does not remove `config.toml`, sessions, or reports.
 
@@ -66,7 +72,12 @@ supported game. Otherwise it prints help and explains how to launch one.
 for the previous page, or `q` to quit. A selected version is installed only after
 confirmation. The architecture is detected automatically unless overridden.
 Runtime downloads use a 60-second connection timeout and resume partial archives after
-temporary connection failures. Interactive terminals display a progress bar.
+temporary connection failures. Interactive terminals display a progress bar. The
+runtime commands manage both NW.js and EasyRPG Player archives.
+
+RPG Maker 2000/2003 projects are detected from `RPG_RT.ini`, `RPG_RT.ldb`, and
+`RPG_RT.lmt`. They require a managed x64 EasyRPG Player runtime and launch with
+`--project-path` and `--fullscreen`; saves remain in the game directory.
 
 At launch, box-rpg selects NW.js Wayland only when both `XDG_SESSION_TYPE=wayland`
 and `WAYLAND_DISPLAY` are present; otherwise it uses X11.

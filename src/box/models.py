@@ -12,6 +12,7 @@ class EngineName(StrEnum):
 
     RPG_MAKER_MV = "rpg-maker-mv"
     RPG_MAKER_MZ = "rpg-maker-mz"
+    RPG_MAKER_2000_2003 = "rpg-maker-2000-2003"
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,8 +21,8 @@ class GameInfo:
 
     engine: EngineName
     root: Path
-    entrypoint: Path
-    manifest: Path
+    entrypoint: Path | None = None
+    manifest: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)

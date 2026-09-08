@@ -12,8 +12,18 @@ _box_rpg() {
                 install|remove)
                     COMPREPLY=($(compgen -W '--architecture --sdk --help' -- "$cur"))
                     ;;
+                easyrpg)
+                    case "${words[3]}" in
+                        available)
+                            COMPREPLY=($(compgen -W '--page --interactive --help' -- "$cur"))
+                            ;;
+                        *)
+                            COMPREPLY=($(compgen -W 'list available install remove --help' -- "$cur"))
+                            ;;
+                    esac
+                    ;;
                 *)
-                    COMPREPLY=($(compgen -W 'list available install remove --help' -- "$cur"))
+                    COMPREPLY=($(compgen -W 'list available install remove easyrpg --help' -- "$cur"))
                     ;;
             esac
             ;;

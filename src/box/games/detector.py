@@ -25,7 +25,9 @@ def detect_game(path: Path, registry: EngineRegistry) -> GameInfo:
     root = resolve_game_root(path)
     game = registry.detect(root)
     if game is None:
-        raise GameValidationError("unsupported game: expected an RPG Maker MV or MZ NW.js export")
+        raise GameValidationError(
+            "unsupported game: expected an RPG Maker MV/MZ export or RPG Maker 2000/2003 project"
+        )
     return game
 
 

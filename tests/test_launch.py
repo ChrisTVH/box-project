@@ -1,13 +1,16 @@
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from box.cli.launch import authorize_game, execute
+from box.config.models import AppConfig
 from box.config.repository import ConfigRepository
 from box.engines.registry import EngineRegistry
 from box.errors import GameValidationError, RuntimeError
 from box.models import EngineName, GameInfo
 from box.paths import AppPaths
+from box.runtime.easyrpg import EasyRPGRuntime
 
 
 def test_authorize_game_registers_the_detected_game_root_after_confirmation(
@@ -115,3 +118,48 @@ def test_execute_does_not_register_a_game_when_no_runtime_is_available(
         execute(paths, repository, game_root, None, False)
 
     assert repository.load().allowed_game_roots == ()
+
+
+def test_execute_launches_rpg_rt_projects_with_easyrpg_fullscreen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    executable = runtime_root / "easyrpg-player"
+    executable.write_text("#!/bin/sh\n", encoding="utf-8")
+    executable.chmod(0o700)
+    game = GameInfo(EngineName.RPG_MAKER_2000_2003, game_root)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    calls: list[tuple[list[str], Path | None]] = []
+
+    def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
+        return game
+
+    def latest(_: object) -> EasyRPGRuntime:
+        return EasyRPGRuntime("0.8.1.1", runtime_root)
+
+    def run(command: list[str], cwd: Path | None = None) -> int:
+        calls.append((command, cwd))
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
+    monkeypatch.setattr("box.cli.launch.EasyRPGCatalog.latest", latest)
+
+    def authorize(
+        _: GameInfo,
+        __: AppConfig,
+        ___: ConfigRepository,
+        ____: Callable[[str], str] | None = None,
+    ) -> AppConfig:
+        return repository.load()
+
+    monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+
+    assert execute(paths, repository, game_root, None, False) == 0
+    assert calls == [
+        ([str(executable), "--project-path", str(game_root), "--fullscreen"], game_root)
+    ]

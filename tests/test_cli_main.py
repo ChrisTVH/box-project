@@ -63,6 +63,14 @@ def test_cleanup_command_is_available() -> None:
     assert arguments.command == "cleanup"
 
 
+def test_easyrpg_runtime_parser_accepts_interactive_version_selection() -> None:
+    arguments = build_parser().parse_args(["runtime", "easyrpg", "available", "--interactive"])
+
+    assert arguments.runtime_command == "easyrpg"
+    assert arguments.easyrpg_command == "available"
+    assert arguments.interactive
+
+
 def test_cleanup_command_requires_an_interactive_terminal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
