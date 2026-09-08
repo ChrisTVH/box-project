@@ -3,7 +3,7 @@
 _box-rpg() {
   local -a commands
   commands=(
-    'cleanup:interactively remove launcher-managed data'
+    'cleanup:remove launcher-managed data'
     'inspect:inspect a supported game'
     'runtime:manage game runtimes'
     'launch:launch a supported game'
@@ -36,8 +36,33 @@ _box-rpg() {
           ;;
       esac
       ;;
+    cleanup)
+      if (( CURRENT == 3 )); then
+        _values 'cleanup action' all list remove '--yes[delete immediately without prompting]' '--interactive[open the interactive cleanup menu]'
+        return
+      fi
+      case "$words[3]" in
+        all) _arguments '--yes[delete immediately without prompting]' ;;
+        list)
+          if (( CURRENT == 4 )); then
+            _values 'cleanup category' roots runtimes downloads profiles
+          fi
+          ;;
+        remove)
+          if (( CURRENT == 4 )); then
+            _values 'cleanup category' roots runtimes downloads profiles
+          elif [[ -n "$words[4]" && "$words[4]" != "--all" ]]; then
+            _arguments '--yes[delete immediately without prompting]'
+          else
+            _arguments '--all[remove every item in the category]' '--yes[delete immediately without prompting]'
+          fi
+          ;;
+        --interactive) _arguments '--help[show help]' ;;
+        --yes) _values 'cleanup action' all list remove ;;
+      esac
+      ;;
     config) _values 'config command' show set ;;
-    launch) _arguments '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' '--game-cwd[use the game root as the NW.js working directory]' '--copy-root-file[copy a direct game-root file into the isolated session]:file:' ;;
+    launch) _arguments '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' '--copy-root-file[copy a direct game-root file into the isolated session]:file:' ;;
     diagnose) _arguments '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' ;;
   esac
 }

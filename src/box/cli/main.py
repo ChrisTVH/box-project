@@ -41,7 +41,6 @@ def main(argv: list[str] | None = None) -> int:
             game=".",
             runtime_version=None,
             sdk=False,
-            game_cwd=False,
             copy_root_file=[],
         )
     try:
@@ -59,7 +58,17 @@ def _dispatch(arguments: Namespace) -> int:
     paths.ensure()
     repository = ConfigRepository(paths)
     if arguments.command == "cleanup":
-        return cleanup_command.execute(paths, repository, interactive=sys.stdin.isatty())
+        return cleanup_command.execute(
+            paths,
+            repository,
+            command=arguments.cleanup_command,
+            category=getattr(arguments, "category", None),
+            selector=getattr(arguments, "selector", None),
+            remove_all=getattr(arguments, "remove_all", False),
+            yes=arguments.yes,
+            interactive=arguments.interactive,
+            has_tty=sys.stdin.isatty(),
+        )
     if arguments.command == "runtime":
         catalog = RuntimeCatalog(paths)
         if arguments.runtime_command == "easyrpg":
@@ -85,7 +94,6 @@ def _dispatch(arguments: Namespace) -> int:
             Path(arguments.game),
             arguments.runtime_version,
             arguments.sdk,
-            arguments.game_cwd,
             tuple(arguments.copy_root_file),
         )
     if arguments.command == "config":

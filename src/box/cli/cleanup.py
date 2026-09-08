@@ -1,11 +1,13 @@
-"""Interactive cleanup of launcher-managed configuration and cache data."""
+"""Safe interactive and scripted cleanup of launcher-managed data."""
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
-from box.cli.menu import MenuSelection, choose_paged
+from box.cli.menu import choose_paged
 from box.config.repository import ConfigRepository
 from box.errors import BoxError, RuntimeError
 from box.launch.profiles import ProfileCatalog
@@ -14,33 +16,203 @@ from box.runtime.catalog import ManagedRuntime, RuntimeCatalog
 from box.runtime.downloads import DownloadCatalog
 from box.runtime.easyrpg import EasyRPGCatalog, EasyRPGDownloadCatalog, EasyRPGRuntime
 
+CATEGORIES = ("roots", "runtimes", "downloads", "profiles")
+
+
+@dataclass(frozen=True, slots=True)
+class CleanupItem:
+    """One safely enumerated item available for cleanup."""
+
+    category: str
+    selector: str
+    label: str
+    value: Path | ManagedRuntime | EasyRPGRuntime
+    provider: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RemovalResult:
+    """The outcome of a batch of independently safe removal operations."""
+
+    removed: int
+    failed: int
+
+
+class CleanupCatalog:
+    """List and delete only data known to the launcher-managed catalogs."""
+
+    def __init__(self, paths: AppPaths, repository: ConfigRepository) -> None:
+        self._repository = repository
+        self._runtimes = RuntimeCatalog(paths)
+        self._easyrpg_runtimes = EasyRPGCatalog(paths)
+        self._downloads = DownloadCatalog(paths)
+        self._easyrpg_downloads = EasyRPGDownloadCatalog(paths)
+        self._profiles = ProfileCatalog(paths)
+
+    def list(self, category: str | None = None) -> tuple[CleanupItem, ...]:
+        """Return canonical cleanup items for one category or every category."""
+        if category is not None and category not in CATEGORIES:
+            raise RuntimeError(f"unknown cleanup category: {category}")
+        items: list[CleanupItem] = []
+        if category in {None, "roots"}:
+            items.extend(
+                CleanupItem("roots", str(root), str(root), root)
+                for root in self._repository.load().allowed_game_roots
+            )
+        if category in {None, "runtimes"}:
+            items.extend(
+                CleanupItem(
+                    "runtimes",
+                    _runtime_selector(runtime),
+                    _render_runtime(runtime),
+                    runtime,
+                )
+                for runtime in (
+                    *self._runtimes.list_managed(),
+                    *self._easyrpg_runtimes.list_managed(),
+                )
+            )
+        if category in {None, "downloads"}:
+            items.extend(
+                CleanupItem("downloads", f"nwjs:{archive.name}", archive.name, archive, "nwjs")
+                for archive in self._downloads.list()
+            )
+            items.extend(
+                CleanupItem(
+                    "downloads", f"easyrpg:{archive.name}", archive.name, archive, "easyrpg"
+                )
+                for archive in self._easyrpg_downloads.list()
+            )
+        if category in {None, "profiles"}:
+            items.extend(
+                CleanupItem("profiles", profile.name, profile.name, profile)
+                for profile in self._profiles.list()
+            )
+        return tuple(items)
+
+    def remove(self, item: CleanupItem) -> None:
+        """Remove one previously listed item through its owning catalog."""
+        if item.category == "roots":
+            assert isinstance(item.value, Path)
+            self._repository.remove_allowed_root(item.value)
+        elif item.category == "runtimes":
+            if isinstance(item.value, EasyRPGRuntime):
+                self._easyrpg_runtimes.remove_managed(item.value)
+            else:
+                assert isinstance(item.value, ManagedRuntime)
+                self._runtimes.remove_managed(item.value)
+        elif item.category == "downloads":
+            assert isinstance(item.value, Path)
+            if item.provider == "easyrpg":
+                self._easyrpg_downloads.remove(item.value)
+            else:
+                self._downloads.remove(item.value)
+        elif item.category == "profiles":
+            assert isinstance(item.value, Path)
+            self._profiles.remove(item.value)
+        else:
+            raise RuntimeError(f"unknown cleanup category: {item.category}")
+
 
 def execute(
     paths: AppPaths,
     repository: ConfigRepository,
     *,
-    interactive: bool,
+    command: str | None = None,
+    category: str | None = None,
+    selector: str | None = None,
+    remove_all: bool = False,
+    yes: bool = False,
+    interactive: bool = False,
+    has_tty: bool,
     read: Callable[[str], str] = input,
     write: Callable[[str], None] = print,
 ) -> int:
-    """Open the cleanup menu when the command has an interactive terminal."""
-    if not interactive:
-        raise RuntimeError("cleanup requires an interactive terminal")
-    runtimes = RuntimeCatalog(paths)
-    easyrpg_runtimes = EasyRPGCatalog(paths)
-    downloads = DownloadCatalog(paths)
-    easyrpg_downloads = EasyRPGDownloadCatalog(paths)
-    profiles = ProfileCatalog(paths)
+    """List or safely delete launcher-managed data in the requested mode."""
+    if interactive:
+        if yes or command is not None:
+            raise RuntimeError("--interactive cannot be combined with another cleanup mode")
+        if not has_tty:
+            raise RuntimeError("cleanup --interactive requires an interactive terminal")
+        return _interactive_cleanup(CleanupCatalog(paths, repository), read, write)
+    catalog = CleanupCatalog(paths, repository)
+    if command == "list":
+        _write_listing(catalog.list(category), write)
+        return 0
+    if command == "remove":
+        return _remove_requested(catalog, category, selector, remove_all, yes, has_tty, read, write)
+    if command is None:
+        raise RuntimeError("cleanup requires an action; run 'box-rpg cleanup --help'")
+    if command != "all":
+        raise RuntimeError(f"unknown cleanup command: {command}")
+    return _remove_global(catalog, yes, has_tty, read, write)
+
+
+def _remove_requested(
+    catalog: CleanupCatalog,
+    category: str | None,
+    selector: str | None,
+    remove_all: bool,
+    yes: bool,
+    has_tty: bool,
+    read: Callable[[str], str],
+    write: Callable[[str], None],
+) -> int:
+    if category not in CATEGORIES:
+        raise RuntimeError(f"unknown cleanup category: {category}")
+    if remove_all == (selector is not None):
+        raise RuntimeError("cleanup remove requires exactly one of SELECTOR or --all")
+    items = catalog.list(category)
+    if selector is not None:
+        selected = tuple(item for item in items if item.selector == selector)
+        if not selected:
+            raise RuntimeError(f"no {category} item matches selector: {selector}")
+        items = selected
+    return _confirm_and_remove(catalog, items, yes, has_tty, read, write, all_items=remove_all)
+
+
+def _remove_global(
+    catalog: CleanupCatalog,
+    yes: bool,
+    has_tty: bool,
+    read: Callable[[str], str],
+    write: Callable[[str], None],
+) -> int:
+    return _confirm_and_remove(catalog, catalog.list(), yes, has_tty, read, write, all_items=True)
+
+
+def _confirm_and_remove(
+    catalog: CleanupCatalog,
+    items: tuple[CleanupItem, ...],
+    yes: bool,
+    has_tty: bool,
+    read: Callable[[str], str],
+    write: Callable[[str], None],
+    *,
+    all_items: bool,
+) -> int:
+    _write_scope(items, write)
+    confirmation = "DELETE ALL" if all_items else "DELETE"
+    if not yes:
+        if not has_tty:
+            raise RuntimeError("cleanup requires --yes without an interactive terminal")
+        if not _confirm(f"Type {confirmation} to confirm", confirmation, read, write):
+            write("Cleanup cancelled.")
+            return 0
+    result = _remove_items(catalog, items, write)
+    write(f"Removed {result.removed} item(s); {result.failed} failed.")
+    return 1 if result.failed else 0
+
+
+def _interactive_cleanup(
+    catalog: CleanupCatalog,
+    read: Callable[[str], str],
+    write: Callable[[str], None],
+) -> int:
     while True:
-        roots = repository.load().allowed_game_roots
-        managed_runtimes = (*runtimes.list_managed(), *easyrpg_runtimes.list_managed())
-        archives = (*downloads.list(), *easyrpg_downloads.list())
-        game_profiles = profiles.list()
         write("Cleanup:")
-        write(f"  1. Authorized game roots ({len(roots)})")
-        write(f"  2. Managed runtimes ({len(managed_runtimes)})")
-        write(f"  3. Download archives ({len(archives)})")
-        write(f"  4. Game profiles ({len(game_profiles)})")
+        for index, category in enumerate(CATEGORIES, start=1):
+            write(f"  {index}. {_category_title(category)} ({len(catalog.list(category))})")
         write("  a. Remove all listed managed data")
         try:
             action = read("Select 1-4, [a]ll, or [q]uit: ").strip().lower()
@@ -49,236 +221,116 @@ def execute(
             return 0
         if action == "q":
             return 0
-        if action == "1":
-            _clean_roots(repository, roots, read, write)
-        elif action == "2":
-            _clean_runtimes(runtimes, easyrpg_runtimes, managed_runtimes, read, write)
-        elif action == "3":
-            _clean_downloads(downloads, easyrpg_downloads, archives, read, write)
-        elif action == "4":
-            _clean_profiles(profiles, game_profiles, read, write)
-        elif action == "a":
-            _clean_all(
-                repository,
-                runtimes,
-                easyrpg_runtimes,
-                downloads,
-                easyrpg_downloads,
-                roots,
-                managed_runtimes,
-                archives,
-                profiles,
-                game_profiles,
-                read,
-                write,
-            )
-        else:
-            write("Invalid selection.")
+        if action == "a":
+            _interactive_remove(catalog, catalog.list(), read, write, all_items=True)
+            continue
+        if action.isdigit() and 1 <= int(action) <= len(CATEGORIES):
+            category = CATEGORIES[int(action) - 1]
+            _interactive_choose(catalog, category, read, write)
+            continue
+        write("Invalid selection.")
 
 
-def _clean_roots(
-    repository: ConfigRepository,
-    roots: tuple[Path, ...],
+def _interactive_choose(
+    catalog: CleanupCatalog,
+    category: str,
     read: Callable[[str], str],
     write: Callable[[str], None],
 ) -> None:
+    items = catalog.list(category)
     selection = choose_paged(
-        "Authorized game roots", roots, str, allow_all=True, read=read, write=write
+        _category_title(category),
+        items,
+        lambda item: item.label,
+        allow_all=True,
+        read=read,
+        write=write,
     )
     if selection is None:
         return
-    if selection.select_all:
-        if _confirm("Remove all authorized game roots", read, write):
-            repository.clear_allowed_roots()
-            write("Removed all authorized game roots.")
-        return
-    assert selection.item is not None
-    if _confirm(f"Remove authorized game root {selection.item}", read, write):
-        repository.remove_allowed_root(selection.item)
-        write(f"Removed authorized game root {selection.item}.")
+    selected = items if selection.select_all else (selection.item,)
+    _interactive_remove(catalog, selected, read, write, all_items=selection.select_all)
 
 
-def _clean_runtimes(
-    catalog: RuntimeCatalog,
-    easyrpg_catalog: EasyRPGCatalog,
-    runtimes: tuple[ManagedRuntime | EasyRPGRuntime, ...],
+def _interactive_remove(
+    catalog: CleanupCatalog,
+    items: tuple[CleanupItem, ...] | tuple[CleanupItem | None, ...],
     read: Callable[[str], str],
     write: Callable[[str], None],
+    *,
+    all_items: bool,
 ) -> None:
-    selection = choose_paged(
-        "Managed runtimes",
-        runtimes,
-        _render_runtime,
-        allow_all=True,
-        read=read,
-        write=write,
-    )
-    _clean_selected(
-        selection,
-        runtimes,
-        lambda runtime: _remove_runtime(runtime, catalog, easyrpg_catalog),
-        "runtime",
-        read,
-        write,
-    )
-
-
-def _clean_downloads(
-    catalog: DownloadCatalog,
-    easyrpg_catalog: EasyRPGDownloadCatalog,
-    archives: tuple[Path, ...],
-    read: Callable[[str], str],
-    write: Callable[[str], None],
-) -> None:
-    selection = choose_paged(
-        "Download archives",
-        archives,
-        lambda archive: archive.name,
-        allow_all=True,
-        read=read,
-        write=write,
-    )
-    _clean_selected(
-        selection,
-        archives,
-        lambda archive: _remove_download(archive, catalog, easyrpg_catalog),
-        "download archive",
-        read,
-        write,
-    )
-
-
-def _clean_profiles(
-    catalog: ProfileCatalog,
-    profiles: tuple[Path, ...],
-    read: Callable[[str], str],
-    write: Callable[[str], None],
-) -> None:
-    selection = choose_paged(
-        "Game profiles",
-        profiles,
-        lambda profile: profile.name,
-        allow_all=True,
-        read=read,
-        write=write,
-    )
-    _clean_selected(selection, profiles, catalog.remove, "game profile", read, write)
-
-
-def _clean_selected[T](
-    selection: MenuSelection[T] | None,
-    items: tuple[T, ...],
-    remove: Callable[[T], None],
-    label: str,
-    read: Callable[[str], str],
-    write: Callable[[str], None],
-) -> None:
-    if selection is None:
-        return
-    if selection.select_all:
-        if _confirm(f"Remove all {label}s", read, write):
-            removed = _remove_all(items, remove, label, write)
-            write(f"Removed {removed} {label}s.")
-        return
-    assert selection.item is not None
-    if _confirm(f"Remove {label} {selection.item}", read, write):
-        remove(selection.item)
-        write(f"Removed {label}.")
-
-
-def _clean_all(
-    repository: ConfigRepository,
-    runtimes: RuntimeCatalog,
-    easyrpg_runtimes: EasyRPGCatalog,
-    downloads: DownloadCatalog,
-    easyrpg_downloads: EasyRPGDownloadCatalog,
-    roots: tuple[Path, ...],
-    managed_runtimes: tuple[ManagedRuntime | EasyRPGRuntime, ...],
-    archives: tuple[Path, ...],
-    profiles_catalog: ProfileCatalog,
-    profiles: tuple[Path, ...],
-    read: Callable[[str], str],
-    write: Callable[[str], None],
-) -> None:
-    write(
-        f"This removes {len(roots)} roots, {len(managed_runtimes)} runtimes, {len(archives)} downloads, "
-        f"and {len(profiles)} game profiles."
-    )
-    try:
-        confirmation = read("Type DELETE ALL to confirm: ").strip()
-    except EOFError:
+    selected = tuple(item for item in items if item is not None)
+    confirmation = "DELETE ALL" if all_items else "DELETE"
+    if not _confirm(f"Type {confirmation} to confirm", confirmation, read, write):
         write("Cleanup cancelled.")
         return
-    if confirmation != "DELETE ALL":
-        write("Cleanup cancelled.")
-        return
-    repository.clear_allowed_roots()
-    removed_runtimes = _remove_all(
-        managed_runtimes,
-        lambda runtime: _remove_runtime(runtime, runtimes, easyrpg_runtimes),
-        "runtime",
-        write,
-    )
-    removed_archives = _remove_all(
-        archives,
-        lambda archive: _remove_download(archive, downloads, easyrpg_downloads),
-        "download archive",
-        write,
-    )
-    removed_profiles = _remove_all(profiles, profiles_catalog.remove, "game profile", write)
-    write(
-        f"Removed {len(roots)} roots, {removed_runtimes} runtimes, {removed_archives} downloads, "
-        f"and {removed_profiles} game profiles."
-    )
+    result = _remove_items(catalog, selected, write)
+    write(f"Removed {result.removed} item(s); {result.failed} failed.")
 
 
-def _remove_all[T](
-    items: tuple[T, ...], remove: Callable[[T], None], label: str, write: Callable[[str], None]
-) -> int:
-    """Remove every selected managed item while reporting individual failures."""
+def _remove_items(
+    catalog: CleanupCatalog, items: tuple[CleanupItem, ...], write: Callable[[str], None]
+) -> RemovalResult:
     removed = 0
+    failed = 0
     for item in items:
         try:
-            remove(item)
+            catalog.remove(item)
         except (BoxError, OSError) as exc:
-            write(f"Could not remove {label} {item}: {exc}")
+            failed += 1
+            write(f"Could not remove {item.category} {item.selector}: {exc}")
             continue
         removed += 1
-    return removed
+    return RemovalResult(removed, failed)
 
 
-def _confirm(label: str, read: Callable[[str], str], write: Callable[[str], None]) -> bool:
-    """Require an affirmative answer before one destructive action."""
+def _write_listing(items: tuple[CleanupItem, ...], write: Callable[[str], None]) -> None:
+    """Write JSON Lines records with stable selectors suitable for scripted cleanup."""
+    for item in items:
+        write(
+            json.dumps(
+                {"category": item.category, "selector": item.selector, "label": item.label},
+                ensure_ascii=False,
+            )
+        )
+
+
+def _write_scope(items: tuple[CleanupItem, ...], write: Callable[[str], None]) -> None:
+    counts = {category: 0 for category in CATEGORIES}
+    for item in items:
+        counts[item.category] += 1
+    write("Cleanup scope:")
+    for category in CATEGORIES:
+        write(f"  {_category_title(category)}: {counts[category]}")
+
+
+def _confirm(
+    prompt: str, expected: str, read: Callable[[str], str], write: Callable[[str], None]
+) -> bool:
     try:
-        answer = read(f"{label}? [y/N] ").strip().lower()
+        return read(f"{prompt}: ").strip() == expected
     except EOFError:
         write("Cleanup cancelled.")
         return False
-    return answer in {"y", "yes"}
+
+
+def _runtime_selector(runtime: ManagedRuntime | EasyRPGRuntime) -> str:
+    if isinstance(runtime, EasyRPGRuntime):
+        return f"easyrpg:{runtime.version}"
+    return f"nwjs:{runtime.spec.architecture}:{runtime.spec.directory_name}"
 
 
 def _render_runtime(runtime: ManagedRuntime | EasyRPGRuntime) -> str:
-    """Render one managed runtime with its owning provider."""
     if isinstance(runtime, EasyRPGRuntime):
         return f"EasyRPG Player {runtime.version} x64"
     return f"NW.js {runtime.spec.version} {runtime.spec.architecture} {runtime.spec.flavor}"
 
 
-def _remove_runtime(
-    runtime: ManagedRuntime | EasyRPGRuntime,
-    nwjs: RuntimeCatalog,
-    easyrpg: EasyRPGCatalog,
-) -> None:
-    """Delegate deletion to the runtime provider that owns the selected directory."""
-    if isinstance(runtime, EasyRPGRuntime):
-        easyrpg.remove_managed(runtime)
-    else:
-        nwjs.remove_managed(runtime)
-
-
-def _remove_download(archive: Path, nwjs: DownloadCatalog, easyrpg: EasyRPGDownloadCatalog) -> None:
-    """Delegate deletion to the download provider that owns the archive path."""
-    if easyrpg.owns(archive):
-        easyrpg.remove(archive)
-    else:
-        nwjs.remove(archive)
+def _category_title(category: str) -> str:
+    return {
+        "roots": "Authorized game roots",
+        "runtimes": "Managed runtimes",
+        "downloads": "Download archives",
+        "profiles": "Game profiles",
+    }[category]

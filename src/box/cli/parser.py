@@ -16,7 +16,36 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"box-rpg {__version__}")
     commands = parser.add_subparsers(dest="command")
 
-    commands.add_parser("cleanup", help="interactively remove launcher-managed data")
+    cleanup = commands.add_parser("cleanup", help="list or remove launcher-managed data")
+    cleanup_mode = cleanup.add_mutually_exclusive_group()
+    cleanup_mode.add_argument(
+        "--interactive", action="store_true", help="open the cleanup selection menu"
+    )
+    cleanup_mode.add_argument(
+        "--yes", action="store_true", help="skip the global cleanup confirmation"
+    )
+    cleanup_commands = cleanup.add_subparsers(dest="cleanup_command")
+    cleanup_list = cleanup_commands.add_parser("list", help="list stable cleanup selectors")
+    cleanup_list.add_argument(
+        "category", nargs="?", choices=("roots", "runtimes", "downloads", "profiles")
+    )
+    cleanup_remove = cleanup_commands.add_parser("remove", help="remove one managed cleanup item")
+    cleanup_remove.add_argument("category", choices=("roots", "runtimes", "downloads", "profiles"))
+    cleanup_remove.add_argument("selector", nargs="?")
+    cleanup_remove.add_argument("--all", dest="remove_all", action="store_true")
+    cleanup_remove.add_argument(
+        "--yes",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="skip the removal confirmation",
+    )
+    cleanup_all = cleanup_commands.add_parser("all", help="remove all managed cleanup data")
+    cleanup_all.add_argument(
+        "--yes",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="skip the cleanup confirmation",
+    )
 
     inspect = commands.add_parser("inspect", help="inspect a supported game without changing it")
     inspect.add_argument("game", type=str)
@@ -63,11 +92,6 @@ def build_parser() -> argparse.ArgumentParser:
     launch.add_argument("game", nargs="?", default=".", type=str)
     launch.add_argument("--runtime", dest="runtime_version")
     launch.add_argument("--sdk", action="store_true", help="use the NW.js SDK build")
-    launch.add_argument(
-        "--game-cwd",
-        action="store_true",
-        help="run NW.js with the game root as its working directory",
-    )
     launch.add_argument(
         "--copy-root-file",
         action="append",

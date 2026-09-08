@@ -15,7 +15,7 @@ from box.paths import AppPaths
 def test_main_launches_the_current_directory_without_arguments(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    calls: list[tuple[Path, str | None, bool, bool, tuple[str, ...]]] = []
+    calls: list[tuple[Path, str | None, bool, tuple[str, ...]]] = []
 
     def fake_launch(
         paths: object,
@@ -23,10 +23,9 @@ def test_main_launches_the_current_directory_without_arguments(
         game_path: Path,
         version: str | None,
         sdk: bool,
-        game_cwd: bool,
         copy_root_files: tuple[str, ...],
     ) -> int:
-        calls.append((game_path, version, sdk, game_cwd, copy_root_files))
+        calls.append((game_path, version, sdk, copy_root_files))
         return 0
 
     def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
@@ -41,7 +40,7 @@ def test_main_launches_the_current_directory_without_arguments(
     monkeypatch.setattr("box.cli.main.launch_command.execute", fake_launch)
 
     assert main([]) == 0
-    assert calls == [(Path("."), None, False, False, ())]
+    assert calls == [(Path("."), None, False, ())]
 
 
 def test_main_without_arguments_shows_help_outside_a_game(
@@ -111,14 +110,7 @@ def test_launch_command_defaults_to_the_current_directory() -> None:
     arguments = build_parser().parse_args(["launch"])
 
     assert arguments.game == "."
-    assert not arguments.game_cwd
     assert arguments.copy_root_file == []
-
-
-def test_launch_command_accepts_game_root_as_working_directory() -> None:
-    arguments = build_parser().parse_args(["launch", "--game-cwd"])
-
-    assert arguments.game_cwd
 
 
 def test_launch_command_accepts_direct_game_root_file_copies() -> None:
@@ -133,6 +125,43 @@ def test_cleanup_command_is_available() -> None:
     arguments = build_parser().parse_args(["cleanup"])
 
     assert arguments.command == "cleanup"
+    assert arguments.cleanup_command is None
+    assert not arguments.interactive
+    assert not arguments.yes
+
+
+def test_cleanup_command_without_an_action_points_to_help(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+
+    assert main(["cleanup"]) == 1
+    assert "box-rpg cleanup --help" in capsys.readouterr().err
+
+
+def test_cleanup_parser_accepts_list_remove_and_all_commands() -> None:
+    listed = build_parser().parse_args(["cleanup", "list", "profiles"])
+    removed = build_parser().parse_args(
+        ["cleanup", "remove", "profiles", "0123456789abcdef", "--yes"]
+    )
+    cleared = build_parser().parse_args(["cleanup", "all", "--yes"])
+    parent_yes = build_parser().parse_args(["cleanup", "--yes", "all"])
+
+    assert (listed.cleanup_command, listed.category) == ("list", "profiles")
+    assert (removed.cleanup_command, removed.category, removed.selector, removed.yes) == (
+        "remove",
+        "profiles",
+        "0123456789abcdef",
+        True,
+    )
+    assert (cleared.cleanup_command, cleared.yes) == ("all", True)
+    assert (parent_yes.cleanup_command, parent_yes.yes) == ("all", True)
+
+
+def test_cleanup_parser_rejects_conflicting_global_modes() -> None:
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["cleanup", "--interactive", "--yes"])
 
 
 def test_easyrpg_runtime_parser_accepts_interactive_version_selection() -> None:
@@ -141,16 +170,6 @@ def test_easyrpg_runtime_parser_accepts_interactive_version_selection() -> None:
     assert arguments.runtime_command == "easyrpg"
     assert arguments.easyrpg_command == "available"
     assert arguments.interactive
-
-
-def test_cleanup_command_requires_an_interactive_terminal(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
-
-    assert main(["cleanup"]) == 1
-    assert "cleanup requires an interactive terminal" in capsys.readouterr().err
 
 
 def test_runtime_available_defaults_to_the_detected_architecture() -> None:

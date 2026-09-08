@@ -1,6 +1,6 @@
 # fish completion for box-rpg
 complete -c box-rpg -f
-complete -c box-rpg -n '__fish_use_subcommand' -a cleanup -d 'Interactively remove launcher-managed data'
+complete -c box-rpg -n '__fish_use_subcommand' -a cleanup -d 'Remove launcher-managed data'
 complete -c box-rpg -n '__fish_use_subcommand' -a inspect -d 'Inspect a supported game'
 complete -c box-rpg -n '__fish_use_subcommand' -a runtime -d 'Manage game runtimes'
 complete -c box-rpg -n '__fish_use_subcommand' -a launch -d 'Launch a supported game'
@@ -15,9 +15,16 @@ complete -c box-rpg -n '__fish_seen_subcommand_from runtime; and not __fish_seen
 complete -c box-rpg -n '__fish_seen_subcommand_from runtime; and not __fish_seen_subcommand_from easyrpg' -l architecture -d 'Use an NW.js architecture'
 complete -c box-rpg -n '__fish_seen_subcommand_from runtime; and not __fish_seen_subcommand_from easyrpg' -l sdk -d 'Use an NW.js SDK build'
 complete -c box-rpg -n '__fish_seen_subcommand_from config' -a 'show set'
+complete -c box-rpg -n '__fish_seen_subcommand_from cleanup; and not __fish_seen_subcommand_from list remove all; and not contains -- --interactive (commandline -opc)' -a 'list remove all'
+complete -c box-rpg -n '__fish_seen_subcommand_from cleanup; and not __fish_seen_subcommand_from list remove all; and not contains -- --interactive (commandline -opc)' -l yes -d 'Delete immediately without prompting'
+complete -c box-rpg -n '__fish_seen_subcommand_from cleanup; and not __fish_seen_subcommand_from list remove all; and not contains -- --yes (commandline -opc)' -l interactive -d 'Open the interactive cleanup menu'
+complete -c box-rpg -n '__fish_seen_subcommand_from cleanup; and __fish_seen_subcommand_from list' -a 'roots runtimes downloads profiles'
+complete -c box-rpg -n '__fish_seen_subcommand_from cleanup; and __fish_seen_subcommand_from remove; and not __fish_seen_subcommand_from roots runtimes downloads profiles' -a 'roots runtimes downloads profiles'
+complete -c box-rpg -n '__fish_seen_subcommand_from cleanup; and __fish_seen_subcommand_from remove; and not contains -- --interactive (commandline -opc)' -l yes -d 'Delete immediately without prompting'
+complete -c box-rpg -n '__fish_seen_subcommand_from cleanup; and __fish_seen_subcommand_from all; and not contains -- --interactive (commandline -opc)' -l yes -d 'Delete immediately without prompting'
+complete -c box-rpg -n '__fish_seen_subcommand_from cleanup; and __fish_seen_subcommand_from remove; and __fish_seen_subcommand_from roots runtimes downloads profiles; and test (count (commandline -opc)) -le 4' -l all -d 'Remove every item in the category'
 complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l runtime -d 'Use an NW.js version'
 complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l sdk -d 'Use an NW.js SDK build'
-complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l game-cwd -d 'Use the game root as the NW.js working directory'
 complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l copy-root-file -d 'Copy a direct game-root file into the isolated session' -r
 complete -c box-rpg -n '__fish_seen_subcommand_from diagnose' -l runtime -d 'Use an NW.js version'
 complete -c box-rpg -n '__fish_seen_subcommand_from diagnose' -l sdk -d 'Use an NW.js SDK build'

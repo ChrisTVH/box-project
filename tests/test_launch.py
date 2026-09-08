@@ -1,5 +1,4 @@
-from collections.abc import Callable, Generator
-from contextlib import contextmanager
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -231,75 +230,6 @@ def test_execute_rejects_nwjs_options_for_rpg_rt_projects(
         execute(paths, repository, game_root, None, False, copy_root_files=("messages.csv",))
 
 
-def test_execute_uses_the_game_root_as_nwjs_working_directory_when_requested(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    game_root = tmp_path / "game"
-    game_root.mkdir()
-    game = GameInfo(
-        EngineName.RPG_MAKER_MZ,
-        game_root,
-        game_root / "index.html",
-        game_root / "package.json",
-    )
-    runtime_root = tmp_path / "runtime"
-    runtime_root.mkdir()
-    runtime = RuntimeInfo(RuntimeSpec("v0.90.0", "x64"), runtime_root, runtime_root / "nw")
-    session_root = tmp_path / "session"
-    session_root.mkdir()
-    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
-    repository = ConfigRepository(paths)
-    calls: list[tuple[Path | None, tuple[str, ...]]] = []
-
-    @contextmanager
-    def session(
-        _: AppPaths,
-        __: GameInfo,
-        copy_root_files: tuple[str, ...] = (),
-        *,
-        game_descriptor: int | None = None,
-    ) -> Generator[object]:
-        calls.append((None, copy_root_files))
-        yield type(
-            "Session",
-            (),
-            {
-                "root": session_root,
-                "reference": session_root,
-                "game_reference": game_root,
-                "profile_root": paths.profiles_root / "0123456789abcdef",
-                "process_descriptors": (),
-            },
-        )()
-
-    def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
-        return game
-
-    def select(*_: object) -> RuntimeInfo:
-        return runtime
-
-    def authorize(
-        _: GameInfo,
-        __: AppConfig,
-        ___: ConfigRepository,
-        ____: Callable[[str], str] | None = None,
-    ) -> AppConfig:
-        return repository.load()
-
-    def run(_: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
-        calls.append((cwd, ()))
-        return 0
-
-    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
-    monkeypatch.setattr("box.cli.launch.select_runtime", select)
-    monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
-    monkeypatch.setattr("box.cli.launch.create_session", session)
-    monkeypatch.setattr("box.cli.launch.run_process", run)
-
-    assert execute(paths, repository, game_root, None, False, game_cwd=True) == 0
-    assert calls == [(None, ()), (game_root, ())]
-
-
 def test_execute_keeps_the_game_pinned_when_authorization_replaces_its_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -331,7 +261,7 @@ def test_execute_keeps_the_game_pinned_when_authorization_replaces_its_path(
         return repository.load()
 
     def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
-        assert cwd is None
+        assert cwd == Path(command[-1])
         assert (Path(command[-1]) / "game" / "index.html").read_text(encoding="utf-8") == "original"
         assert (
             f"--user-data-dir={paths.profiles_root / game_id(tmp_path / 'original') / 'user-data'}"

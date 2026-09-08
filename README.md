@@ -52,7 +52,11 @@ The command interface is intentionally small:
 
 ```text
 box-rpg
-box-rpg cleanup
+box-rpg cleanup all [--yes]
+box-rpg cleanup --interactive
+box-rpg cleanup list [roots|runtimes|downloads|profiles]
+box-rpg cleanup remove CATEGORY SELECTOR [--yes]
+box-rpg cleanup remove CATEGORY --all [--yes]
 box-rpg inspect GAME_PATH
 box-rpg runtime list
 box-rpg runtime available [--page PAGE] [--architecture ARCHITECTURE] [--sdk]
@@ -64,7 +68,7 @@ box-rpg runtime easyrpg available [--page PAGE]
 box-rpg runtime easyrpg available --interactive [--page PAGE]
 box-rpg runtime easyrpg install VERSION
 box-rpg runtime easyrpg remove VERSION
-box-rpg launch [GAME_PATH] [--runtime VERSION] [--sdk] [--game-cwd] [--copy-root-file FILE]
+box-rpg launch [GAME_PATH] [--runtime VERSION] [--sdk] [--copy-root-file FILE]
 box-rpg config show
 box-rpg config set KEY VALUE
 box-rpg diagnose GAME_PATH [--runtime VERSION] [--sdk]
@@ -76,9 +80,15 @@ Player versions. `launch` starts an allowed game and defaults to the current
 directory when `GAME_PATH` is omitted. `config` displays or changes the launcher
 settings, and `diagnose` creates a local report without launching the game.
 
-`cleanup` requires an interactive terminal. It can remove individual or all
-authorized roots, managed runtimes, cached runtime archives, and game profiles;
-it never deletes game directories, `config.toml`, sessions, or reports.
+`cleanup all` shows the global cleanup scope and requires `DELETE ALL`. Add
+`--yes` for immediate noninteractive deletion. Use
+`cleanup --interactive` to open the menu; it cannot be combined with `--yes`.
+`cleanup list` emits JSON Lines records with safe selectors for roots, runtimes,
+downloads, or profiles.
+`cleanup remove CATEGORY SELECTOR` removes one item, while `--all` removes a
+category. Removal prompts unless `--yes` is supplied; without a terminal,
+`--yes` is required. Cleanup never deletes game directories, `config.toml`,
+sessions, or reports.
 
 Running `box-rpg` without arguments requires the current directory to contain a
 supported game; otherwise it prints help and explains how to launch one.
@@ -95,12 +105,9 @@ RPG Maker 2000/2003 projects require `RPG_RT.ini`, `RPG_RT.ldb`, and `RPG_RT.lmt
 They launch with the managed x64 EasyRPG Player using `--project-path` and `--fullscreen`.
 Use `box-rpg runtime easyrpg available --interactive` to choose and install a version.
 
-Some NW.js exports load auxiliary files relative to the game root. For those games,
-launch with `box-rpg launch --game-cwd` to use the validated game root as the
-working directory while retaining the isolated launch session.
-
-When an export resets its working directory to the isolated session, copy a direct
-regular file from the game root instead. For example, use
+Some NW.js exports need auxiliary files from the game root. The supported
+workaround is to copy a direct regular file into the isolated launch session. For
+example, use
 `box-rpg launch --copy-root-file game_messages.csv`. The option can be repeated
 for multiple direct files and rejects paths containing directories, symlinks, or
 session-owned names.
@@ -109,7 +116,8 @@ Each NW.js game has a persistent private Chromium/NW.js profile at
 `$XDG_CACHE_HOME/box-rpg/profiles/<opaque-game-id>` (or
 `~/.cache/box-rpg/profiles/<opaque-game-id>`). It stores browser preferences,
 web storage, and cache. RPG Maker saves in `www/save` remain in the game
-directory. Use `box-rpg cleanup` to remove an individual profile or all profiles.
+directory. Use `box-rpg cleanup remove profiles SELECTOR` to remove one profile
+or `box-rpg cleanup remove profiles --all` to remove every profile.
 
 See [the manual](docs/manual.md) and
 [the example configuration](res/config/box-rpg.toml.example).

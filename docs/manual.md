@@ -40,16 +40,9 @@ Use `n` and `p` to browse version pages, enter a number to choose a version,
 and confirm the installation. NW.js uses Wayland only when the session provides
 both `XDG_SESSION_TYPE=wayland` and `WAYLAND_DISPLAY`; otherwise it uses X11.
 
-Some desktop exports load auxiliary files relative to the game root instead of
-their web directory. For these special cases, retain the isolated launch session
-but set the runtime working directory explicitly:
-
-```sh
-box-rpg launch --game-cwd
-```
-
-If an export resets its working directory to the isolated session, copy the
-required direct game-root file instead:
+Some desktop exports need an auxiliary file from the game root. The supported
+workaround is to copy the required direct game-root file into the isolated
+session:
 
 ```sh
 box-rpg launch --copy-root-file game_messages.csv
@@ -78,20 +71,33 @@ game directory. Saves remain with the game; `box-rpg` does not move them.
 
 ## Manage cached data
 
-Run the interactive cleanup menu to remove launcher-managed data:
+Inspect launcher-managed cleanup selectors as JSON Lines:
 
 ```sh
-box-rpg cleanup
+box-rpg cleanup list
 ```
 
-Choose authorized game roots, managed runtimes, downloaded archives, or game
-profiles. Each list is paginated; select one item or all items, then confirm the
-deletion. The global cleanup option requires entering `DELETE ALL`.
+Use `roots`, `runtimes`, `downloads`, or `profiles` to list one category. Remove
+one listed item or every item in a category:
 
-Cleanup never deletes game files or saves. It also leaves `config.toml`,
-sessions, and diagnostic reports untouched. It only removes data owned by the
-launcher under `$XDG_CACHE_HOME/box-rpg` (or `~/.cache/box-rpg`). This includes
-individual or all NW.js game profiles.
+```sh
+box-rpg cleanup remove CATEGORY SELECTOR
+box-rpg cleanup remove CATEGORY --all
+```
+
+Removal prompts for confirmation. Add `--yes` to either command for immediate
+noninteractive deletion; without a terminal, `--yes` is required.
+
+`box-rpg cleanup all` shows the global scope and requires `DELETE ALL`. Add
+`--yes` for immediate noninteractive deletion. To browse the interactive menu
+instead, run `box-rpg cleanup --interactive`; it is incompatible with `--yes`.
+Run `box-rpg cleanup --help` to see the available cleanup actions.
+
+Cleanup never deletes game files or saves. It leaves `config.toml`, sessions,
+and diagnostic reports intact, although root cleanup updates its authorized-root
+entries. Cache cleanup only removes launcher-owned data under
+`$XDG_CACHE_HOME/box-rpg` (or `~/.cache/box-rpg`), including individual or all
+NW.js game profiles.
 
 ## Configuration and safety
 

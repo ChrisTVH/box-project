@@ -31,7 +31,6 @@ class LaunchSession:
     parent_descriptor: int
     name: str
     game_descriptor: int
-    game_reference_path: Path
     profile_root: Path
     owns_game_descriptor: bool
 
@@ -39,11 +38,6 @@ class LaunchSession:
     def reference(self) -> Path:
         """Return the stable session pathname used to launch this session."""
         return self.root
-
-    @property
-    def game_reference(self) -> Path:
-        """Return the validated game pathname used as the working directory."""
-        return self.game_reference_path
 
     @property
     def process_descriptors(self) -> tuple[int, ...]:
@@ -182,7 +176,6 @@ def create_session(
         parent_descriptor,
         name,
         game_descriptor,
-        game_reference_path,
         profile_root,
         owns_game_descriptor,
     )

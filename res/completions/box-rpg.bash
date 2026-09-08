@@ -33,8 +33,41 @@ _box_rpg() {
         config)
             COMPREPLY=($(compgen -W 'show set' -- "$cur"))
             ;;
+        cleanup)
+            case "${words[2]}" in
+                list)
+                    COMPREPLY=($(compgen -W 'roots runtimes downloads profiles --help' -- "$cur"))
+                    ;;
+                remove)
+                    case "${words[3]}" in
+                        roots|runtimes|downloads|profiles)
+                            if [[ -z "${words[4]}" ]]; then
+                                COMPREPLY=($(compgen -W '--all --yes --help' -- "$cur"))
+                            else
+                                COMPREPLY=($(compgen -W '--yes --help' -- "$cur"))
+                            fi
+                            ;;
+                        *)
+                            COMPREPLY=($(compgen -W 'roots runtimes downloads profiles --help' -- "$cur"))
+                            ;;
+                    esac
+                    ;;
+                all)
+                    COMPREPLY=($(compgen -W '--yes --help' -- "$cur"))
+                    ;;
+                --interactive)
+                    COMPREPLY=($(compgen -W '--help' -- "$cur"))
+                    ;;
+                --yes)
+                    COMPREPLY=($(compgen -W 'all list remove --help' -- "$cur"))
+                    ;;
+                *)
+                    COMPREPLY=($(compgen -W 'all list remove --yes --interactive --help' -- "$cur"))
+                    ;;
+            esac
+            ;;
         launch)
-            COMPREPLY=($(compgen -W '--runtime --sdk --game-cwd --copy-root-file --help' -- "$cur"))
+            COMPREPLY=($(compgen -W '--runtime --sdk --copy-root-file --help' -- "$cur"))
             ;;
         diagnose)
             COMPREPLY=($(compgen -W '--runtime --sdk --help' -- "$cur"))
