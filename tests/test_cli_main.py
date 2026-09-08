@@ -4,6 +4,9 @@ import pytest
 
 from box.cli.main import main
 from box.cli.parser import build_parser
+from box.config.models import AppConfig
+from box.config.repository import ConfigRepository
+from box.diagnostics.versions import VersionReport
 from box.engines.registry import EngineRegistry
 from box.models import EngineName, GameInfo
 from box.paths import AppPaths
@@ -51,6 +54,57 @@ def test_main_without_arguments_shows_help_outside_a_game(
     captured = capsys.readouterr()
     assert "run box-rpg from the game directory" in captured.err
     assert "usage: box-rpg" in captured.out
+
+
+def test_inspect_does_not_create_xdg_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    game = tmp_path / "game"
+    config_home = tmp_path / "config"
+    cache_home = tmp_path / "cache"
+    calls: list[Path] = []
+
+    def inspect_game(game_path: Path) -> int:
+        calls.append(game_path)
+        return 0
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(cache_home))
+    monkeypatch.setattr("box.cli.main.inspect_command.execute", inspect_game)
+
+    assert main(["inspect", str(game)]) == 0
+    assert calls == [game]
+    assert not config_home.exists()
+    assert not cache_home.exists()
+
+
+def test_diagnose_uses_configured_runtime_preferences(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_home = tmp_path / "config"
+    cache_home = tmp_path / "cache"
+    paths = AppPaths(config_root=config_home / "box-rpg", cache_root=cache_home / "box-rpg")
+    ConfigRepository(paths).save(AppConfig(preferred_runtime="v0.90.0", prefer_sdk=True))
+    selected: list[tuple[str | None, bool]] = []
+
+    def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
+        return GameInfo(
+            EngineName.RPG_MAKER_MZ, tmp_path, tmp_path / "index.html", tmp_path / "package.json"
+        )
+
+    def select_runtime(_: object, __: str, version: str | None, sdk: bool) -> object:
+        selected.append((version, sdk))
+        return object()
+
+    def collect_versions(_: GameInfo, __: object) -> VersionReport:
+        return VersionReport("rpg-maker-mz", None, "v0.90.0")
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(cache_home))
+    monkeypatch.setattr("box.cli.diagnose.detect_game", detect_game)
+    monkeypatch.setattr("box.cli.diagnose.select_runtime", select_runtime)
+    monkeypatch.setattr("box.cli.diagnose.collect_versions", collect_versions)
+
+    assert main(["diagnose", str(tmp_path)]) == 0
+    assert selected == [("v0.90.0", True)]
 
 
 def test_launch_command_defaults_to_the_current_directory() -> None:

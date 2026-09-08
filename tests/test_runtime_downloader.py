@@ -149,3 +149,15 @@ def test_download_keeps_partial_archive_after_exhausting_retries(
         download_archive("https://dl.nwjs.io/v0.90.0/runtime.tar.gz", destination)
 
     assert partial.read_bytes() == b"partial"
+
+
+def test_download_rejects_a_destination_symlink_without_touching_its_target(tmp_path: Path) -> None:
+    outside = tmp_path / "outside.tar.gz"
+    outside.write_bytes(b"outside")
+    destination = tmp_path / "runtime.tar.gz"
+    destination.symlink_to(outside)
+
+    with pytest.raises(RuntimeError, match="refusing unsafe download path"):
+        download_archive("https://dl.nwjs.io/v0.90.0/runtime.tar.gz", destination)
+
+    assert outside.read_bytes() == b"outside"

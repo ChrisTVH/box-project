@@ -69,3 +69,25 @@ def test_managed_runtime_path_rejects_a_cache_symlink_escape(tmp_path: Path) -> 
 
     with pytest.raises(ConfigurationError, match="must not be a symlink"):
         paths.ensure_managed_runtime_path(paths.runtimes_root / "linux-x64" / "standard-v0.90.0")
+
+
+def test_app_paths_reject_a_symlinked_xdg_ancestor(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    cache_home = tmp_path / "xdg-cache"
+    cache_home.symlink_to(target, target_is_directory=True)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=cache_home / "box-rpg")
+
+    with pytest.raises(ConfigurationError, match="must not be a symlink"):
+        paths.ensure()
+
+
+def test_app_paths_reject_existing_managed_directories_with_unsafe_permissions(
+    tmp_path: Path,
+) -> None:
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    paths.ensure()
+    paths.sessions_root.chmod(0o777)
+
+    with pytest.raises(ConfigurationError, match="unsafe permissions"):
+        paths.ensure()

@@ -18,7 +18,7 @@ from urllib.request import Request, urlopen
 
 from box.errors import ConfigurationError, RuntimeError
 from box.paths import AppPaths
-from box.runtime.downloader import download_archive
+from box.runtime.downloader import download_archive_at
 from box.runtime.platform import current_architecture
 
 PAGE_SIZE = 5
@@ -279,12 +279,18 @@ def install_runtime(paths: AppPaths, version: str) -> EasyRPGRuntime:
             pass
         else:
             return EasyRPGCatalog(paths).get(normalized)
-        archive = Path(f"/proc/self/fd/{download_descriptor}") / _archive_name(normalized)
-        download_archive(download_url(normalized), archive, allowed_hosts=OFFICIAL_DOWNLOAD_HOSTS)
+        archive_name = _archive_name(normalized)
+        download_archive_at(
+            download_url(normalized),
+            archive_name,
+            download_descriptor,
+            allowed_hosts=OFFICIAL_DOWNLOAD_HOSTS,
+        )
+        archive = Path(f"/proc/self/fd/{download_descriptor}") / archive_name
         with tempfile.TemporaryDirectory(
             prefix=".install-", dir=f"/proc/self/fd/{runtime_descriptor}"
         ) as temporary_name:
-            extracted = _extract_runtime(archive, Path(temporary_name))
+            extracted = extract_runtime(archive, Path(temporary_name))
             if _executable(extracted) is None:
                 raise RuntimeError("EasyRPG archive does not contain an executable easyrpg-player")
             os.replace(extracted, normalized, dst_dir_fd=runtime_descriptor)
@@ -350,22 +356,22 @@ def _executable(root: Path) -> Path | None:
     return player
 
 
-def _extract_runtime(archive_path: Path, destination: Path) -> Path:
+def extract_runtime(archive_path: Path, destination: Path) -> Path:
     """Safely extract a player archive with either a root directory or root files."""
     try:
         with tarfile.open(archive_path, "r:gz") as archive:
             archive.extractall(destination, filter="data")
+        entries = tuple(destination.iterdir())
+        directories = tuple(entry for entry in entries if entry.is_dir())
+        if len(entries) == 1 and len(directories) == 1:
+            return directories[0]
+        staged = destination / "runtime"
+        staged.mkdir(mode=0o700)
+        for entry in entries:
+            if entry != staged:
+                os.replace(entry, staged / entry.name)
     except (OSError, tarfile.TarError) as exc:
-        raise RuntimeError(f"cannot extract EasyRPG Player archive {archive_path}: {exc}") from exc
-    entries = tuple(destination.iterdir())
-    directories = tuple(entry for entry in entries if entry.is_dir())
-    if len(entries) == 1 and len(directories) == 1:
-        return directories[0]
-    staged = destination / "runtime"
-    staged.mkdir(mode=0o700)
-    for entry in entries:
-        if entry != staged:
-            os.replace(entry, staged / entry.name)
+        raise RuntimeError(f"cannot stage EasyRPG Player archive {archive_path}: {exc}") from exc
     return staged
 
 

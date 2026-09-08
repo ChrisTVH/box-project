@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from box.engines.registry import default_registry
+from box.engines.registry import EngineRegistry, default_registry
 from box.errors import GameValidationError
 from box.games.detector import detect_game
-from box.models import EngineName
+from box.models import EngineName, GameInfo
 
 
 def _write_file(path: Path, content: str = "") -> None:
@@ -90,3 +90,20 @@ def test_detect_game_rejects_game_artifacts_reached_through_symlinks(tmp_path: P
 
     with pytest.raises(GameValidationError, match="unsupported game"):
         detect_game(game_root, default_registry())
+
+
+def test_detect_game_converts_a_racing_game_directory_error_to_validation_error(
+    tmp_path: Path,
+) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+
+    class RacingAdapter:
+        name = EngineName.RPG_MAKER_MZ
+
+        def detect(self, root: Path) -> GameInfo | None:
+            del root
+            raise FileNotFoundError("game disappeared")
+
+    with pytest.raises(GameValidationError, match="cannot inspect game path"):
+        detect_game(game_root, EngineRegistry((RacingAdapter(),)))

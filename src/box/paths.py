@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import os
+import stat
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass
+from errno import ELOOP
 from pathlib import Path
 
 from box.errors import ConfigurationError
@@ -79,9 +82,7 @@ class AppPaths:
             self.sessions_root,
             self.reports_root,
         ):
-            directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-            if directory.is_symlink():
-                raise ConfigurationError(f"managed directory must not be a symlink: {directory}")
+            _ensure_private_directory_without_symlinks(directory)
 
     def ensure_managed_runtime_path(self, path: Path) -> Path:
         """Validate a runtime path is a lower-case directory owned by the launcher."""
@@ -144,8 +145,18 @@ class AppPaths:
             raise ConfigurationError(f"managed directory must not be a symlink: {current}")
         for component in relative.parts:
             current /= component
-            if current.exists() and current.is_symlink():
+            try:
+                metadata = os.lstat(current)
+            except FileNotFoundError:
+                continue
+            if stat.S_ISLNK(metadata.st_mode):
                 raise ConfigurationError(f"managed {label} path contains a symlink: {current}")
+            if stat.S_ISDIR(metadata.st_mode) and (
+                metadata.st_uid != os.getuid() or metadata.st_mode & 0o022
+            ):
+                raise ConfigurationError(
+                    f"managed {label} directory has unsafe ownership or permissions: {current}"
+                )
         cache = self.cache_root.resolve(strict=True)
         resolved = candidate.resolve(strict=False)
         if not resolved.is_relative_to(cache):
@@ -170,3 +181,37 @@ def _open_directory_without_symlinks(path: Path) -> int:
     except Exception:
         os.close(descriptor)
         raise
+
+
+def _ensure_private_directory_without_symlinks(path: Path) -> None:
+    """Create a managed directory while rejecting symlinked XDG ancestors."""
+    absolute = Path(os.path.abspath(path))
+    descriptor = os.open(absolute.anchor, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for component in absolute.parts[1:]:
+            try:
+                metadata = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
+                if stat.S_ISLNK(metadata.st_mode):
+                    raise ConfigurationError(f"managed directory must not be a symlink: {path}")
+                child = os.open(
+                    component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor
+                )
+            except FileNotFoundError:
+                with suppress(FileExistsError):
+                    os.mkdir(component, 0o700, dir_fd=descriptor)
+                child = os.open(
+                    component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor
+                )
+            os.close(descriptor)
+            descriptor = child
+        metadata = os.fstat(descriptor)
+        if metadata.st_uid != os.getuid():
+            raise ConfigurationError(f"managed directory is not owned by the current user: {path}")
+        if metadata.st_mode & 0o022:
+            raise ConfigurationError(f"managed directory has unsafe permissions: {path}")
+    except OSError as exc:
+        if exc.errno == ELOOP:
+            raise ConfigurationError(f"managed directory must not be a symlink: {path}") from exc
+        raise ConfigurationError(f"cannot safely create managed directory {path}: {exc}") from exc
+    finally:
+        os.close(descriptor)

@@ -116,3 +116,17 @@ def test_runtime_catalog_rejects_architecture_path_traversal(tmp_path: Path) -> 
 
     with pytest.raises(RuntimeError, match=r"unsupported NW\.js architecture"):
         RuntimeCatalog(paths).get("0.90.0", "x64/..")
+
+
+def test_runtime_catalog_rejects_a_non_executable_nw_binary(tmp_path: Path) -> None:
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    runtime_root = paths.runtimes_root / "linux-x64" / "standard-v0.90.0"
+    runtime_root.mkdir(parents=True)
+    executable = runtime_root / "nw"
+    executable.write_text("#!/bin/sh\n", encoding="utf-8")
+
+    catalog = RuntimeCatalog(paths)
+
+    assert catalog.list() == ()
+    with pytest.raises(RuntimeError, match="executable is missing"):
+        catalog.get("0.90.0", "x64")

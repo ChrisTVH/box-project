@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "box-rpg"
-version = "26.9.8"
-description = "A safe NW.js launcher for RPG Maker MV and MZ exports"
+version = "26.9.9"
+description = "A safe launcher for RPG Maker MV/MZ exports and RPG Maker 2000/2003 projects with EasyRPG Player"
 readme = "README.md"
 requires-python = ">=3.14"
 license = "BSD-3-Clause"
 authors = [
     { name = "ChrisTVH" },
 ]
-keywords = ["rpg-maker", "mv", "mz", "nwjs", "launcher"]
+keywords = ["rpg-maker", "rpg-maker-2000", "rpg-maker-2003", "mv", "mz", "nwjs", "easyrpg", "launcher"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.14",

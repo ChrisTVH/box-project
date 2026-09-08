@@ -157,8 +157,8 @@ def _pip_uninstall_args() -> list[str]:
 def install_commands() -> list[str]:
     cmds = [shlex.join(_pip_install_args())]
     for source, target in COMPLETION_TARGETS:
-        cmds.append(f"mkdir -p {target.parent}")
-        cmds.append(f"cp {source} {target}")
+        cmds.append(shlex.join(["mkdir", "-p", str(target.parent)]))
+        cmds.append(shlex.join(["cp", str(source), str(target)]))
     return cmds
 
 
@@ -188,7 +188,7 @@ def run_install() -> bool:
 def uninstall_commands() -> list[str]:
     cmds = [shlex.join(_pip_uninstall_args())]
     for _, target in COMPLETION_TARGETS:
-        cmds.append(f"rm -f {target}")
+        cmds.append(shlex.join(["rm", "-f", str(target)]))
     return cmds
 
 
@@ -210,6 +210,15 @@ def print_commands(title: str, cmds: list[str]) -> None:
     print(f"\n{title}")
     for cmd in cmds:
         print(f"  {cmd}")
+
+
+def _prompt(prompt: str) -> str | None:
+    """Read one interactive response, treating end-of-input as cancellation."""
+    try:
+        return input(prompt).strip().lower()
+    except EOFError:
+        print("Aborted.")
+        return None
 
 
 def main() -> int:
@@ -265,9 +274,10 @@ def main() -> int:
         cmds = uninstall_commands()
         print_commands("Uninstall commands that would be run:", cmds)
         if not args.yes:
-            answer = input("\nProceed with uninstall? [y/N] ").strip().lower()
+            answer = _prompt("\nProceed with uninstall? [y/N] ")
             if answer not in ("y", "yes"):
-                print("Aborted.")
+                if answer is not None:
+                    print("Aborted.")
                 return 0
         ok = run_uninstall()
         return 0 if ok else 1
@@ -291,27 +301,27 @@ def main() -> int:
         return 0
 
     if installed is not None and not args.yes:
-        answer = (
-            input(
-                f"\n{PACKAGE} is already installed. "
-                "[r] Reinstall/update, [u] Uninstall, [c] Cancel [r/u/c] "
-            )
-            .strip()
-            .lower()
+        answer = _prompt(
+            f"\n{PACKAGE} is already installed. "
+            "[r] Reinstall/update, [u] Uninstall, [c] Cancel [r/u/c] "
         )
         if answer in ("u", "uninstall"):
-            if input("\nConfirm uninstall? [y/N] ").strip().lower() not in ("y", "yes"):
-                print("Aborted.")
+            confirmation = _prompt("\nConfirm uninstall? [y/N] ")
+            if confirmation not in ("y", "yes"):
+                if confirmation is not None:
+                    print("Aborted.")
                 return 0
             ok = run_uninstall()
             return 0 if ok else 1
         if answer not in ("r", "reinstall", ""):
-            print("Aborted.")
+            if answer is not None:
+                print("Aborted.")
             return 0
     elif not args.yes:
-        answer = input("\nProceed with installation? [y/N] ").strip().lower()
+        answer = _prompt("\nProceed with installation? [y/N] ")
         if answer not in ("y", "yes"):
-            print("Aborted.")
+            if answer is not None:
+                print("Aborted.")
             return 0
 
     ok = run_install()

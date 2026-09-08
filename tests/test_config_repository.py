@@ -32,6 +32,22 @@ def test_config_repository_persists_toml_configuration(tmp_path: Path) -> None:
     assert ConfigRepository(paths).load() == expected
 
 
+def test_config_repository_escapes_all_toml_control_characters(tmp_path: Path) -> None:
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    controls = "".join(chr(value) for value in (*range(0x20), *range(0x7F, 0xA0)))
+    expected = AppConfig(preferred_runtime=controls)
+
+    repository.save(expected)
+
+    content = paths.config_file.read_text(encoding="utf-8")
+    preferred_line = next(
+        line for line in content.splitlines() if line.startswith("preferred_runtime = ")
+    )
+    assert all(character not in preferred_line for character in controls)
+    assert repository.load() == expected
+
+
 def test_config_repository_adds_each_allowed_root_once(tmp_path: Path) -> None:
     game_root = tmp_path / "games" / "example"
     game_root.mkdir(parents=True)

@@ -88,7 +88,8 @@ supported game; otherwise it prints help and explains how to launch one.
 The architecture is detected automatically unless `--architecture` is supplied.
 Runtime downloads use a 60-second connection timeout and resume partial archives after
 temporary connection failures. Interactive terminals display a progress bar.
-Launches select Wayland only when the session exposes `WAYLAND_DISPLAY`; otherwise they use X11.
+Launches select Wayland only when the session exposes both
+`XDG_SESSION_TYPE=wayland` and `WAYLAND_DISPLAY`; otherwise they use X11.
 
 RPG Maker 2000/2003 projects require `RPG_RT.ini`, `RPG_RT.ldb`, and `RPG_RT.lmt`.
 They launch with the managed x64 EasyRPG Player using `--project-path` and `--fullscreen`.

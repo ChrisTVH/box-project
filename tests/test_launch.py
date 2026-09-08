@@ -188,7 +188,7 @@ def test_execute_launches_rpg_rt_projects_with_easyrpg_fullscreen(
     def latest(_: object) -> EasyRPGRuntime:
         return EasyRPGRuntime("0.8.1.1", runtime_root)
 
-    def run(command: list[str], cwd: Path | None = None) -> int:
+    def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
         calls.append((command, cwd))
         return 0
 
@@ -207,9 +207,9 @@ def test_execute_launches_rpg_rt_projects_with_easyrpg_fullscreen(
     monkeypatch.setattr("box.cli.launch.run_process", run)
 
     assert execute(paths, repository, game_root, None, False) == 0
-    assert calls == [
-        ([str(executable), "--project-path", str(game_root), "--fullscreen"], game_root)
-    ]
+    assert calls[0][0][:2] == [str(executable), "--project-path"]
+    assert calls[0][0][3] == "--fullscreen"
+    assert calls[0][1] == Path(calls[0][0][2])
 
 
 def test_execute_rejects_nwjs_options_for_rpg_rt_projects(
@@ -252,10 +252,23 @@ def test_execute_uses_the_game_root_as_nwjs_working_directory_when_requested(
 
     @contextmanager
     def session(
-        _: AppPaths, __: GameInfo, copy_root_files: tuple[str, ...] = ()
+        _: AppPaths,
+        __: GameInfo,
+        copy_root_files: tuple[str, ...] = (),
+        *,
+        game_descriptor: int | None = None,
     ) -> Generator[object]:
         calls.append((None, copy_root_files))
-        yield type("Session", (), {"root": session_root})()
+        yield type(
+            "Session",
+            (),
+            {
+                "root": session_root,
+                "reference": session_root,
+                "game_reference": game_root,
+                "process_descriptors": (),
+            },
+        )()
 
     def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
         return game
@@ -271,7 +284,7 @@ def test_execute_uses_the_game_root_as_nwjs_working_directory_when_requested(
     ) -> AppConfig:
         return repository.load()
 
-    def run(_: list[str], cwd: Path | None = None) -> int:
+    def run(_: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
         calls.append((cwd, ()))
         return 0
 
@@ -283,3 +296,53 @@ def test_execute_uses_the_game_root_as_nwjs_working_directory_when_requested(
 
     assert execute(paths, repository, game_root, None, False, game_cwd=True) == 0
     assert calls == [(None, ()), (game_root, ())]
+
+
+def test_execute_keeps_the_game_pinned_when_authorization_replaces_its_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    (game_root / "index.html").write_text("original", encoding="utf-8")
+    (game_root / "package.json").write_text('{"name": "Original"}', encoding="utf-8")
+    game = GameInfo(
+        EngineName.RPG_MAKER_MZ,
+        game_root,
+        game_root / "index.html",
+        game_root / "package.json",
+    )
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    runtime = RuntimeInfo(RuntimeSpec("v0.90.0", "x64"), runtime_root, runtime_root / "nw")
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+
+    def authorize(
+        _: GameInfo,
+        __: AppConfig,
+        ___: ConfigRepository,
+        ____: Callable[[str], str] | None = None,
+    ) -> AppConfig:
+        game_root.rename(tmp_path / "original")
+        game_root.mkdir()
+        (game_root / "index.html").write_text("replacement", encoding="utf-8")
+        return repository.load()
+
+    def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
+        assert cwd is None
+        assert (Path(command[-1]) / "game" / "index.html").read_text(encoding="utf-8") == "original"
+        assert pass_fds
+        return 0
+
+    def detect(_: Path, __: EngineRegistry) -> GameInfo:
+        return game
+
+    def select(*_: object) -> RuntimeInfo:
+        return runtime
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect)
+    monkeypatch.setattr("box.cli.launch.select_runtime", select)
+    monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+
+    assert execute(paths, repository, game_root, None, False) == 0

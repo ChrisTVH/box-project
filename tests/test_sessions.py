@@ -96,7 +96,7 @@ def test_session_rejects_reserved_game_root_filenames(tmp_path: Path) -> None:
 def test_session_uses_the_game_directory_name_when_manifest_name_is_empty(
     tmp_path: Path,
 ) -> None:
-    game_root = tmp_path / "Roseliam-1.08"
+    game_root = tmp_path / "sample-game"
     entrypoint = game_root / "index.html"
     manifest = game_root / "package.json"
     entrypoint.parent.mkdir()
@@ -108,7 +108,7 @@ def test_session_uses_the_game_directory_name_when_manifest_name_is_empty(
     with create_session(paths, game) as session:
         wrapper = json.loads((session.root / "package.json").read_text(encoding="utf-8"))
 
-    assert wrapper["name"] == "Roseliam-1.08"
+    assert wrapper["name"] == "sample-game"
 
 
 def test_session_creation_rejects_a_symlinked_cache_root(tmp_path: Path) -> None:
@@ -144,3 +144,44 @@ def test_session_creation_rejects_a_symlinked_game_session_directory(tmp_path: P
 
     with pytest.raises(ConfigurationError, match="contains a symlink"):
         create_session(paths, game)
+
+
+def test_session_keeps_the_original_game_directory_after_its_path_is_replaced(
+    tmp_path: Path,
+) -> None:
+    game_root = tmp_path / "game"
+    entrypoint = game_root / "index.html"
+    manifest = game_root / "package.json"
+    entrypoint.parent.mkdir()
+    entrypoint.write_text("original", encoding="utf-8")
+    manifest.write_text('{"name": "Original"}', encoding="utf-8")
+    game = GameInfo(EngineName.RPG_MAKER_MZ, game_root, entrypoint, manifest)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+
+    with create_session(paths, game) as session:
+        original = tmp_path / "original"
+        game_root.rename(original)
+        game_root.mkdir()
+        (game_root / "index.html").write_text("replacement", encoding="utf-8")
+
+        assert (session.reference / "game" / "index.html").read_text(encoding="utf-8") == "original"
+
+
+def test_session_cleanup_does_not_remove_a_replacement_directory(tmp_path: Path) -> None:
+    game_root = tmp_path / "game"
+    entrypoint = game_root / "index.html"
+    manifest = game_root / "package.json"
+    entrypoint.parent.mkdir()
+    entrypoint.write_text("original", encoding="utf-8")
+    manifest.write_text('{"name": "Original"}', encoding="utf-8")
+    game = GameInfo(EngineName.RPG_MAKER_MZ, game_root, entrypoint, manifest)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    session = create_session(paths, game)
+    original = tmp_path / "original-session"
+    session.root.rename(original)
+    session.root.mkdir()
+
+    with pytest.raises(LaunchError, match="changed before cleanup"):
+        session.cleanup()
+
+    assert session.root.is_dir()

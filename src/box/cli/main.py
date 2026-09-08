@@ -53,13 +53,13 @@ def main(argv: list[str] | None = None) -> int:
 
 def _dispatch(arguments: Namespace) -> int:
     """Dispatch one parsed subcommand to its isolated implementation module."""
+    if arguments.command == "inspect":
+        return inspect_command.execute(Path(arguments.game))
     paths = AppPaths.from_environment()
     paths.ensure()
     repository = ConfigRepository(paths)
     if arguments.command == "cleanup":
         return cleanup_command.execute(paths, repository, interactive=sys.stdin.isatty())
-    if arguments.command == "inspect":
-        return inspect_command.execute(Path(arguments.game))
     if arguments.command == "runtime":
         catalog = RuntimeCatalog(paths)
         if arguments.runtime_command == "easyrpg":
@@ -95,6 +95,7 @@ def _dispatch(arguments: Namespace) -> int:
     if arguments.command == "diagnose":
         return diagnose_command.execute(
             paths,
+            repository,
             Path(arguments.game),
             arguments.runtime_version,
             arguments.sdk,

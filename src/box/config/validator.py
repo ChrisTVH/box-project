@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import unicodedata
 from pathlib import Path
 from typing import Any, cast
 
@@ -58,4 +59,24 @@ def encode_config(config: AppConfig) -> str:
 
 def _toml_string(value: str) -> str:
     """Encode a plain TOML basic string."""
-    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    escaped: list[str] = []
+    for character in value:
+        if character == "\\":
+            escaped.append("\\\\")
+        elif character == '"':
+            escaped.append('\\"')
+        elif character == "\b":
+            escaped.append("\\b")
+        elif character == "\t":
+            escaped.append("\\t")
+        elif character == "\n":
+            escaped.append("\\n")
+        elif character == "\f":
+            escaped.append("\\f")
+        elif character == "\r":
+            escaped.append("\\r")
+        elif unicodedata.category(character) == "Cc":
+            escaped.append(f"\\u{ord(character):04X}")
+        else:
+            escaped.append(character)
+    return '"' + "".join(escaped) + '"'

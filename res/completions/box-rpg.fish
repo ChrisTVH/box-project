@@ -6,7 +6,7 @@ complete -c box-rpg -n '__fish_use_subcommand' -a runtime -d 'Manage game runtim
 complete -c box-rpg -n '__fish_use_subcommand' -a launch -d 'Launch a supported game'
 complete -c box-rpg -n '__fish_use_subcommand' -a config -d 'Show or set configuration'
 complete -c box-rpg -n '__fish_use_subcommand' -a diagnose -d 'Check launcher setup'
-complete -c box-rpg -n '__fish_seen_subcommand_from runtime' -a 'list available install remove easyrpg'
+complete -c box-rpg -n '__fish_seen_subcommand_from runtime; and not __fish_seen_subcommand_from list available install remove easyrpg' -a 'list available install remove easyrpg'
 complete -c box-rpg -n '__fish_seen_subcommand_from easyrpg' -a 'list available install remove'
 complete -c box-rpg -n '__fish_seen_subcommand_from easyrpg; and __fish_seen_subcommand_from available' -l page -d 'Select an EasyRPG Player version page'
 complete -c box-rpg -n '__fish_seen_subcommand_from easyrpg; and __fish_seen_subcommand_from available' -l interactive -d 'Select and install an EasyRPG Player version'

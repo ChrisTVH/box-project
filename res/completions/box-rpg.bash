@@ -12,6 +12,9 @@ _box_rpg() {
                 install|remove)
                     COMPREPLY=($(compgen -W '--architecture --sdk --help' -- "$cur"))
                     ;;
+                list)
+                    COMPREPLY=($(compgen -W '--help' -- "$cur"))
+                    ;;
                 easyrpg)
                     case "${words[3]}" in
                         available)

@@ -1,4 +1,5 @@
 import os
+import tarfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -10,8 +11,10 @@ from box.paths import AppPaths
 from box.runtime.easyrpg import (
     AvailableEasyRPGVersions,
     EasyRPGCatalog,
+    EasyRPGDownloadCatalog,
     download_archive_path,
     download_url,
+    extract_runtime,
     normalize_version,
     parse_available_versions,
     parse_versions,
@@ -129,3 +132,63 @@ def test_easyrpg_catalog_lists_selects_and_removes_managed_runtimes(tmp_path: Pa
     assert not older.exists()
     assert latest.is_dir()
     assert ignored.is_dir()
+
+
+def test_easyrpg_catalog_rejects_a_runtime_replaced_by_a_symlink_with_real_paths(
+    tmp_path: Path,
+) -> None:
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    runtime = paths.easyrpg_runtimes_root / "0.8.1"
+    runtime.mkdir(parents=True)
+    player = runtime / "easyrpg-player"
+    player.write_text("#!/bin/sh\n", encoding="utf-8")
+    player.chmod(0o700)
+    catalog = EasyRPGCatalog(paths)
+    managed = catalog.list_managed()[0]
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    runtime.replace(outside / runtime.name)
+    runtime.symlink_to(outside / runtime.name, target_is_directory=True)
+
+    with pytest.raises(ConfigurationError, match="contains a symlink"):
+        catalog.remove_managed(managed)
+
+    assert (outside / runtime.name).is_dir()
+
+
+def test_easyrpg_download_catalog_rejects_a_replaced_archive_symlink_with_real_paths(
+    tmp_path: Path,
+) -> None:
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    paths.ensure()
+    archive = paths.easyrpg_downloads_root / "easyrpg-player-0.8.1-linux.tar.gz"
+    archive.write_bytes(b"archive")
+    ignored = paths.easyrpg_downloads_root / "easyrpg-player-0.8.2-linux.tar.gz"
+    ignored.symlink_to(archive)
+    catalog = EasyRPGDownloadCatalog(paths)
+    listed = catalog.list()
+    outside = tmp_path / "outside.tar.gz"
+    archive.replace(outside)
+    archive.symlink_to(outside)
+
+    assert listed == (archive,)
+    with pytest.raises(ConfigurationError, match="contains a symlink"):
+        catalog.remove(listed[0])
+    assert outside.read_bytes() == b"archive"
+    assert ignored.is_symlink()
+
+
+def test_easyrpg_malformed_archive_staging_collision_raises_runtime_error(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "runtime").mkdir()
+    (source / "readme").write_text("readme", encoding="utf-8")
+    archive = tmp_path / "player.tar.gz"
+    with tarfile.open(archive, "w:gz") as tar:
+        tar.add(source / "runtime", arcname="runtime")
+        tar.add(source / "readme", arcname="readme")
+    destination = tmp_path / "destination"
+    destination.mkdir()
+
+    with pytest.raises(RuntimeError, match="cannot stage EasyRPG Player archive"):
+        extract_runtime(archive, destination)
