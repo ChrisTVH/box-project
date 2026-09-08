@@ -23,6 +23,7 @@ from box.paths import AppPaths
 from box.runtime.archive import extract_runtime_at
 from box.runtime.platform import normalize_architecture
 from box.runtime.validator import normalize_version, validate_runtime_executable_at
+from box.utils.i18n import _
 
 OFFICIAL_DOWNLOAD_HOSTS = frozenset({"dl.nwjs.io", "dl.node-webkit.org"})
 DOWNLOAD_TIMEOUT_SECONDS = 60
@@ -103,7 +104,9 @@ def install_runtime(
                 os.close(archive_descriptor)
         return _runtime_info_at(spec, target, runtime_descriptor)
     except OSError as exc:
-        raise RuntimeError(f"cannot securely install NW.js runtime: {exc}") from exc
+        raise RuntimeError(
+            _("cannot securely install NW.js runtime: {error}").format(error=exc)
+        ) from exc
     finally:
         if temporary_name is not None:
             with suppress(FileNotFoundError):
@@ -153,16 +156,22 @@ def download_archive_at(
             return
         except HTTPError as exc:
             if exc.code not in RETRYABLE_HTTP_STATUSES:
-                raise RuntimeError(f"cannot download NW.js from {url}: {exc}") from exc
+                raise RuntimeError(
+                    _("cannot download NW.js from {url}: {error}").format(url=url, error=exc)
+                ) from exc
             if delay is None:
                 raise RuntimeError(
-                    f"cannot download NW.js from {url} after {attempt} attempts: {exc}"
+                    _("cannot download NW.js from {url} after {attempt} attempts: {error}").format(
+                        url=url, attempt=attempt, error=exc
+                    )
                 ) from exc
             time.sleep(delay)
         except (IncompleteRead, OSError, URLError) as exc:
             if delay is None:
                 raise RuntimeError(
-                    f"cannot download NW.js from {url} after {attempt} attempts: {exc}"
+                    _("cannot download NW.js from {url} after {attempt} attempts: {error}").format(
+                        url=url, attempt=attempt, error=exc
+                    )
                 ) from exc
             time.sleep(delay)
 
@@ -190,12 +199,14 @@ def _download_attempt(
         if offset and status == 206:
             content_range = response.headers.get("Content-Range", "")
             if not content_range.startswith(f"bytes {offset}-"):
-                raise RuntimeError("NW.js download returned an invalid resume range")
+                raise RuntimeError(_("NW.js download returned an invalid resume range"))
             mode = "ab"
         elif status == 200:
             mode = "wb"
         else:
-            raise RuntimeError(f"NW.js download returned unexpected HTTP status {status}")
+            raise RuntimeError(
+                _("NW.js download returned unexpected HTTP status {status}").format(status=status)
+            )
         completed = offset if mode == "ab" else 0
         total = _archive_size(response, completed)
         target_descriptor = os.open(
@@ -251,7 +262,10 @@ def _report_download_progress(completed: int, total: int | None) -> None:
     percentage = 100 if total == 0 else visible_completed * 100 // total
     filled = 30 if total == 0 else visible_completed * 30 // total
     bar = "#" * filled + "-" * (30 - filled)
-    sys.stderr.write(f"\rDownloading NW.js: [{bar}] {percentage:3d}%")
+    sys.stderr.write(
+        "\r"
+        + _("Downloading NW.js: [{bar}] {percentage:3d}%").format(bar=bar, percentage=percentage)
+    )
     if visible_completed == total:
         sys.stderr.write("\n")
     sys.stderr.flush()
@@ -264,7 +278,7 @@ def _ensure_regular_download_entry(name: str, directory_descriptor: int) -> None
     except FileNotFoundError:
         return
     if not stat.S_ISREG(entry.st_mode):
-        raise RuntimeError(f"refusing unsafe download path: {name}")
+        raise RuntimeError(_("refusing unsafe download path: {name}").format(name=name))
 
 
 def _entry_exists(name: str, directory_descriptor: int) -> bool:
@@ -290,7 +304,7 @@ def _open_regular_file(name: str, directory_descriptor: int) -> int:
     descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory_descriptor)
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise RuntimeError(f"refusing unsafe download path: {name}")
+            raise RuntimeError(_("refusing unsafe download path: {name}").format(name=name))
         return descriptor
     except Exception:
         os.close(descriptor)
@@ -357,4 +371,4 @@ def validate_download_source(
     """Reject archive redirects outside the configured official HTTPS hosts."""
     destination = urlsplit(url)
     if destination.scheme != "https" or destination.hostname not in allowed_hosts:
-        raise RuntimeError("archive redirected outside an official HTTPS mirror or host")
+        raise RuntimeError(_("archive redirected outside an official HTTPS mirror or host"))

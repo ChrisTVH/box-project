@@ -81,6 +81,20 @@ def test_interactive_actions_abort_cleanly_on_end_of_input(
     assert "Aborted." in capsys.readouterr().out
 
 
+def test_help_uses_the_configured_translation(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("LANGUAGE", "es")
+    monkeypatch.setattr(install.sys, "argv", ["install.py", "--help"])
+
+    with pytest.raises(SystemExit) as error:
+        install.main()
+
+    assert error.value.code == 0
+    assert "Instala box-rpg en el sistema." in capsys.readouterr().out
+
+
 def test_has_pip_handles_a_missing_pip_command(monkeypatch: pytest.MonkeyPatch) -> None:
     def missing_pip(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
         raise OSError("pip unavailable")

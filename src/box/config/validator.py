@@ -9,6 +9,7 @@ from typing import Any, cast
 
 from box.config.models import AppConfig
 from box.errors import ConfigurationError
+from box.utils.i18n import _
 
 
 def decode_config(data: dict[str, Any]) -> AppConfig:
@@ -18,22 +19,32 @@ def decode_config(data: dict[str, Any]) -> AppConfig:
     preferred_runtime: object = data.get("preferred_runtime")
     prefer_sdk: object = data.get("prefer_sdk", False)
     if type(version) is not int or version != 1:
-        raise ConfigurationError(f"unsupported configuration schema version: {version!r}")
+        raise ConfigurationError(
+            _("unsupported configuration schema version: {version!r}").format(version=version)
+        )
     if not isinstance(roots, list):
-        raise ConfigurationError("allowed_game_roots must be an array of paths")
+        raise ConfigurationError(
+            _("{key} must be an array of paths").format(key="allowed_game_roots")
+        )
     root_values = cast(list[object], roots)
     normalized_roots_list: list[Path] = []
     for root in root_values:
         if not isinstance(root, str):
-            raise ConfigurationError("allowed_game_roots must be an array of paths")
+            raise ConfigurationError(
+                _("{key} must be an array of paths").format(key="allowed_game_roots")
+            )
         candidate = Path(root).expanduser()
         if not candidate.is_absolute():
-            raise ConfigurationError("allowed_game_roots must contain absolute paths")
+            raise ConfigurationError(
+                _("{key} must contain absolute paths").format(key="allowed_game_roots")
+            )
         normalized_roots_list.append(Path(os.path.abspath(candidate)))
     if preferred_runtime is not None and not isinstance(preferred_runtime, str):
-        raise ConfigurationError("preferred_runtime must be a string or omitted")
+        raise ConfigurationError(
+            _("{key} must be a string or omitted").format(key="preferred_runtime")
+        )
     if not isinstance(prefer_sdk, bool):
-        raise ConfigurationError("prefer_sdk must be a boolean")
+        raise ConfigurationError(_("{key} must be a boolean").format(key="prefer_sdk"))
     normalized_roots = tuple(normalized_roots_list)
     return AppConfig(
         allowed_game_roots=normalized_roots,

@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 from box.errors import LaunchError
+from box.utils.i18n import _
 
 
 def run_process(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
@@ -13,4 +14,4 @@ def run_process(command: list[str], cwd: Path | None = None, pass_fds: tuple[int
     try:
         return subprocess.run(command, check=False, cwd=cwd, pass_fds=pass_fds).returncode
     except OSError as exc:
-        raise LaunchError(f"cannot start game runtime: {exc}") from exc
+        raise LaunchError(_("cannot start game runtime: {error}").format(error=exc)) from exc

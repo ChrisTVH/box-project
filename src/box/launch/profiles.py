@@ -12,6 +12,7 @@ from box.errors import ConfigurationError, LaunchError
 from box.games.identity import game_id
 from box.models import GameInfo
 from box.paths import AppPaths
+from box.utils.i18n import _
 
 _PROFILE_ID = re.compile(r"^[0-9a-f]{16}$")
 
@@ -28,7 +29,9 @@ class ProfileCatalog:
             identifier = game_id(game.root if game_root is None else game_root)
         except (OSError, RuntimeError) as exc:
             root = game.root if game_root is None else game_root
-            raise LaunchError(f"cannot identify game root {root}: {exc}") from exc
+            raise LaunchError(
+                _("cannot identify game root {root}: {error}").format(root=root, error=exc)
+            ) from exc
         return self._create(identifier)
 
     def list(self) -> tuple[Path, ...]:
@@ -51,27 +54,37 @@ class ProfileCatalog:
         try:
             metadata = os.stat(managed.name, dir_fd=descriptor, follow_symlinks=False)
             if not stat.S_ISDIR(metadata.st_mode):
-                raise ConfigurationError(f"game profile directory is missing or unsafe: {managed}")
+                raise ConfigurationError(
+                    _("game profile directory is missing or unsafe: {path}").format(path=managed)
+                )
             shutil.rmtree(managed.name, dir_fd=descriptor)
         finally:
             os.close(descriptor)
 
     def _create(self, identifier: str) -> Path:
         if _PROFILE_ID.fullmatch(identifier) is None:
-            raise LaunchError(f"invalid game profile identifier: {identifier}")
+            raise LaunchError(
+                _("invalid game profile identifier: {identifier}").format(identifier=identifier)
+            )
         descriptor = self._paths.open_or_create_private_cache_directory("profiles", identifier)
         os.close(descriptor)
         return self._validate(self._paths.profiles_root / identifier)
 
     def _validate(self, profile: Path) -> Path:
         if _PROFILE_ID.fullmatch(profile.name) is None:
-            raise ConfigurationError(f"invalid game profile directory: {profile}")
+            raise ConfigurationError(
+                _("invalid game profile directory: {path}").format(path=profile)
+            )
         expected = self._paths.profiles_root / profile.name
         if profile.absolute() != expected.absolute():
-            raise ConfigurationError(f"refusing to manage unexpected game profile path: {profile}")
+            raise ConfigurationError(
+                _("refusing to manage unexpected game profile path: {path}").format(path=profile)
+            )
         managed = self._paths.ensure_managed_profile_path(expected)
         if not _is_profile_directory(managed):
-            raise ConfigurationError(f"game profile directory is missing or unsafe: {expected}")
+            raise ConfigurationError(
+                _("game profile directory is missing or unsafe: {path}").format(path=expected)
+            )
         return managed
 
 
@@ -85,4 +98,6 @@ def _open_profiles_root(paths: AppPaths) -> int:
     try:
         return paths.open_managed_cache_directory("profiles")
     except OSError as exc:
-        raise ConfigurationError(f"cannot securely open managed profiles: {exc}") from exc
+        raise ConfigurationError(
+            _("cannot securely open managed profiles: {error}").format(error=exc)
+        ) from exc

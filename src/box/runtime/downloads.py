@@ -9,6 +9,7 @@ from pathlib import Path
 
 from box.errors import ConfigurationError, RuntimeError
 from box.paths import AppPaths
+from box.utils.i18n import _
 
 _DOWNLOAD_ARCHIVE_NAME = re.compile(
     r"^(?:nwjs(?:-sdk)?|(?:standard|sdk))-v\d+\.\d+\.\d+-linux-(?:arm|arm64|ia32|x64)\.tar\.gz(?:\.part)?$"
@@ -39,12 +40,16 @@ class DownloadCatalog:
         """Delete one recognized regular archive from the launcher download cache."""
         managed = self._paths.ensure_managed_download_path(archive)
         if not _is_download_archive(managed):
-            raise RuntimeError(f"refusing unsafe NW.js download archive: {archive}")
+            raise RuntimeError(
+                _("refusing unsafe NW.js download archive: {archive}").format(archive=archive)
+            )
         descriptor = _open_downloads_root(self._paths)
         try:
             entry = os.stat(managed.name, dir_fd=descriptor, follow_symlinks=False)
             if not stat.S_ISREG(entry.st_mode):
-                raise RuntimeError(f"refusing unsafe NW.js download archive: {archive}")
+                raise RuntimeError(
+                    _("refusing unsafe NW.js download archive: {archive}").format(archive=archive)
+                )
             os.unlink(managed.name, dir_fd=descriptor)
         finally:
             os.close(descriptor)
@@ -71,4 +76,6 @@ def _open_downloads_root(paths: AppPaths) -> int:
     try:
         return paths.open_managed_cache_directory("downloads", "nwjs")
     except OSError as exc:
-        raise ConfigurationError(f"cannot securely open managed downloads: {exc}") from exc
+        raise ConfigurationError(
+            _("cannot securely open managed downloads: {error}").format(error=exc)
+        ) from exc

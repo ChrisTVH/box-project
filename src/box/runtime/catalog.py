@@ -13,6 +13,7 @@ from box.models import RuntimeInfo, RuntimeSpec
 from box.paths import AppPaths
 from box.runtime.platform import normalize_architecture
 from box.runtime.validator import normalize_version, runtime_executable
+from box.utils.i18n import _
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,7 +94,7 @@ class RuntimeCatalog:
             entry = os.stat(managed.name, dir_fd=descriptor, follow_symlinks=False)
             if not stat.S_ISDIR(entry.st_mode):
                 raise ConfigurationError(
-                    f"managed runtime directory is missing or unsafe: {managed}"
+                    _("managed runtime directory is missing or unsafe: {path}").format(path=managed)
                 )
             shutil.rmtree(managed.name, dir_fd=descriptor)
         finally:
@@ -109,16 +110,26 @@ class RuntimeCatalog:
             )
         except RuntimeError as exc:
             raise ConfigurationError(
-                f"invalid managed runtime specification: {runtime.spec}"
+                _("invalid managed runtime specification: {specification}").format(
+                    specification=runtime.spec
+                )
             ) from exc
         if spec != runtime.spec:
-            raise ConfigurationError(f"invalid managed runtime specification: {runtime.spec}")
+            raise ConfigurationError(
+                _("invalid managed runtime specification: {specification}").format(
+                    specification=runtime.spec
+                )
+            )
         expected = self._paths.runtimes_root / f"linux-{spec.architecture}" / spec.directory_name
         if runtime.root.absolute() != expected.absolute():
-            raise ConfigurationError(f"refusing to manage unexpected runtime path: {runtime.root}")
+            raise ConfigurationError(
+                _("refusing to manage unexpected runtime path: {path}").format(path=runtime.root)
+            )
         managed = self._paths.ensure_managed_runtime_path(expected)
         if not managed.is_dir() or managed.is_symlink():
-            raise ConfigurationError(f"managed runtime directory is missing or unsafe: {expected}")
+            raise ConfigurationError(
+                _("managed runtime directory is missing or unsafe: {path}").format(path=expected)
+            )
         return managed
 
 
@@ -152,4 +163,6 @@ def _open_runtime_platform(paths: AppPaths, architecture: str) -> int:
     try:
         return paths.open_managed_cache_directory("runtimes", "nwjs", f"linux-{architecture}")
     except OSError as exc:
-        raise ConfigurationError(f"cannot securely open managed runtime directory: {exc}") from exc
+        raise ConfigurationError(
+            _("cannot securely open managed runtime directory: {error}").format(error=exc)
+        ) from exc

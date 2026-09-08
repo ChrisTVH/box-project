@@ -5,6 +5,7 @@ from __future__ import annotations
 import platform
 
 from box.errors import RuntimeError
+from box.utils.i18n import _
 
 _ARCHITECTURES = {
     "x86_64": "x64",
@@ -25,7 +26,9 @@ def current_architecture() -> str:
     try:
         return _ARCHITECTURES[machine]
     except KeyError as exc:
-        raise RuntimeError(f"unsupported CPU architecture for NW.js: {machine}") from exc
+        raise RuntimeError(
+            _("unsupported CPU architecture for NW.js: {architecture}").format(architecture=machine)
+        ) from exc
 
 
 def normalize_architecture(value: str) -> str:
@@ -34,6 +37,8 @@ def normalize_architecture(value: str) -> str:
     if architecture not in _SUPPORTED_ARCHITECTURES:
         supported = ", ".join(sorted(_SUPPORTED_ARCHITECTURES))
         raise RuntimeError(
-            f"unsupported NW.js architecture {value!r}; expected one of: {supported}"
+            _(
+                "unsupported NW.js architecture {architecture!r}; expected one of: {supported}"
+            ).format(architecture=value, supported=supported)
         )
     return architecture

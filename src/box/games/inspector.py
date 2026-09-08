@@ -11,6 +11,7 @@ from box.engines.registry import EngineRegistry, default_registry
 from box.errors import GameValidationError
 from box.games.detector import detect_game
 from box.models import GameInfo
+from box.utils.i18n import _
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,7 +29,7 @@ def inspect_game(path: Path, registry: EngineRegistry | None = None) -> Inspecti
     if game.engine.value == "rpg-maker-2000-2003":
         return Inspection(game=game, title=_rpg_rt_title(game.root / "RPG_RT.ini"), plugin_count=0)
     if game.manifest is None or game.entrypoint is None:
-        raise GameValidationError("web game inspection requires a manifest and entrypoint")
+        raise GameValidationError(_("web game inspection requires a manifest and entrypoint"))
     manifest = _read_json(game.manifest)
     title_value: object = manifest.get("name")
     title = title_value if isinstance(title_value, str) else None
@@ -51,9 +52,13 @@ def _read_json(path: Path) -> dict[str, object]:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise GameValidationError(f"invalid game manifest {path}: {exc}") from exc
+        raise GameValidationError(
+            _("invalid game manifest {path}: {error}").format(path=path, error=exc)
+        ) from exc
     if not isinstance(raw, dict):
-        raise GameValidationError(f"game manifest is not a JSON object: {path}")
+        raise GameValidationError(
+            _("game manifest is not a {format} object: {path}").format(format="JSON", path=path)
+        )
     return cast(dict[str, object], raw)
 
 
@@ -61,4 +66,6 @@ def _plugin_count(path: Path) -> int:
     try:
         return path.read_text(encoding="utf-8", errors="replace").count('"name"')
     except OSError as exc:
-        raise GameValidationError(f"cannot read plugin registry {path}: {exc}") from exc
+        raise GameValidationError(
+            _("cannot read plugin registry {path}: {error}").format(path=path, error=exc)
+        ) from exc

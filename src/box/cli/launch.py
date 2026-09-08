@@ -24,6 +24,7 @@ from box.runtime.easyrpg import EasyRPGCatalog
 from box.runtime.easyrpg import executable as easyrpg_executable
 from box.runtime.platform import current_architecture
 from box.runtime.selector import select_runtime
+from box.utils.i18n import _
 
 
 def execute(
@@ -42,7 +43,9 @@ def execute(
         if game.engine is EngineName.RPG_MAKER_2000_2003:
             if version is not None or sdk or copy_root_files:
                 raise GameValidationError(
-                    "--runtime, --sdk, and --copy-root-file are only available for NW.js games"
+                    _(
+                        "{runtime}, {sdk}, and {copy_root_file} are only available for NW.js games"
+                    ).format(runtime="--runtime", sdk="--sdk", copy_root_file="--copy-root-file")
                 )
             runtime = EasyRPGCatalog(paths).latest()
             authorize_game(game, config, repository, read)
@@ -87,11 +90,15 @@ def authorize_game(
         ensure_allowed_root(game, config.allowed_game_roots)
         return config
     try:
-        answer = read(f"Add {game.root} to allowed game roots? [y/N] ").strip().lower()
+        answer = (
+            read(_("Add {path} to allowed game roots? [y/N] ").format(path=game.root))
+            .strip()
+            .lower()
+        )
     except EOFError as exc:
-        raise GameValidationError("game root was not authorized") from exc
+        raise GameValidationError(_("game root was not authorized")) from exc
     if answer not in {"y", "yes"}:
-        raise GameValidationError("game root was not authorized")
+        raise GameValidationError(_("game root was not authorized"))
     config = repository.add_allowed_root(game.root)
     ensure_allowed_root(game, config.allowed_game_roots)
     return config

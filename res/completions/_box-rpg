@@ -12,7 +12,7 @@ _box-rpg() {
   )
 
   if (( CURRENT == 2 )); then
-    _describe -t commands 'box-rpg command' commands
+    _arguments '--help[show help]' '--version[show the program version]' "1:box-rpg command:(${commands[@]%%:*})"
     return
   fi
 
@@ -29,8 +29,9 @@ _box-rpg() {
             return
           fi
           case "$words[4]" in
-            available) _arguments '--page[select an online version page]:page:' '--interactive[select and install a version]' '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
-            install|remove) _arguments '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
+             available) _arguments '--help[show help]' '--page[select an online version page]:page:' '--interactive[select and install a version]' '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
+             install|remove) _arguments '--help[show help]' '--architecture[use an NW.js architecture]:architecture:' '--sdk[use an NW.js SDK build]' ;;
+             list) _arguments '--help[show help]' ;;
           esac
           ;;
         easyrpg)
@@ -39,7 +40,8 @@ _box-rpg() {
             return
           fi
           case "$words[4]" in
-            available) _arguments '--page[select an online version page]:page:' '--interactive[select and install a version]' ;;
+             available) _arguments '--help[show help]' '--page[select an online version page]:page:' '--interactive[select and install a version]' ;;
+             list|install|remove) _arguments '--help[show help]' ;;
           esac
           ;;
       esac
@@ -50,15 +52,19 @@ _box-rpg() {
         return
       fi
       case "$words[3]" in
-        all) _arguments '--yes[delete immediately without prompting]' ;;
+        all) _arguments '--help[show help]' '--yes[delete immediately without prompting]' ;;
         list)
           if (( CURRENT == 4 )); then
             _values 'cleanup category' roots runtimes downloads profiles
+          else
+            _arguments '--help[show help]'
           fi
           ;;
         remove)
           if (( CURRENT == 4 )); then
             _values 'cleanup category' roots runtimes downloads profiles
+          elif [[ "$words[4]" == roots || "$words[4]" == runtimes || "$words[4]" == downloads || "$words[4]" == profiles ]]; then
+            _arguments '--all[remove every item in the category]' '--yes[delete immediately without prompting]' '--help[show help]'
           elif [[ -n "$words[4]" && "$words[4]" != "--all" ]]; then
             _arguments '--yes[delete immediately without prompting]'
           else
@@ -69,9 +75,10 @@ _box-rpg() {
         --yes) _values 'cleanup action' all list remove ;;
       esac
       ;;
-    config) _values 'config command' show set ;;
-    launch) _arguments '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' '--copy-root-file[copy a direct game-root file into the isolated session]:file:' ;;
-    diagnose) _arguments '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' ;;
+    inspect) _arguments '--help[show help]' '1:game path:_files -/' ;;
+    config) _arguments '--help[show help]' '1:config command:(show set)' ;;
+    launch) _arguments '--help[show help]' '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' '--copy-root-file[copy a direct game-root file into the isolated session]:file:' ;;
+    diagnose) _arguments '--help[show help]' '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' ;;
   esac
 }
 

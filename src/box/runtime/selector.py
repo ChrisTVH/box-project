@@ -5,6 +5,7 @@ from __future__ import annotations
 from box.errors import RuntimeError
 from box.models import RuntimeInfo
 from box.runtime.catalog import RuntimeCatalog
+from box.utils.i18n import _
 
 
 def select_runtime(
@@ -23,7 +24,10 @@ def select_runtime(
     ]
     if not candidates:
         raise RuntimeError(
-            "no matching NW.js runtime is installed; run 'box-rpg runtime nwjs available --interactive'"
+            _(
+                "no matching NW.js runtime is installed; run "
+                "'box-rpg runtime nwjs available --interactive'"
+            )
         )
     return max(candidates, key=lambda runtime: _version_key(runtime.spec.version))
 

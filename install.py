@@ -12,6 +12,8 @@ the prompt. Pass --uninstall to remove the package and its completions.
 from __future__ import annotations
 
 import argparse
+import gettext
+import os
 import re
 import shlex
 import site
@@ -22,6 +24,34 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent
 PACKAGE = "box-rpg"
 INIT_PY = REPO_ROOT / "src/box/__init__.py"
+
+
+def _languages() -> tuple[str, ...] | None:
+    """Return locale candidates for the standalone installer."""
+    language = os.environ.get("LANGUAGE")
+    if language:
+        return tuple(value for value in language.split(":") if value)
+    for name in ("LC_ALL", "LC_MESSAGES", "LANG"):
+        value = os.environ.get(name)
+        if value:
+            return (value,)
+    return None
+
+
+_ = gettext.NullTranslations().gettext
+
+
+def _configure_translation() -> None:
+    """Load the standalone installer's catalog for the current environment."""
+    global _
+    _ = gettext.translation(
+        "box",
+        localedir=REPO_ROOT / "src/box/locale",
+        languages=_languages(),
+        fallback=True,
+    ).gettext
+    argparse._ = _
+
 
 # User-level completion dirs (no root required); the parent dirs are created
 # on demand during install / uninstall.
@@ -165,29 +195,40 @@ def install_commands() -> list[str]:
 def run_install() -> bool:
     ok = True
     if run(_pip_install_args()) != 0:
-        print("error: pip install failed", file=sys.stderr)
+        print(_("error: pip install failed"), file=sys.stderr)
         ok = False
     for source, target in COMPLETION_TARGETS:
         if not source.exists():
-            print(f"warning: completion source missing: {source}", file=sys.stderr)
+            print(
+                _("warning: completion source missing: {source}").format(source=source),
+                file=sys.stderr,
+            )
             continue
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            print(f"error: cannot create directory {target.parent}: {exc}", file=sys.stderr)
+            print(
+                _("error: cannot create directory {directory}: {error}").format(
+                    directory=target.parent, error=exc
+                ),
+                file=sys.stderr,
+            )
             ok = False
             continue
         if run(["cp", str(source), str(target)]) != 0:
-            print(f"error: failed to install completion to {target}", file=sys.stderr)
+            print(
+                _("error: failed to install completion to {target}").format(target=target),
+                file=sys.stderr,
+            )
             ok = False
         else:
-            print(f"installed completion {target}")
+            print(_("installed completion {target}").format(target=target))
     return ok
 
 
 def uninstall_commands() -> list[str]:
     cmds = [shlex.join(_pip_uninstall_args())]
-    for _, target in COMPLETION_TARGETS:
+    for _source, target in COMPLETION_TARGETS:
         cmds.append(shlex.join(["rm", "-f", str(target)]))
     return cmds
 
@@ -195,14 +236,17 @@ def uninstall_commands() -> list[str]:
 def run_uninstall() -> bool:
     ok = True
     if run(_pip_uninstall_args()) != 0:
-        print("error: pip uninstall failed", file=sys.stderr)
+        print(_("error: pip uninstall failed"), file=sys.stderr)
         ok = False
-    for _, target in COMPLETION_TARGETS:
+    for _source, target in COMPLETION_TARGETS:
         if run(["rm", "-f", str(target)]) != 0:
-            print(f"error: failed to remove completion {target}", file=sys.stderr)
+            print(
+                _("error: failed to remove completion {target}").format(target=target),
+                file=sys.stderr,
+            )
             ok = False
         else:
-            print(f"removed completion {target}")
+            print(_("removed completion {target}").format(target=target))
     return ok
 
 
@@ -217,111 +261,143 @@ def _prompt(prompt: str) -> str | None:
     try:
         return input(prompt).strip().lower()
     except EOFError:
-        print("Aborted.")
+        print(_("Aborted."))
         return None
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    _configure_translation()
+    parser = argparse.ArgumentParser(
+        description=_(
+            """Install box-rpg on the system.
+
+Checks that the system is Linux with Python 3.14+ and pip, then installs the
+package at user level and places shell completions in each shell's user
+directory. No sudo is needed. By default it only verifies prerequisites,
+reports installed / repo versions and shows the exact commands; pass --install
+to actually run them (with a confirmation prompt) and --yes to skip the
+prompt. Pass --uninstall to remove the package and its completions."""
+        )
+    )
     parser.add_argument(
         "--install",
         action="store_true",
-        help="actually install (default is a dry run)",
+        help=_("actually install (default is a dry run)"),
     )
     parser.add_argument(
         "--uninstall",
         action="store_true",
-        help="uninstall the package and its completions",
+        help=_("uninstall the package and its completions"),
     )
     parser.add_argument(
         "--yes",
         action="store_true",
-        help="skip the confirmation prompts",
+        help=_("skip the confirmation prompts"),
     )
     args = parser.parse_args()
 
     if args.install and args.uninstall:
-        print("error: --install and --uninstall are mutually exclusive", file=sys.stderr)
+        print(_("error: --install and --uninstall are mutually exclusive"), file=sys.stderr)
         return 1
 
     if not is_linux():
-        print("error: this script requires Linux", file=sys.stderr)
+        print(_("error: this script requires Linux"), file=sys.stderr)
         return 1
-    print("OK: Linux system detected.")
+    print(_("OK: Linux system detected."))
 
     if not _check_python_version():
         print(
-            f"error: Python 3.14+ required, found {sys.version_info.major}.{sys.version_info.minor}",
+            _("error: Python 3.14+ required, found {major}.{minor}").format(
+                major=sys.version_info.major, minor=sys.version_info.minor
+            ),
             file=sys.stderr,
         )
         return 1
-    print(f"OK: Python {sys.version_info.major}.{sys.version_info.minor} found.")
+    print(
+        _("OK: Python {major}.{minor} found.").format(
+            major=sys.version_info.major, minor=sys.version_info.minor
+        )
+    )
 
     if not has_pip():
-        print("error: pip is required for the system Python", file=sys.stderr)
+        print(_("error: pip is required for the system Python"), file=sys.stderr)
         return 1
-    print("OK: pip found for the system Python.")
+    print(_("OK: pip found for the system Python."))
 
     installed = installed_version()
     repo = repo_version()
-    print(f"\nInstalled: {installed or 'none'}")
-    print(f"Repo:      {repo}")
+    print(_("\nInstalled: {installed}").format(installed=installed or "none"))
+    print(_("Repo:      {repo}").format(repo=repo))
 
     if args.uninstall:
         if installed is None:
-            print(f"error: {PACKAGE} is not installed", file=sys.stderr)
+            print(_("error: {package} is not installed").format(package=PACKAGE), file=sys.stderr)
             return 1
         cmds = uninstall_commands()
-        print_commands("Uninstall commands that would be run:", cmds)
+        print_commands(_("Uninstall commands that would be run:"), cmds)
         if not args.yes:
-            answer = _prompt("\nProceed with uninstall? [y/N] ")
+            answer = _prompt(_("\nProceed with uninstall? [y/N] "))
             if answer not in ("y", "yes"):
                 if answer is not None:
-                    print("Aborted.")
+                    print(_("Aborted."))
                 return 0
         ok = run_uninstall()
         return 0 if ok else 1
 
     cmds = install_commands()
-    print_commands("Install commands that would be run:", cmds)
+    print_commands(_("Install commands that would be run:"), cmds)
 
     if installed is not None:
         cmp = compare_versions(repo, installed)
         if cmp > 0:
-            print(f"\nAn update is available (installed: {installed}, repo: {repo}).")
+            print(
+                _("\nAn update is available (installed: {installed}, repo: {repo}).").format(
+                    installed=installed, repo=repo
+                )
+            )
         elif cmp < 0:
-            print(f"\nThe installed version ({installed}) is newer than the repo ({repo}).")
+            print(
+                _("\nThe installed version ({installed}) is newer than the repo ({repo}).").format(
+                    installed=installed, repo=repo
+                )
+            )
         else:
-            print(f"\nThe same version ({installed}) is already installed.")
+            print(
+                _("\nThe same version ({installed}) is already installed.").format(
+                    installed=installed
+                )
+            )
 
     if not args.install:
-        print("\nRun with --install to actually install.")
+        print(_("\nRun with --install to actually install."))
         if installed is not None:
-            print("To remove it instead, run with --uninstall.")
+            print(_("To remove it instead, run with --uninstall."))
         return 0
 
     if installed is not None and not args.yes:
         answer = _prompt(
-            f"\n{PACKAGE} is already installed. "
-            "[r] Reinstall/update, [u] Uninstall, [c] Cancel [r/u/c] "
+            _(
+                "\n{package} is already installed. "
+                "[r] Reinstall/update, [u] Uninstall, [c] Cancel [r/u/c] "
+            ).format(package=PACKAGE)
         )
         if answer in ("u", "uninstall"):
-            confirmation = _prompt("\nConfirm uninstall? [y/N] ")
+            confirmation = _prompt(_("\nConfirm uninstall? [y/N] "))
             if confirmation not in ("y", "yes"):
                 if confirmation is not None:
-                    print("Aborted.")
+                    print(_("Aborted."))
                 return 0
             ok = run_uninstall()
             return 0 if ok else 1
         if answer not in ("r", "reinstall", ""):
             if answer is not None:
-                print("Aborted.")
+                print(_("Aborted."))
             return 0
     elif not args.yes:
-        answer = _prompt("\nProceed with installation? [y/N] ")
+        answer = _prompt(_("\nProceed with installation? [y/N] "))
         if answer not in ("y", "yes"):
             if answer is not None:
-                print("Aborted.")
+                print(_("Aborted."))
             return 0
 
     ok = run_install()

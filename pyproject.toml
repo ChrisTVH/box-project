@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "box-rpg"
-version = "26.9.13"
+version = "26.9.14"
 description = "A safe launcher for RPG Maker MV/MZ exports and RPG Maker 2000/2003 projects with EasyRPG Player"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -36,6 +36,9 @@ package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+box = ["locale/**/*.mo"]
 
 [tool.setuptools.data-files]
 "share/box-rpg/config" = ["res/config/box-rpg.toml.example"]

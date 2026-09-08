@@ -18,6 +18,7 @@ from box.launch.manifest import write_manifest
 from box.launch.profiles import ProfileCatalog
 from box.models import GameInfo
 from box.paths import AppPaths
+from box.utils.i18n import _
 
 
 @dataclass(slots=True)
@@ -133,7 +134,7 @@ def create_session(
         os.close(parent_descriptor)
         if owns_game_descriptor:
             os.close(game_descriptor)
-        raise LaunchError(f"cannot create launch session: {exc}") from exc
+        raise LaunchError(_("cannot create launch session: {error}").format(error=exc)) from exc
     try:
         link_game(
             root,
@@ -186,7 +187,9 @@ def _game_identifier(game: GameInfo) -> str:
     try:
         return game_id(game.root)
     except (OSError, RuntimeError) as exc:
-        raise LaunchError(f"cannot identify game root {game.root}: {exc}") from exc
+        raise LaunchError(
+            _("cannot identify game root {root}: {error}").format(root=game.root, error=exc)
+        ) from exc
 
 
 def _open_or_create_private_directory(parent_descriptor: int, name: str) -> None:
@@ -197,16 +200,18 @@ def _open_or_create_private_directory(parent_descriptor: int, name: str) -> None
             name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_descriptor
         )
     except OSError as exc:
-        raise LaunchError(f"cannot create launch session directory: {exc}") from exc
+        raise LaunchError(
+            _("cannot create launch session directory: {error}").format(error=exc)
+        ) from exc
     try:
         metadata = os.fstat(descriptor)
         if metadata.st_uid != os.getuid():
-            raise LaunchError("launch session directory has unsafe ownership or permissions")
+            raise LaunchError(_("launch session directory has unsafe ownership or permissions"))
         if stat.S_IMODE(metadata.st_mode) != 0o700:
             os.fchmod(descriptor, 0o700)
             metadata = os.fstat(descriptor)
             if stat.S_IMODE(metadata.st_mode) != 0o700:
-                raise LaunchError("launch session directory has unsafe ownership or permissions")
+                raise LaunchError(_("launch session directory has unsafe ownership or permissions"))
     finally:
         os.close(descriptor)
 

@@ -1,11 +1,14 @@
 # fish completion for box-rpg
 complete -c box-rpg -f
+complete -c box-rpg -n '__fish_use_subcommand' -l version -d 'Show the program version'
+complete -c box-rpg -n '__fish_use_subcommand' -l help -d 'Show help'
 complete -c box-rpg -n '__fish_use_subcommand' -a cleanup -d 'Remove launcher-managed data'
 complete -c box-rpg -n '__fish_use_subcommand' -a inspect -d 'Inspect a supported game'
 complete -c box-rpg -n '__fish_use_subcommand' -a runtime -d 'Manage game runtimes'
 complete -c box-rpg -n '__fish_use_subcommand' -a launch -d 'Launch a supported game'
 complete -c box-rpg -n '__fish_use_subcommand' -a config -d 'Show or set configuration'
 complete -c box-rpg -n '__fish_use_subcommand' -a diagnose -d 'Check launcher setup'
+complete -c box-rpg -n '__fish_seen_subcommand_from inspect' -a '(__fish_complete_path)' -r
 complete -c box-rpg -n '__fish_seen_subcommand_from runtime; and not __fish_seen_subcommand_from nwjs easyrpg' -a 'nwjs easyrpg'
 complete -c box-rpg -n '__fish_seen_subcommand_from nwjs; and not __fish_seen_subcommand_from list available install remove' -a 'list available install remove'
 complete -c box-rpg -n '__fish_seen_subcommand_from easyrpg; and not __fish_seen_subcommand_from list available install remove' -a 'list available install remove'
@@ -29,3 +32,4 @@ complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l sdk -d 'Use an NW
 complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l copy-root-file -d 'Copy a direct game-root file into the isolated session' -r
 complete -c box-rpg -n '__fish_seen_subcommand_from diagnose' -l runtime -d 'Use an NW.js version'
 complete -c box-rpg -n '__fish_seen_subcommand_from diagnose' -l sdk -d 'Use an NW.js SDK build'
+complete -c box-rpg -n '__fish_seen_subcommand_from cleanup inspect runtime launch config diagnose' -l help -d 'Show help'

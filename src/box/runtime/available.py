@@ -14,6 +14,7 @@ from box.errors import RuntimeError
 from box.models import RuntimeSpec
 from box.runtime.downloader import download_url
 from box.runtime.validator import normalize_version
+from box.utils.i18n import _
 
 PAGE_SIZE = 5
 VERSIONS_INDEX = "https://dl.nwjs.io/"
@@ -46,7 +47,7 @@ class AvailableVersions:
 def available_url(page: int) -> str:
     """Validate a client-side page request for the official versions index."""
     if page < 1:
-        raise RuntimeError("runtime version page must be at least 1")
+        raise RuntimeError(_("runtime version page must be at least 1"))
     return VERSIONS_INDEX
 
 
@@ -60,9 +61,9 @@ def fetch_available_versions(page: int, architecture: str, sdk: bool) -> Availab
         with _open_official(request) as response:
             content = response.read(MAX_INDEX_BYTES + 1)
     except (OSError, URLError) as exc:
-        raise RuntimeError(f"cannot list NW.js versions: {exc}") from exc
+        raise RuntimeError(_("cannot list NW.js versions: {error}").format(error=exc)) from exc
     if len(content) > MAX_INDEX_BYTES:
-        raise RuntimeError("NW.js version index is too large")
+        raise RuntimeError(_("NW.js version index is too large"))
     versions = parse_versions(content.decode("utf-8", errors="replace"))
     required = page * PAGE_SIZE
     installable: list[str] = []
@@ -111,7 +112,7 @@ def _open_official(request: Request) -> _Response:
     destination = urlsplit(response.geturl())
     if destination.scheme != "https" or destination.hostname not in OFFICIAL_DOWNLOAD_HOSTS:
         response.close()
-        raise RuntimeError("NW.js version lookup redirected outside the official host")
+        raise RuntimeError(_("NW.js version lookup redirected outside the official host"))
     return response
 
 

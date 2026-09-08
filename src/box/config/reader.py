@@ -9,6 +9,7 @@ from typing import Any
 from box.config.models import AppConfig
 from box.config.validator import decode_config
 from box.errors import ConfigurationError
+from box.utils.i18n import _
 
 
 def read_config(path: Path) -> AppConfig:
@@ -19,5 +20,7 @@ def read_config(path: Path) -> AppConfig:
         with path.open("rb") as source:
             data: dict[str, Any] = tomllib.load(source)
     except (OSError, tomllib.TOMLDecodeError) as exc:
-        raise ConfigurationError(f"cannot read configuration {path}: {exc}") from exc
+        raise ConfigurationError(
+            _("cannot read configuration {path}: {error}").format(path=path, error=exc)
+        ) from exc
     return decode_config(data)

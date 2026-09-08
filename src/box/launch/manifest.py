@@ -9,6 +9,7 @@ from typing import cast
 
 from box.errors import LaunchError
 from box.models import GameInfo
+from box.utils.i18n import _
 
 _FORWARDED_FIELDS = ("window", "chromium-args", "js-flags")
 
@@ -22,7 +23,7 @@ def write_manifest(
 ) -> Path:
     """Create a wrapper manifest while preserving safe display settings."""
     if game.manifest is None or game.entrypoint is None:
-        raise LaunchError("a NW.js launch session requires a web game manifest and entrypoint")
+        raise LaunchError(_("a NW.js launch session requires a web game manifest and entrypoint"))
     owns_session_descriptor = session_descriptor is None
     owns_game_descriptor = game_descriptor is None
     try:
@@ -47,14 +48,18 @@ def write_manifest(
                 dir_fd=session_descriptor,
             )
         except OSError as exc:
-            raise LaunchError(f"cannot write session manifest: {exc}") from exc
+            raise LaunchError(
+                _("cannot write session manifest: {error}").format(error=exc)
+            ) from exc
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as manifest_file:
                 manifest_file.write(json.dumps(payload, indent=2) + "\n")
         except OSError as exc:
-            raise LaunchError(f"cannot write session manifest: {exc}") from exc
+            raise LaunchError(
+                _("cannot write session manifest: {error}").format(error=exc)
+            ) from exc
     except OSError as exc:
-        raise LaunchError(f"cannot create session manifest: {exc}") from exc
+        raise LaunchError(_("cannot create session manifest: {error}").format(error=exc)) from exc
     finally:
         if owns_game_descriptor and game_descriptor is not None:
             os.close(game_descriptor)
@@ -77,12 +82,18 @@ def _read_game_manifest(game: GameInfo, game_descriptor: int) -> dict[str, objec
     try:
         relative = game.manifest.relative_to(game.root)
         if len(relative.parts) != 1:
-            raise ValueError("game manifest must be in the game root")
+            raise ValueError(_("game manifest must be in the game root"))
         descriptor = os.open(relative.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=game_descriptor)
         with os.fdopen(descriptor, "r", encoding="utf-8") as manifest_file:
             value = json.load(manifest_file)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
-        raise LaunchError(f"cannot read game manifest {game.manifest}: {exc}") from exc
+        raise LaunchError(
+            _("cannot read game manifest {manifest}: {error}").format(
+                manifest=game.manifest, error=exc
+            )
+        ) from exc
     if not isinstance(value, dict):
-        raise LaunchError(f"game manifest is not a JSON object: {game.manifest}")
+        raise LaunchError(
+            _("game manifest is not a JSON object: {manifest}").format(manifest=game.manifest)
+        )
     return cast(dict[str, object], value)

@@ -20,10 +20,12 @@ from box.games.detector import detect_game
 from box.paths import AppPaths
 from box.runtime.catalog import RuntimeCatalog
 from box.runtime.platform import current_architecture, normalize_architecture
+from box.utils.i18n import _, configure
 
 
 def main(argv: list[str] | None = None) -> int:
     """Parse command-line arguments and return a process exit status."""
+    configure()
     parser = build_parser()
     arguments = parser.parse_args(argv)
     if arguments.command is None:
@@ -31,7 +33,9 @@ def main(argv: list[str] | None = None) -> int:
             detect_game(Path("."), default_registry())
         except GameValidationError:
             print(
-                "error: no supported RPG Maker game was found here; run box-rpg from the game directory.",
+                _(
+                    "error: no supported RPG Maker game was found here; run box-rpg from the game directory."
+                ),
                 file=sys.stderr,
             )
             parser.print_help()
@@ -46,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return _dispatch(arguments)
     except (BoxError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"{_('error')}: {exc}", file=sys.stderr)
         return 1
 
 
@@ -108,7 +112,7 @@ def _dispatch(arguments: Namespace) -> int:
             arguments.runtime_version,
             arguments.sdk,
         )
-    raise ValueError(f"unsupported command: {arguments.command}")
+    raise ValueError(_("unsupported command: {command}").format(command=arguments.command))
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ from box.runtime.catalog import RuntimeCatalog
 from box.runtime.easyrpg import EasyRPGCatalog
 from box.runtime.platform import current_architecture
 from box.runtime.selector import select_runtime
+from box.utils.i18n import _
 
 
 def execute(
@@ -31,7 +32,11 @@ def execute(
     config = repository.load()
     if game.engine is EngineName.RPG_MAKER_2000_2003:
         if version is not None or sdk:
-            raise GameValidationError("--runtime and --sdk are only available for NW.js games")
+            raise GameValidationError(
+                _("{runtime} and {sdk} are only available for NW.js games").format(
+                    runtime="--runtime", sdk="--sdk"
+                )
+            )
         runtime = EasyRPGCatalog(paths).latest()
         print(render_report(collect_environment(), collect_easyrpg_versions(game, runtime)), end="")
         return 0

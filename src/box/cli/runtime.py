@@ -19,17 +19,18 @@ from box.runtime.easyrpg import (
 from box.runtime.easyrpg import (
     install_runtime as install_easyrpg_runtime,
 )
+from box.utils.i18n import _
 
 
 def list_runtimes(catalog: RuntimeCatalog) -> int:
     """Print every valid launcher-owned runtime."""
     runtimes = catalog.list()
     if not runtimes:
-        print("no NW.js runtimes installed")
+        print(_("no NW.js runtimes installed"))
         return 0
     for runtime in runtimes:
         print(
-            f"{runtime.spec.version} {runtime.spec.architecture} {runtime.spec.flavor} {runtime.root}"
+            f"{runtime.spec.version} {runtime.spec.architecture} {_runtime_flavor(runtime.spec.sdk)} {runtime.root}"
         )
     return 0
 
@@ -37,7 +38,13 @@ def list_runtimes(catalog: RuntimeCatalog) -> int:
 def install(paths: AppPaths, version: str, architecture: str, sdk: bool) -> int:
     """Install and report an NW.js runtime."""
     runtime = install_runtime(paths, version, architecture, sdk)
-    print(f"installed {runtime.spec.version} ({runtime.spec.flavor}) at {runtime.root}")
+    print(
+        _("installed {version} ({flavor}) at {path}").format(
+            version=runtime.spec.version,
+            flavor=_runtime_flavor(runtime.spec.sdk),
+            path=runtime.root,
+        )
+    )
     return 0
 
 
@@ -69,9 +76,9 @@ def select_interactively(
         available_versions = fetch_available_versions(page, architecture, sdk)
         _print_available(available_versions, architecture, sdk, write)
         try:
-            action = read("Select 1-5, [n]ext, [p]revious, or [q]uit: ").strip().lower()
+            action = read(_("Select 1-5, [n]ext, [p]revious, or [q]uit: ")).strip().lower()
         except EOFError:
-            write("Selection cancelled.")
+            write(_("Selection cancelled."))
             return 0
         if action == "q":
             return 0
@@ -82,22 +89,28 @@ def select_interactively(
             page = max(1, page - 1)
             continue
         if not action.isdigit():
-            write("Invalid selection.")
+            write(_("Invalid selection."))
             continue
         index = int(action) - 1
         if index < 0 or index >= len(available_versions.versions):
-            write("Invalid selection.")
+            write(_("Invalid selection."))
             continue
         version = available_versions.versions[index]
         try:
             confirmation = (
-                read(f"Install NW.js {version} for {architecture}? [y/N] ").strip().lower()
+                read(
+                    _("Install NW.js {version} for {architecture}? [y/N] ").format(
+                        version=version, architecture=architecture
+                    )
+                )
+                .strip()
+                .lower()
             )
         except EOFError:
-            write("Selection cancelled.")
+            write(_("Selection cancelled."))
             return 0
         if confirmation not in {"y", "yes"}:
-            write("Installation cancelled.")
+            write(_("Installation cancelled."))
             continue
         install(paths, version, architecture, sdk)
         return 0
@@ -110,23 +123,36 @@ def _print_available(
     write: Callable[[str], None] = print,
 ) -> None:
     """Print a concise version page and the associated install command."""
-    flavor = "SDK" if sdk else "standard"
-    write(f"Available NW.js versions (page {available_versions.page}, {architecture}, {flavor}):")
+    flavor = _runtime_flavor(sdk)
+    write(
+        _("Available NW.js versions (page {page}, {architecture}, {flavor}):").format(
+            page=available_versions.page, architecture=architecture, flavor=flavor
+        )
+    )
     if not available_versions.versions:
-        write("  (no stable versions on this page)")
+        write(_("  (no stable versions on this page)"))
         return
     for index, version in enumerate(available_versions.versions, start=1):
         write(f"  {index}. {version}")
     sdk_argument = " --sdk" if sdk else ""
     write(
-        f"Install with: box-rpg runtime nwjs install VERSION --architecture {architecture}{sdk_argument}"
+        _("Install with: {command}").format(
+            command=(
+                f"box-rpg runtime nwjs install VERSION --architecture {architecture}{sdk_argument}"
+            )
+        )
     )
+
+
+def _runtime_flavor(sdk: bool) -> str:
+    """Return the user-facing NW.js build flavor."""
+    return "SDK" if sdk else _("standard")
 
 
 def remove(catalog: RuntimeCatalog, version: str, architecture: str, sdk: bool) -> int:
     """Remove a launcher-owned NW.js runtime."""
     catalog.remove(version, architecture, sdk)
-    print(f"removed {version}")
+    print(_("removed {version}").format(version=version))
     return 0
 
 
@@ -136,17 +162,21 @@ def easyrpg(paths: AppPaths, action: str, arguments: Namespace) -> int:
     if action == "list":
         runtimes = catalog.list()
         if not runtimes:
-            print("no EasyRPG Player runtimes installed")
+            print(_("no EasyRPG Player runtimes installed"))
         for runtime in runtimes:
             print(f"{runtime.version} x64 {runtime.root}")
         return 0
     if action == "install":
         runtime = install_easyrpg_runtime(paths, arguments.version)
-        print(f"installed EasyRPG Player {runtime.version} at {runtime.root}")
+        print(
+            _("installed EasyRPG Player {version} at {path}").format(
+                version=runtime.version, path=runtime.root
+            )
+        )
         return 0
     if action == "remove":
         catalog.remove(arguments.version)
-        print(f"removed EasyRPG Player {arguments.version}")
+        print(_("removed EasyRPG Player {version}").format(version=arguments.version))
         return 0
     return _easyrpg_available(paths, arguments.page, arguments.interactive)
 
@@ -161,9 +191,9 @@ def _easyrpg_available(paths: AppPaths, page: int, interactive: bool) -> int:
         versions = fetch_easyrpg_versions(current_page)
         _print_easyrpg_versions(versions)
         try:
-            action = input("Select 1-5, [n]ext, [p]revious, or [q]uit: ").strip().lower()
+            action = input(_("Select 1-5, [n]ext, [p]revious, or [q]uit: ")).strip().lower()
         except EOFError:
-            print("Selection cancelled.")
+            print(_("Selection cancelled."))
             return 0
         if action == "q":
             return 0
@@ -174,28 +204,34 @@ def _easyrpg_available(paths: AppPaths, page: int, interactive: bool) -> int:
             current_page = max(1, current_page - 1)
             continue
         if not action.isdigit() or not 1 <= int(action) <= len(versions.versions):
-            print("Invalid selection.")
+            print(_("Invalid selection."))
             continue
         version = versions.versions[int(action) - 1]
         try:
             confirmation = (
-                input(f"Install EasyRPG Player {version} for x64? [y/N] ").strip().lower()
+                input(_("Install EasyRPG Player {version} for x64? [y/N] ").format(version=version))
+                .strip()
+                .lower()
             )
         except EOFError:
-            print("Selection cancelled.")
+            print(_("Selection cancelled."))
             return 0
         if confirmation in {"y", "yes"}:
             runtime = install_easyrpg_runtime(paths, version)
-            print(f"installed EasyRPG Player {runtime.version} at {runtime.root}")
+            print(
+                _("installed EasyRPG Player {version} at {path}").format(
+                    version=runtime.version, path=runtime.root
+                )
+            )
             return 0
-        print("Installation cancelled.")
+        print(_("Installation cancelled."))
 
 
 def _print_easyrpg_versions(versions: AvailableEasyRPGVersions) -> None:
     """Print one EasyRPG Player release page."""
-    print(f"Available EasyRPG Player versions (page {versions.page}, x64):")
+    print(_("Available EasyRPG Player versions (page {page}, x64):").format(page=versions.page))
     if not versions.versions:
-        print("  (no versions on this page)")
+        print(_("  (no versions on this page)"))
         return
     for index, version in enumerate(versions.versions, start=1):
         print(f"  {index}. {version}")

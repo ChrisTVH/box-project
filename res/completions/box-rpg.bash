@@ -24,8 +24,14 @@ _box_rpg() {
                     ;;
                 easyrpg)
                     case "${words[3]}" in
+                        list)
+                            COMPREPLY=($(compgen -W '--help' -- "$cur"))
+                            ;;
                         available)
                             COMPREPLY=($(compgen -W '--page --interactive --help' -- "$cur"))
+                            ;;
+                        install|remove)
+                            COMPREPLY=($(compgen -W '--help' -- "$cur"))
                             ;;
                         *)
                             COMPREPLY=($(compgen -W 'list available install remove --help' -- "$cur"))
@@ -38,7 +44,21 @@ _box_rpg() {
             esac
             ;;
         config)
-            COMPREPLY=($(compgen -W 'show set' -- "$cur"))
+            case "${words[2]}" in
+                show|set)
+                    COMPREPLY=($(compgen -W '--help' -- "$cur"))
+                    ;;
+                *)
+                    COMPREPLY=($(compgen -W 'show set --help' -- "$cur"))
+                    ;;
+            esac
+            ;;
+        inspect)
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=($(compgen -W '--help' -- "$cur"))
+            else
+                COMPREPLY=($(compgen -f -- "$cur"))
+            fi
             ;;
         cleanup)
             case "${words[2]}" in

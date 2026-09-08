@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
+from box.utils.i18n import _
+
 PAGE_SIZE = 5
 
 
@@ -27,24 +29,28 @@ def choose_paged[T](
 ) -> MenuSelection[T] | None:
     """Interactively select one item, all items, or cancel without side effects."""
     if not items:
-        write(f"{title}: (no entries)")
+        write(f"{title}: {_('(no entries)')}")
         return None
     page = 1
     total_pages = (len(items) + PAGE_SIZE - 1) // PAGE_SIZE
     while True:
         start = (page - 1) * PAGE_SIZE
         visible = items[start : start + PAGE_SIZE]
-        write(f"{title} (page {page}/{total_pages}):")
+        write(
+            _("{title} (page {page}/{total_pages}):").format(
+                title=title, page=page, total_pages=total_pages
+            )
+        )
         for index, item in enumerate(visible, start=1):
             write(f"  {index}. {render(item)}")
-        prompt = "Select 1-5, [n]ext, [p]revious"
+        prompt = _("Select 1-5, [n]ext, [p]revious")
         if allow_all:
-            prompt += ", [a]ll"
-        prompt += ", or [q]uit: "
+            prompt += _(", [a]ll")
+        prompt += _(", or [q]uit: ")
         try:
             action = read(prompt).strip().lower()
         except EOFError:
-            write("Selection cancelled.")
+            write(_("Selection cancelled."))
             return None
         if action == "q":
             return None
@@ -60,4 +66,4 @@ def choose_paged[T](
             index = int(action) - 1
             if 0 <= index < len(visible):
                 return MenuSelection(item=visible[index])
-        write("Invalid selection.")
+        write(_("Invalid selection."))

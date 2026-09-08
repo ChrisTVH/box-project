@@ -10,6 +10,7 @@ from box.config.reader import read_config
 from box.config.writer import write_config
 from box.errors import ConfigurationError
 from box.paths import AppPaths
+from box.utils.i18n import _
 
 
 class ConfigRepository:
@@ -32,9 +33,13 @@ class ConfigRepository:
         try:
             resolved = root.expanduser().resolve(strict=True)
         except OSError as exc:
-            raise ConfigurationError(f"cannot resolve allowed game root {root}: {exc}") from exc
+            raise ConfigurationError(
+                _("cannot resolve allowed game root {root}: {error}").format(root=root, error=exc)
+            ) from exc
         if not resolved.is_dir():
-            raise ConfigurationError(f"allowed game root is not a directory: {root}")
+            raise ConfigurationError(
+                _("allowed game root is not a directory: {root}").format(root=root)
+            )
         roots = config.allowed_game_roots
         updated = (
             config if resolved in roots else replace(config, allowed_game_roots=(*roots, resolved))
@@ -53,7 +58,9 @@ class ConfigRepository:
                 continue
             except OSError as exc:
                 raise ConfigurationError(
-                    f"cannot inspect configured game root {root}: {exc}"
+                    _("cannot inspect configured game root {root}: {error}").format(
+                        root=root, error=exc
+                    )
                 ) from exc
             roots.append(root)
         updated = replace(config, allowed_game_roots=tuple(roots))

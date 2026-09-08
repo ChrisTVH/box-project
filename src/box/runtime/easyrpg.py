@@ -20,6 +20,7 @@ from box.errors import ConfigurationError, RuntimeError
 from box.paths import AppPaths
 from box.runtime.downloader import download_archive_at
 from box.runtime.platform import current_architecture
+from box.utils.i18n import _
 
 PAGE_SIZE = 5
 VERSIONS_INDEX = "https://easyrpg.org/downloads/player/"
@@ -77,7 +78,7 @@ def normalize_version(value: str) -> str:
     """Validate an EasyRPG Player release version without changing its form."""
     components = value.split(".")
     if not 2 <= len(components) <= 4 or any(not component.isdecimal() for component in components):
-        raise RuntimeError(f"invalid EasyRPG Player version: {value!r}")
+        raise RuntimeError(_("invalid EasyRPG Player version: {value!r}").format(value=value))
     return value
 
 
@@ -109,13 +110,15 @@ def fetch_available_versions(page: int) -> AvailableEasyRPGVersions:
             destination = urlsplit(response.geturl())
             if destination.scheme != "https" or destination.hostname != _OFFICIAL_HOST:
                 raise RuntimeError(
-                    "EasyRPG Player version lookup redirected outside the official host"
+                    _("EasyRPG Player version lookup redirected outside the official host")
                 )
             content = response.read(MAX_INDEX_BYTES + 1)
     except (OSError, URLError) as exc:
-        raise RuntimeError(f"cannot list EasyRPG Player versions: {exc}") from exc
+        raise RuntimeError(
+            _("cannot list EasyRPG Player versions: {error}").format(error=exc)
+        ) from exc
     if len(content) > MAX_INDEX_BYTES:
-        raise RuntimeError("EasyRPG Player version index is too large")
+        raise RuntimeError(_("EasyRPG Player version index is too large"))
     return parse_available_versions(content.decode("utf-8", errors="replace"), page)
 
 
@@ -179,7 +182,9 @@ class EasyRPGCatalog:
         root = easyrpg_paths.easyrpg_runtimes_root / normalized
         managed = easyrpg_paths.ensure_managed_easyrpg_runtime_path(root)
         if _executable(managed) is None:
-            raise RuntimeError(f"EasyRPG Player runtime is not installed: {normalized}")
+            raise RuntimeError(
+                _("EasyRPG Player runtime is not installed: {version}").format(version=normalized)
+            )
         return EasyRPGRuntime(normalized, managed)
 
     def latest(self) -> EasyRPGRuntime:
@@ -187,7 +192,10 @@ class EasyRPGCatalog:
         runtimes = self.list()
         if not runtimes:
             raise RuntimeError(
-                "no EasyRPG Player runtime is installed; run 'box-rpg runtime easyrpg available --interactive'"
+                _(
+                    "no EasyRPG Player runtime is installed; run "
+                    "'box-rpg runtime easyrpg available --interactive'"
+                )
             )
         return runtimes[0]
 
@@ -202,19 +210,25 @@ class EasyRPGCatalog:
         expected = easyrpg_paths.easyrpg_runtimes_root / version
         if runtime.root.absolute() != expected.absolute():
             raise ConfigurationError(
-                f"refusing to manage unexpected EasyRPG runtime path: {runtime.root}"
+                _("refusing to manage unexpected EasyRPG runtime path: {path}").format(
+                    path=runtime.root
+                )
             )
         managed = easyrpg_paths.ensure_managed_easyrpg_runtime_path(expected)
         if managed.is_symlink() or not managed.is_dir():
             raise ConfigurationError(
-                f"managed EasyRPG runtime directory is missing or unsafe: {expected}"
+                _("managed EasyRPG runtime directory is missing or unsafe: {path}").format(
+                    path=expected
+                )
             )
         descriptor = easyrpg_paths.open_managed_cache_directory("runtimes", "easyrpg")
         try:
             entry = os.stat(managed.name, dir_fd=descriptor, follow_symlinks=False)
             if not stat.S_ISDIR(entry.st_mode):
                 raise ConfigurationError(
-                    f"managed EasyRPG runtime directory is missing or unsafe: {managed}"
+                    _("managed EasyRPG runtime directory is missing or unsafe: {path}").format(
+                        path=managed
+                    )
                 )
             shutil.rmtree(managed.name, dir_fd=descriptor)
         finally:
@@ -251,12 +265,16 @@ class EasyRPGDownloadCatalog:
         paths = cast(_EasyRPGPaths, self._paths)
         managed = paths.ensure_managed_easyrpg_download_path(archive)
         if not _is_archive(managed):
-            raise RuntimeError(f"refusing unsafe EasyRPG download archive: {archive}")
+            raise RuntimeError(
+                _("refusing unsafe EasyRPG download archive: {archive}").format(archive=archive)
+            )
         descriptor = paths.open_managed_cache_directory("downloads", "easyrpg")
         try:
             entry = os.stat(managed.name, dir_fd=descriptor, follow_symlinks=False)
             if not stat.S_ISREG(entry.st_mode):
-                raise RuntimeError(f"refusing unsafe EasyRPG download archive: {archive}")
+                raise RuntimeError(
+                    _("refusing unsafe EasyRPG download archive: {archive}").format(archive=archive)
+                )
             os.unlink(managed.name, dir_fd=descriptor)
         finally:
             os.close(descriptor)
@@ -265,7 +283,7 @@ class EasyRPGDownloadCatalog:
 def install_runtime(paths: AppPaths, version: str) -> EasyRPGRuntime:
     """Download and atomically install one official EasyRPG Player x64 runtime."""
     if current_architecture() != "x64":
-        raise RuntimeError("EasyRPG Player managed downloads currently support x64 only")
+        raise RuntimeError(_("EasyRPG Player managed downloads currently support x64 only"))
     normalized = normalize_version(version)
     paths.ensure()
     target = paths.easyrpg_runtimes_root / normalized
@@ -292,7 +310,9 @@ def install_runtime(paths: AppPaths, version: str) -> EasyRPGRuntime:
         ) as temporary_name:
             extracted = extract_runtime(archive, Path(temporary_name))
             if _executable(extracted) is None:
-                raise RuntimeError("EasyRPG archive does not contain an executable easyrpg-player")
+                raise RuntimeError(
+                    _("EasyRPG archive does not contain an executable easyrpg-player")
+                )
             os.replace(extracted, normalized, dst_dir_fd=runtime_descriptor)
     finally:
         os.close(download_descriptor)
@@ -317,7 +337,7 @@ def _is_archive(path: Path) -> bool:
 def _validate_page(page: int) -> None:
     """Reject invalid client-side page numbers."""
     if page < 1:
-        raise RuntimeError("EasyRPG Player version page must be at least 1")
+        raise RuntimeError(_("EasyRPG Player version page must be at least 1"))
 
 
 def _version_key(version: str) -> tuple[int, int, int, int]:
@@ -344,7 +364,9 @@ def executable(runtime: EasyRPGRuntime) -> Path:
     """Return the validated EasyRPG Player executable for one installed runtime."""
     player = _executable(runtime.root)
     if player is None:
-        raise RuntimeError(f"EasyRPG Player runtime is not installed: {runtime.version}")
+        raise RuntimeError(
+            _("EasyRPG Player runtime is not installed: {version}").format(version=runtime.version)
+        )
     return player
 
 
@@ -371,7 +393,11 @@ def extract_runtime(archive_path: Path, destination: Path) -> Path:
             if entry != staged:
                 os.replace(entry, staged / entry.name)
     except (OSError, tarfile.TarError) as exc:
-        raise RuntimeError(f"cannot stage EasyRPG Player archive {archive_path}: {exc}") from exc
+        raise RuntimeError(
+            _("cannot stage EasyRPG Player archive {archive}: {error}").format(
+                archive=archive_path, error=exc
+            )
+        ) from exc
     return staged
 
 

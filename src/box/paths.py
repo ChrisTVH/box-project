@@ -11,6 +11,7 @@ from errno import ELOOP
 from pathlib import Path
 
 from box.errors import ConfigurationError
+from box.utils.i18n import _
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,7 +27,9 @@ class AppPaths:
         values = os.environ if environ is None else environ
         home_value = values.get("HOME")
         if not home_value:
-            raise ConfigurationError("HOME is required to resolve XDG paths")
+            raise ConfigurationError(
+                _("{home} is required to resolve {xdg} paths").format(home="HOME", xdg="XDG")
+            )
         home = Path(home_value).expanduser()
         config_home = Path(values.get("XDG_CONFIG_HOME", home / ".config"))
         cache_home = Path(values.get("XDG_CACHE_HOME", home / ".cache"))
@@ -92,21 +95,29 @@ class AppPaths:
 
     def ensure_managed_runtime_path(self, path: Path) -> Path:
         """Validate a runtime path is a lower-case directory owned by the launcher."""
-        return self._ensure_managed_child(self.runtimes_root, path, "runtime")
+        return self._ensure_managed_child(self.runtimes_root, path, _("runtime"))
 
     def ensure_managed_download_path(self, path: Path) -> Path:
         """Validate a direct download-cache file path owned by the launcher."""
-        managed = self._ensure_managed_child(self.downloads_root, path, "download")
+        managed = self._ensure_managed_child(self.downloads_root, path, _("download"))
         downloads_root = self.downloads_root.resolve(strict=True)
         if managed.parent != downloads_root:
-            raise ConfigurationError(f"refusing to manage nested download path: {path}")
+            raise ConfigurationError(
+                _("refusing to manage nested download path: {path}").format(path=path)
+            )
         return managed
 
     def ensure_managed_easyrpg_download_path(self, path: Path) -> Path:
         """Validate a direct EasyRPG download-cache file path owned by the launcher."""
-        managed = self._ensure_managed_child(self.easyrpg_downloads_root, path, "EasyRPG download")
+        managed = self._ensure_managed_child(
+            self.easyrpg_downloads_root, path, _("EasyRPG download")
+        )
         if managed.parent != self.easyrpg_downloads_root.resolve(strict=True):
-            raise ConfigurationError(f"refusing to manage nested EasyRPG download path: {path}")
+            raise ConfigurationError(
+                _("refusing to manage nested {runtime} download path: {path}").format(
+                    runtime="EasyRPG", path=path
+                )
+            )
         return managed
 
     def open_managed_cache_directory(self, *components: str) -> int:
@@ -116,7 +127,11 @@ class AppPaths:
         try:
             for component in components:
                 if Path(component).name != component or component in {"", ".", ".."}:
-                    raise ConfigurationError(f"invalid managed cache component: {component}")
+                    raise ConfigurationError(
+                        _("invalid managed cache component: {component}").format(
+                            component=component
+                        )
+                    )
                 child = os.open(
                     component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor
                 )
@@ -134,7 +149,11 @@ class AppPaths:
         try:
             for component in components:
                 if Path(component).name != component or component in {"", ".", ".."}:
-                    raise ConfigurationError(f"invalid managed cache component: {component}")
+                    raise ConfigurationError(
+                        _("invalid managed cache component: {component}").format(
+                            component=component
+                        )
+                    )
                 child = _open_or_create_private_directory(descriptor, component)
                 os.close(descriptor)
                 descriptor = child
@@ -145,18 +164,20 @@ class AppPaths:
 
     def ensure_managed_session_path(self, path: Path) -> Path:
         """Validate a session path is owned by the launcher cache."""
-        return self._ensure_managed_child(self.sessions_root, path, "session")
+        return self._ensure_managed_child(self.sessions_root, path, _("session"))
 
     def ensure_managed_profile_path(self, path: Path) -> Path:
         """Validate one direct persistent game-profile directory."""
-        managed = self._ensure_managed_child(self.profiles_root, path, "game profile")
+        managed = self._ensure_managed_child(self.profiles_root, path, _("game profile"))
         if managed.parent != self.profiles_root.resolve(strict=True):
-            raise ConfigurationError(f"refusing to manage nested game profile path: {path}")
+            raise ConfigurationError(
+                _("refusing to manage nested game profile path: {path}").format(path=path)
+            )
         return managed
 
     def ensure_managed_easyrpg_runtime_path(self, path: Path) -> Path:
         """Validate an EasyRPG runtime path is owned by the launcher cache."""
-        return self._ensure_managed_child(self.easyrpg_runtimes_root, path, "EasyRPG runtime")
+        return self._ensure_managed_child(self.easyrpg_runtimes_root, path, _("EasyRPG runtime"))
 
     def _ensure_managed_child(self, root: Path, path: Path, label: str) -> Path:
         """Reject traversal and symlink escapes from a launcher-owned root."""
@@ -166,12 +187,20 @@ class AppPaths:
         try:
             relative = candidate.relative_to(root_absolute)
         except ValueError as exc:
-            raise ConfigurationError(f"refusing to manage {label} outside cache: {path}") from exc
+            raise ConfigurationError(
+                _("refusing to manage {label} outside cache: {path}").format(label=label, path=path)
+            ) from exc
         if not relative.parts:
-            raise ConfigurationError(f"refusing to manage cache root as a {label}: {path}")
+            raise ConfigurationError(
+                _("refusing to manage cache root as a {label}: {path}").format(
+                    label=label, path=path
+                )
+            )
         current = root_absolute
         if current.is_symlink():
-            raise ConfigurationError(f"managed directory must not be a symlink: {current}")
+            raise ConfigurationError(
+                _("managed directory must not be a symlink: {path}").format(path=current)
+            )
         for component in relative.parts:
             current /= component
             try:
@@ -179,19 +208,31 @@ class AppPaths:
             except FileNotFoundError:
                 continue
             if stat.S_ISLNK(metadata.st_mode):
-                raise ConfigurationError(f"managed {label} path contains a symlink: {current}")
+                raise ConfigurationError(
+                    _("managed {label} path contains a symlink: {path}").format(
+                        label=label, path=current
+                    )
+                )
             if stat.S_ISDIR(metadata.st_mode) and (
                 metadata.st_uid != os.getuid() or metadata.st_mode & 0o022
             ):
                 raise ConfigurationError(
-                    f"managed {label} directory has unsafe ownership or permissions: {current}"
+                    _(
+                        "managed {label} directory has unsafe ownership or permissions: {path}"
+                    ).format(label=label, path=current)
                 )
         cache = self.cache_root.resolve(strict=True)
         resolved = candidate.resolve(strict=False)
         if not resolved.is_relative_to(cache):
-            raise ConfigurationError(f"refusing to manage {label} outside cache: {path}")
+            raise ConfigurationError(
+                _("refusing to manage {label} outside cache: {path}").format(label=label, path=path)
+            )
         if any(component != component.lower() for component in relative.parts):
-            raise ConfigurationError(f"managed {label} path contains upper-case components: {path}")
+            raise ConfigurationError(
+                _("managed {label} path contains upper-case components: {path}").format(
+                    label=label, path=path
+                )
+            )
         return resolved
 
 
@@ -217,7 +258,7 @@ def _open_or_create_private_directory(parent_descriptor: int, name: str) -> int:
     try:
         metadata = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
-            raise ConfigurationError(f"managed directory is unsafe: {name}")
+            raise ConfigurationError(_("managed directory is unsafe: {name}").format(name=name))
     except FileNotFoundError:
         with suppress(FileExistsError):
             os.mkdir(name, 0o700, dir_fd=parent_descriptor)
@@ -226,18 +267,22 @@ def _open_or_create_private_directory(parent_descriptor: int, name: str) -> int:
             name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_descriptor
         )
     except OSError as exc:
-        raise ConfigurationError(f"cannot safely open managed directory: {name}") from exc
+        raise ConfigurationError(
+            _("cannot safely open managed directory: {name}").format(name=name)
+        ) from exc
     try:
         metadata = os.fstat(descriptor)
         if metadata.st_uid != os.getuid() or metadata.st_mode & 0o022:
             raise ConfigurationError(
-                f"managed directory has unsafe ownership or permissions: {name}"
+                _("managed directory has unsafe ownership or permissions: {name}").format(name=name)
             )
         if stat.S_IMODE(metadata.st_mode) != 0o700:
             os.fchmod(descriptor, 0o700)
             if stat.S_IMODE(os.fstat(descriptor).st_mode) != 0o700:
                 raise ConfigurationError(
-                    f"managed directory has unsafe ownership or permissions: {name}"
+                    _("managed directory has unsafe ownership or permissions: {name}").format(
+                        name=name
+                    )
                 )
         return descriptor
     except Exception:
@@ -254,7 +299,9 @@ def _ensure_private_directory_without_symlinks(path: Path) -> None:
             try:
                 metadata = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
                 if stat.S_ISLNK(metadata.st_mode):
-                    raise ConfigurationError(f"managed directory must not be a symlink: {path}")
+                    raise ConfigurationError(
+                        _("managed directory must not be a symlink: {path}").format(path=path)
+                    )
                 child = os.open(
                     component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor
                 )
@@ -268,12 +315,20 @@ def _ensure_private_directory_without_symlinks(path: Path) -> None:
             descriptor = child
         metadata = os.fstat(descriptor)
         if metadata.st_uid != os.getuid():
-            raise ConfigurationError(f"managed directory is not owned by the current user: {path}")
+            raise ConfigurationError(
+                _("managed directory is not owned by the current user: {path}").format(path=path)
+            )
         if metadata.st_mode & 0o022:
-            raise ConfigurationError(f"managed directory has unsafe permissions: {path}")
+            raise ConfigurationError(
+                _("managed directory has unsafe permissions: {path}").format(path=path)
+            )
     except OSError as exc:
         if exc.errno == ELOOP:
-            raise ConfigurationError(f"managed directory must not be a symlink: {path}") from exc
-        raise ConfigurationError(f"cannot safely create managed directory {path}: {exc}") from exc
+            raise ConfigurationError(
+                _("managed directory must not be a symlink: {path}").format(path=path)
+            ) from exc
+        raise ConfigurationError(
+            _("cannot safely create managed directory {path}: {error}").format(path=path, error=exc)
+        ) from exc
     finally:
         os.close(descriptor)

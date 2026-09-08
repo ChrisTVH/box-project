@@ -91,7 +91,7 @@ noninteractive deletion; without a terminal, `--yes` is required.
 `box-rpg cleanup all` shows the global scope and requires `DELETE ALL`. Add
 `--yes` for immediate noninteractive deletion. To browse the interactive menu
 instead, run `box-rpg cleanup --interactive`; it is incompatible with `--yes`.
-Run `box-rpg cleanup --help` to see the available cleanup actions.
+Run `box-rpg cleanup -h` to see the available cleanup actions.
 
 Cleanup never deletes game files or saves. It leaves `config.toml`, sessions,
 and diagnostic reports intact, although root cleanup updates its authorized-root

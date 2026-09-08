@@ -9,6 +9,7 @@ from pathlib import Path
 
 from box.errors import ConfigurationError, LaunchError
 from box.paths import AppPaths
+from box.utils.i18n import _
 
 
 def remove_session(
@@ -26,9 +27,13 @@ def remove_session(
     try:
         relative = session_root.absolute().relative_to(paths.sessions_root.absolute())
     except ValueError as exc:
-        raise LaunchError(f"refusing to remove invalid session path: {session_root}") from exc
+        raise LaunchError(
+            _("refusing to remove invalid session path: {path}").format(path=session_root)
+        ) from exc
     if len(relative.parts) != 2:
-        raise LaunchError(f"refusing to remove invalid session path: {session_root}")
+        raise LaunchError(
+            _("refusing to remove invalid session path: {path}").format(path=session_root)
+        )
     owns_parent_descriptor = parent_descriptor is None
     try:
         if parent_descriptor is None:
@@ -50,10 +55,14 @@ def remove_session(
         if session_descriptor is not None:
             pinned = os.fstat(session_descriptor)
             if (metadata.st_dev, metadata.st_ino) != (pinned.st_dev, pinned.st_ino):
-                raise LaunchError(f"session path changed before cleanup: {session_root}")
+                raise LaunchError(
+                    _("session path changed before cleanup: {path}").format(path=session_root)
+                )
         shutil.rmtree(relative.parts[1], dir_fd=parent_descriptor)
     except OSError as exc:
-        raise LaunchError(f"cannot remove launch session {session_root}: {exc}") from exc
+        raise LaunchError(
+            _("cannot remove launch session {path}: {error}").format(path=session_root, error=exc)
+        ) from exc
     finally:
         if owns_parent_descriptor and parent_descriptor is not None:
             os.close(parent_descriptor)

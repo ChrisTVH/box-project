@@ -15,6 +15,7 @@ from box.paths import AppPaths
 from box.runtime.catalog import ManagedRuntime, RuntimeCatalog
 from box.runtime.downloads import DownloadCatalog
 from box.runtime.easyrpg import EasyRPGCatalog, EasyRPGDownloadCatalog, EasyRPGRuntime
+from box.utils.i18n import _, ngettext
 
 CATEGORIES = ("roots", "runtimes", "downloads", "profiles")
 
@@ -52,7 +53,7 @@ class CleanupCatalog:
     def list(self, category: str | None = None) -> tuple[CleanupItem, ...]:
         """Return canonical cleanup items for one category or every category."""
         if category is not None and category not in CATEGORIES:
-            raise RuntimeError(f"unknown cleanup category: {category}")
+            raise RuntimeError(_("unknown cleanup category: {category}").format(category=category))
         items: list[CleanupItem] = []
         if category in {None, "roots"}:
             items.extend(
@@ -111,7 +112,9 @@ class CleanupCatalog:
             assert isinstance(item.value, Path)
             self._profiles.remove(item.value)
         else:
-            raise RuntimeError(f"unknown cleanup category: {item.category}")
+            raise RuntimeError(
+                _("unknown cleanup category: {category}").format(category=item.category)
+            )
 
 
 def execute(
@@ -131,9 +134,17 @@ def execute(
     """List or safely delete launcher-managed data in the requested mode."""
     if interactive:
         if yes or command is not None:
-            raise RuntimeError("--interactive cannot be combined with another cleanup mode")
+            raise RuntimeError(
+                _("{interactive} cannot be combined with another cleanup mode").format(
+                    interactive="--interactive"
+                )
+            )
         if not has_tty:
-            raise RuntimeError("cleanup --interactive requires an interactive terminal")
+            raise RuntimeError(
+                _("cleanup {interactive} requires an interactive terminal").format(
+                    interactive="--interactive"
+                )
+            )
         return _interactive_cleanup(CleanupCatalog(paths, repository), read, write)
     catalog = CleanupCatalog(paths, repository)
     if command == "list":
@@ -142,9 +153,13 @@ def execute(
     if command == "remove":
         return _remove_requested(catalog, category, selector, remove_all, yes, has_tty, read, write)
     if command is None:
-        raise RuntimeError("cleanup requires an action; run 'box-rpg cleanup --help'")
+        raise RuntimeError(
+            _("cleanup requires an action; run '{command}'").format(
+                command="box-rpg cleanup --help"
+            )
+        )
     if command != "all":
-        raise RuntimeError(f"unknown cleanup command: {command}")
+        raise RuntimeError(_("unknown cleanup command: {command}").format(command=command))
     return _remove_global(catalog, yes, has_tty, read, write)
 
 
@@ -159,14 +174,22 @@ def _remove_requested(
     write: Callable[[str], None],
 ) -> int:
     if category not in CATEGORIES:
-        raise RuntimeError(f"unknown cleanup category: {category}")
+        raise RuntimeError(_("unknown cleanup category: {category}").format(category=category))
     if remove_all == (selector is not None):
-        raise RuntimeError("cleanup remove requires exactly one of SELECTOR or --all")
+        raise RuntimeError(
+            _("cleanup remove requires exactly one of {selector} or {all_option}").format(
+                selector="SELECTOR", all_option="--all"
+            )
+        )
     items = catalog.list(category)
     if selector is not None:
         selected = tuple(item for item in items if item.selector == selector)
         if not selected:
-            raise RuntimeError(f"no {category} item matches selector: {selector}")
+            raise RuntimeError(
+                _("no {category} item matches selector: {selector}").format(
+                    category=category, selector=selector
+                )
+            )
         items = selected
     return _confirm_and_remove(catalog, items, yes, has_tty, read, write, all_items=remove_all)
 
@@ -195,12 +218,19 @@ def _confirm_and_remove(
     confirmation = "DELETE ALL" if all_items else "DELETE"
     if not yes:
         if not has_tty:
-            raise RuntimeError("cleanup requires --yes without an interactive terminal")
-        if not _confirm(f"Type {confirmation} to confirm", confirmation, read, write):
-            write("Cleanup cancelled.")
+            raise RuntimeError(
+                _("cleanup requires {yes} without an interactive terminal").format(yes="--yes")
+            )
+        if not _confirm(
+            _("Type {confirmation} to confirm").format(confirmation=confirmation),
+            confirmation,
+            read,
+            write,
+        ):
+            write(_("Cleanup cancelled."))
             return 0
     result = _remove_items(catalog, items, write)
-    write(f"Removed {result.removed} item(s); {result.failed} failed.")
+    write(_removal_summary(result))
     return 1 if result.failed else 0
 
 
@@ -210,14 +240,14 @@ def _interactive_cleanup(
     write: Callable[[str], None],
 ) -> int:
     while True:
-        write("Cleanup:")
+        write(_("Cleanup:"))
         for index, category in enumerate(CATEGORIES, start=1):
             write(f"  {index}. {_category_title(category)} ({len(catalog.list(category))})")
-        write("  a. Remove all listed managed data")
+        write(_("  a. Remove all listed managed data"))
         try:
-            action = read("Select 1-4, [a]ll, or [q]uit: ").strip().lower()
+            action = read(_("Select 1-4, [a]ll, or [q]uit: ")).strip().lower()
         except EOFError:
-            write("Cleanup cancelled.")
+            write(_("Cleanup cancelled."))
             return 0
         if action == "q":
             return 0
@@ -228,7 +258,7 @@ def _interactive_cleanup(
             category = CATEGORIES[int(action) - 1]
             _interactive_choose(catalog, category, read, write)
             continue
-        write("Invalid selection.")
+        write(_("Invalid selection."))
 
 
 def _interactive_choose(
@@ -262,11 +292,16 @@ def _interactive_remove(
 ) -> None:
     selected = tuple(item for item in items if item is not None)
     confirmation = "DELETE ALL" if all_items else "DELETE"
-    if not _confirm(f"Type {confirmation} to confirm", confirmation, read, write):
-        write("Cleanup cancelled.")
+    if not _confirm(
+        _("Type {confirmation} to confirm").format(confirmation=confirmation),
+        confirmation,
+        read,
+        write,
+    ):
+        write(_("Cleanup cancelled."))
         return
     result = _remove_items(catalog, selected, write)
-    write(f"Removed {result.removed} item(s); {result.failed} failed.")
+    write(_removal_summary(result))
 
 
 def _remove_items(
@@ -279,10 +314,23 @@ def _remove_items(
             catalog.remove(item)
         except (BoxError, OSError) as exc:
             failed += 1
-            write(f"Could not remove {item.category} {item.selector}: {exc}")
+            write(
+                _("Could not remove {category} {selector}: {error}").format(
+                    category=item.category, selector=item.selector, error=exc
+                )
+            )
             continue
         removed += 1
     return RemovalResult(removed, failed)
+
+
+def _removal_summary(result: RemovalResult) -> str:
+    """Render the removal result with the correct plural form."""
+    return ngettext(
+        "Removed {removed} item; {failed} failed.",
+        "Removed {removed} items; {failed} failed.",
+        result.removed,
+    ).format(removed=result.removed, failed=result.failed)
 
 
 def _write_listing(items: tuple[CleanupItem, ...], write: Callable[[str], None]) -> None:
@@ -300,7 +348,7 @@ def _write_scope(items: tuple[CleanupItem, ...], write: Callable[[str], None]) -
     counts = {category: 0 for category in CATEGORIES}
     for item in items:
         counts[item.category] += 1
-    write("Cleanup scope:")
+    write(_("Cleanup scope:"))
     for category in CATEGORIES:
         write(f"  {_category_title(category)}: {counts[category]}")
 
@@ -311,7 +359,7 @@ def _confirm(
     try:
         return read(f"{prompt}: ").strip() == expected
     except EOFError:
-        write("Cleanup cancelled.")
+        write(_("Cleanup cancelled."))
         return False
 
 
@@ -324,13 +372,14 @@ def _runtime_selector(runtime: ManagedRuntime | EasyRPGRuntime) -> str:
 def _render_runtime(runtime: ManagedRuntime | EasyRPGRuntime) -> str:
     if isinstance(runtime, EasyRPGRuntime):
         return f"EasyRPG Player {runtime.version} x64"
-    return f"NW.js {runtime.spec.version} {runtime.spec.architecture} {runtime.spec.flavor}"
+    flavor = "SDK" if runtime.spec.sdk else _("standard")
+    return f"NW.js {runtime.spec.version} {runtime.spec.architecture} {flavor}"
 
 
 def _category_title(category: str) -> str:
     return {
-        "roots": "Authorized game roots",
-        "runtimes": "Managed runtimes",
-        "downloads": "Download archives",
-        "profiles": "Game profiles",
+        "roots": _("Authorized game roots"),
+        "runtimes": _("Managed runtimes"),
+        "downloads": _("Download archives"),
+        "profiles": _("Game profiles"),
     }[category]

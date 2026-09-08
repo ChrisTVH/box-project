@@ -9,6 +9,7 @@ from contextlib import suppress
 from pathlib import Path
 
 from box.errors import LaunchError
+from box.utils.i18n import _
 
 
 def open_game_root(game_root: Path) -> int:
@@ -16,7 +17,9 @@ def open_game_root(game_root: Path) -> int:
     try:
         return os.open(game_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     except OSError as exc:
-        raise LaunchError(f"game root is missing or unsafe: {game_root}") from exc
+        raise LaunchError(
+            _("game root is missing or unsafe: {root}").format(root=game_root)
+        ) from exc
 
 
 def descriptor_path(descriptor: int) -> Path:
@@ -24,9 +27,9 @@ def descriptor_path(descriptor: int) -> Path:
     try:
         path = Path(os.readlink(f"/proc/self/fd/{descriptor}"))
     except OSError as exc:
-        raise LaunchError("cannot resolve the open game directory") from exc
+        raise LaunchError(_("cannot resolve the open game directory")) from exc
     if path.name.endswith(" (deleted)"):
-        raise LaunchError("game root disappeared before launch")
+        raise LaunchError(_("game root disappeared before launch"))
     return path
 
 
@@ -41,7 +44,7 @@ def link_game(
     try:
         os.symlink(descriptor_path(game_descriptor), "game", dir_fd=session_descriptor)
     except OSError as exc:
-        raise LaunchError(f"cannot link game into session: {exc}") from exc
+        raise LaunchError(_("cannot link game into session: {error}").format(error=exc)) from exc
     return link
 
 
@@ -55,7 +58,7 @@ def copy_game_root_file(
 ) -> Path:
     """Copy one validated direct game-root file into an isolated launch session."""
     if Path(filename).name != filename or filename in {"", ".", "..", "game", "package.json"}:
-        raise LaunchError(f"invalid game-root filename: {filename!r}")
+        raise LaunchError(_("invalid game-root filename: {filename!r}").format(filename=filename))
     destination = session_root / filename
     owns_session_descriptor = session_descriptor is None
     owns_game_descriptor = game_descriptor is None
@@ -69,10 +72,14 @@ def copy_game_root_file(
                 filename, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=game_descriptor
             )
         except OSError as exc:
-            raise LaunchError(f"game-root file is missing or unsafe: {filename}") from exc
+            raise LaunchError(
+                _("game-root file is missing or unsafe: {filename}").format(filename=filename)
+            ) from exc
         try:
             if not stat.S_ISREG(os.fstat(source_descriptor).st_mode):
-                raise LaunchError(f"game-root file is missing or unsafe: {filename}")
+                raise LaunchError(
+                    _("game-root file is missing or unsafe: {filename}").format(filename=filename)
+                )
             try:
                 destination_descriptor = os.open(
                     filename,
@@ -81,7 +88,9 @@ def copy_game_root_file(
                     dir_fd=session_descriptor,
                 )
             except OSError as exc:
-                raise LaunchError(f"cannot copy game-root file into session: {exc}") from exc
+                raise LaunchError(
+                    _("cannot copy game-root file into session: {error}").format(error=exc)
+                ) from exc
             try:
                 with (
                     os.fdopen(source_descriptor, "rb", closefd=False) as source_file,
@@ -91,13 +100,17 @@ def copy_game_root_file(
             except OSError as exc:
                 with suppress(OSError):
                     os.unlink(filename, dir_fd=session_descriptor)
-                raise LaunchError(f"cannot copy game-root file into session: {exc}") from exc
+                raise LaunchError(
+                    _("cannot copy game-root file into session: {error}").format(error=exc)
+                ) from exc
             finally:
                 os.close(destination_descriptor)
         finally:
             os.close(source_descriptor)
     except OSError as exc:
-        raise LaunchError(f"cannot copy game-root file into session: {exc}") from exc
+        raise LaunchError(
+            _("cannot copy game-root file into session: {error}").format(error=exc)
+        ) from exc
     finally:
         if owns_game_descriptor and game_descriptor is not None:
             os.close(game_descriptor)
