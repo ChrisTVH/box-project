@@ -97,5 +97,5 @@ LANGUAGE=es box-rpg cleanup
 
 ## Notes
 
-- `docs/manual.md` and the example configuration comments are **not** translated (they are product documentation, not runtime UI).
+- `docs/manual.md`, `docs/security.md`, `docs/development.md`, and the example configuration comments are **not** translated (they are product documentation, not runtime UI).
 - Keep `box.po` in sync with the source: after adding or changing a `_()` / `ngettext()` string in the code, regenerate the template and update the catalogs before committing.

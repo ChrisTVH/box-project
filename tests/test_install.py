@@ -687,7 +687,7 @@ def test_verified_uninstall_uses_pip_and_safe_completion_removal(
 _HISTORICAL_COMPLETION_REVERSALS: dict[str, tuple[tuple[bytes, bytes], ...]] = {
     "box-rpg.bash": (
         (
-            b"--copy-root-file --allow-network --allow-game-writes --help",
+            b"--copy-root-file --allow-network --allow-game-writes --x11 --help",
             b"--copy-root-file --help",
         ),
     ),
@@ -696,7 +696,9 @@ _HISTORICAL_COMPLETION_REVERSALS: dict[str, tuple[tuple[bytes, bytes], ...]] = {
             b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-network"
             b" -d 'Allow host network access for this launch only'\n"
             b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-game-writes"
-            b" -d 'Allow game directory writes for this launch only'\n",
+            b" -d 'Allow game directory writes for this launch only'\n"
+            b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l x11"
+            b" -d 'Use the local X11 display for this launch only'\n",
             b"",
         ),
         (b"ten-version page", b"five-version page"),
@@ -704,7 +706,8 @@ _HISTORICAL_COMPLETION_REVERSALS: dict[str, tuple[tuple[bytes, bytes], ...]] = {
     "_box-rpg": (
         (
             b" '--allow-network[allow host network access for this launch only]'"
-            b" '--allow-game-writes[allow game directory writes for this launch only]'",
+            b" '--allow-game-writes[allow game directory writes for this launch only]'"
+            b" '--x11[use the local X11 display for this launch only]'",
             b"",
         ),
     ),
@@ -758,6 +761,11 @@ def test_intermediate_official_completion_migrates(
     source = tmp_path / name
     source.write_bytes((install.REPO_ROOT / "res/completions" / name).read_bytes())
     previous = source.read_bytes().replace(b"ten-version page", b"five-version page")
+    previous = previous.replace(
+        b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l x11"
+        b" -d 'Use the local X11 display for this launch only'\n",
+        b"",
+    )
     assert hashlib.sha256(previous).hexdigest() in install.PREVIOUS_COMPLETION_HASHES[name]
     target = home / name
     target.write_bytes(previous)

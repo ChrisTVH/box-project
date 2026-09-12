@@ -49,6 +49,7 @@ def main(argv: list[str] | None = None) -> int:
             copy_root_file=[],
             allow_network=False,
             allow_game_writes=False,
+            x11=False,
         )
     try:
         return _dispatch(arguments)
@@ -104,6 +105,7 @@ def _dispatch(arguments: Namespace) -> int:
             tuple(arguments.copy_root_file),
             allow_network=arguments.allow_network,
             allow_game_writes=arguments.allow_game_writes,
+            x11=arguments.x11,
         )
     if arguments.command == "config":
         if arguments.config_command == "show":

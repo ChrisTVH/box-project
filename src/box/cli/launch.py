@@ -54,14 +54,23 @@ def _confirm_x11(sandbox: Sandbox, read: Callable[[str], str] | None) -> None:
 
 
 def _setup_desktop(
-    sandbox: Sandbox, read: Callable[[str], str] | None, *, extra_x11: bool = False
+    sandbox: Sandbox,
+    read: Callable[[str], str] | None,
+    *,
+    extra_x11: bool = False,
+    force_x11: bool = False,
 ) -> str:
     """Select the display backend, requiring explicit consent for X11.
 
     Runtimes without Wayland support (such as the EasyRPG static build) pass
     extra_x11 so the local X11 socket can additionally be exposed after the
-    same confirmation; declining aborts the launch either way.
+    same confirmation; declining aborts the launch either way. An explicit
+    --x11 flag (force_x11) selects X11 directly: the flag itself is the
+    consent, so no prompt is shown, but an unusable display still fails.
     """
+    if force_x11:
+        sandbox.x11()
+        return "x11"
     probe = sandbox.display_probe()
     if probe == "wayland":
         sandbox.desktop()
@@ -85,6 +94,7 @@ def execute(
     *,
     allow_network: bool = False,
     allow_game_writes: bool = False,
+    x11: bool = False,
 ) -> int:
     """Launch an allowed game through an isolated session."""
     game = detect_game(game_path, default_registry())
@@ -106,7 +116,7 @@ def execute(
                 allow_network=allow_network, allow_game_writes=allow_game_writes
             ) as sandbox:
                 executable = sandbox.runtime(easyrpg_executable(runtime))
-                _setup_desktop(sandbox, read, extra_x11=True)
+                _setup_desktop(sandbox, read, extra_x11=True, force_x11=x11)
                 sandbox.devices()
                 sandbox.audio()
                 sandbox.persistence(paths, game)
@@ -150,7 +160,7 @@ def execute(
                 allow_network=allow_network, allow_game_writes=allow_game_writes
             ) as sandbox:
                 executable = sandbox.runtime(runtime.executable)
-                display = _setup_desktop(sandbox, read)
+                display = _setup_desktop(sandbox, read, force_x11=x11)
                 sandbox.devices()
                 sandbox.audio()
                 sandbox.persistence(paths, game)

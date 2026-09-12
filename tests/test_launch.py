@@ -603,6 +603,17 @@ def test_setup_desktop_ignores_x11_without_extra_flag(
     assert sandbox.calls == ["desktop"]
 
 
+def test_setup_desktop_forced_x11_needs_no_prompt() -> None:
+    sandbox = _FakeDisplaySandbox("wayland")
+
+    def forbidden(prompt: str) -> str:
+        raise AssertionError("explicit --x11 is consent, must not prompt")
+
+    assert _setup_desktop(sandbox, None, force_x11=True) == "x11"
+    assert _setup_desktop(sandbox, forbidden, force_x11=True) == "x11"
+    assert sandbox.calls == ["x11", "x11"]
+
+
 def test_setup_desktop_without_display_preserves_desktop_error() -> None:
     class _FailingSandbox(_FakeDisplaySandbox):
         def desktop(self) -> None:
@@ -953,6 +964,70 @@ def test_execute_nwjs_uses_x11_ozone_command(
     assert not any("--ozone-platform=wayland" in command for command in commands)
 
 
+def test_execute_nwjs_forced_x11_skips_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "game"
+    root.mkdir()
+    (root / "index.html").write_text("fixture")
+    (root / "package.json").write_text('{"name": "fixture"}')
+    game = GameInfo(EngineName.RPG_MAKER_MZ, root, root / "index.html", root / "package.json")
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    binary = runtime_root / "nw"
+    binary.write_text("fixture")
+    runtime = RuntimeInfo(RuntimeSpec("v0.90.0", "x64"), runtime_root, binary)
+    paths = AppPaths(tmp_path / "config", tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(root)
+    commands: list[list[str]] = []
+    x11_calls: list[None] = []
+
+    def detect(game_path: Path, registry: EngineRegistry) -> GameInfo:
+        return game
+
+    def select(catalog: object, architecture: str, version: str | None, sdk: bool) -> RuntimeInfo:
+        return runtime
+
+    def probe(sandbox: Sandbox) -> str:
+        return "wayland"
+
+    def desktop(sandbox: Sandbox) -> None:
+        pass
+
+    def use_x11(sandbox: Sandbox) -> None:
+        x11_calls.append(None)
+
+    def devices(sandbox: Sandbox) -> None:
+        pass
+
+    def audio(sandbox: Sandbox) -> None:
+        pass
+
+    def forbidden(prompt: str) -> str:
+        raise AssertionError("explicit --x11 is consent, must not prompt")
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect)
+    monkeypatch.setattr("box.cli.launch.select_runtime", select)
+    monkeypatch.setattr(Sandbox, "display_probe", probe)
+    monkeypatch.setattr(Sandbox, "desktop", desktop)
+    monkeypatch.setattr(Sandbox, "x11", use_x11)
+    monkeypatch.setattr(Sandbox, "devices", devices)
+    monkeypatch.setattr(Sandbox, "audio", audio)
+    monkeypatch.setattr("builtins.input", forbidden)
+
+    def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
+        commands.append(command)
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+
+    assert execute(paths, repository, root, None, False, x11=True) == 0
+    assert len(x11_calls) == 1
+    assert any("--ozone-platform=x11" in command for command in commands)
+    assert not any("--ozone-platform=wayland" in command for command in commands)
+
+
 @pytest.mark.parametrize("answer", ["yes", "no"])
 def test_execute_easyrpg_extra_x11_consent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, answer: str
@@ -1028,6 +1103,67 @@ def test_execute_easyrpg_extra_x11_consent(
         with pytest.raises(GameValidationError):
             execute(paths, repository, game_root, None, False)
         assert x11_calls == []
+
+
+def test_execute_easyrpg_forced_x11_skips_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    executable = runtime_root / "easyrpg-player"
+    executable.write_text("#!/bin/sh\n", encoding="utf-8")
+    executable.chmod(0o700)
+    game = GameInfo(EngineName.RPG_MAKER_2000_2003, game_root)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    x11_calls: list[None] = []
+
+    def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
+        return game
+
+    def latest(_: object) -> EasyRPGRuntime:
+        return EasyRPGRuntime("0.8.1.1", runtime_root)
+
+    def authorize(
+        _: GameInfo,
+        __: AppConfig,
+        ___: ConfigRepository,
+        ____: Callable[[str], str] | None = None,
+    ) -> AppConfig:
+        return repository.load()
+
+    def desktop(_: Sandbox) -> None:
+        pytest.fail("forced --x11 must not use wayland")
+
+    def use_x11(_: Sandbox) -> None:
+        x11_calls.append(None)
+
+    def devices(_: Sandbox) -> None:
+        pass
+
+    def audio(_: Sandbox) -> None:
+        pass
+
+    def forbidden(prompt: str) -> str:
+        raise AssertionError("explicit --x11 is consent, must not prompt")
+
+    def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
+    monkeypatch.setattr("box.cli.launch.EasyRPGCatalog.latest", latest)
+    monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
+    monkeypatch.setattr(Sandbox, "desktop", desktop)
+    monkeypatch.setattr(Sandbox, "x11", use_x11)
+    monkeypatch.setattr(Sandbox, "devices", devices)
+    monkeypatch.setattr(Sandbox, "audio", audio)
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("builtins.input", forbidden)
+
+    assert execute(paths, repository, game_root, None, False, x11=True) == 0
+    assert len(x11_calls) == 1
 
 
 def _prepare_runtime_choice_game(

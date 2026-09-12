@@ -94,7 +94,7 @@ _box_rpg() {
             esac
             ;;
         launch)
-            COMPREPLY=($(compgen -W '--runtime --sdk --copy-root-file --allow-network --allow-game-writes --help' -- "$cur"))
+            COMPREPLY=($(compgen -W '--runtime --sdk --copy-root-file --allow-network --allow-game-writes --x11 --help' -- "$cur"))
             ;;
         diagnose)
             COMPREPLY=($(compgen -W '--runtime --sdk --help' -- "$cur"))

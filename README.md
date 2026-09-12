@@ -88,7 +88,7 @@ box-rpg runtime easyrpg available [--page PAGE]
 box-rpg runtime easyrpg available --interactive [--page PAGE]
 box-rpg runtime easyrpg install VERSION
 box-rpg runtime easyrpg remove VERSION
-box-rpg launch [GAME_PATH] [--runtime VERSION] [--sdk] [--copy-root-file FILE] [--allow-network] [--allow-game-writes]
+box-rpg launch [GAME_PATH] [--runtime VERSION] [--sdk] [--copy-root-file FILE] [--allow-network] [--allow-game-writes] [--x11]
 box-rpg config show
 box-rpg config set KEY VALUE
 box-rpg diagnose GAME_PATH [--runtime VERSION] [--sdk]
@@ -157,22 +157,9 @@ See [the manual](docs/manual.md) and
 
 ## Safety and path rules
 
-Game paths are never trusted merely because they contain `package.json`.
-`box-rpg` validates the game structure and resolves paths before use. It only
-launches games below configured `allowed_game_roots`; in an interactive terminal,
-it asks before storing an unregistered game's exact validated root. Runtime removal
-is limited to runtimes managed inside the configured cache; it must not remove
-arbitrary paths.
-
-Add a library root explicitly to authorize more than one game below it.
-
-Managed runtime paths use lower-case components. Games are resolved before they
-are launched, including symlinks, and must remain below an allowed root.
-
-Games and runtime version probes execute inside a mandatory Bubblewrap sandbox.
-The game and runtime are read-only; only game saves, the selected profile, and
-private temporary storage are writable. This reduces access, not all risks.
-NW.js archives are checked against upstream signed checksums when available;
-a missing signature produces an explicit warning, never a claim of verification.
-EasyRPG continues to rely on official HTTPS distribution. See
-[security and compatibility limits](docs/manual.md#security-and-compatibility-limits).
+`box-rpg` validates game structure, resolves symlinks before use, and only
+launches games below configured `allowed_game_roots` (add a library root
+explicitly to authorize more than one game). Games and version probes run in a
+mandatory Bubblewrap sandbox, and NW.js archives are checked against upstream
+signed checksums when available. See [security and compatibility
+limits](docs/security.md) for the trust model and its limits.

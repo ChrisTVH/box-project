@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "box-rpg"
-version = "26.9.20"
+version = "26.9.21"
 description = "A safe launcher for RPG Maker MV/MZ exports and RPG Maker 2000/2003 projects with EasyRPG Player"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -53,7 +53,7 @@ box = ["locale/**/*.mo", "runtime/keys/*.asc", "runtime/keys/README.md"]
     "res/completions/box-rpg.fish",
     "res/completions/_box-rpg",
 ]
-"share/doc/box-rpg" = ["README.md", "docs/manual.md", "docs/translations.md", "docs/development.md"]
+"share/doc/box-rpg" = ["README.md", "docs/manual.md", "docs/translations.md", "docs/development.md", "docs/security.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

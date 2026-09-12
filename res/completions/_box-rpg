@@ -77,7 +77,7 @@ _box-rpg() {
       ;;
     inspect) _arguments '--help[show help]' '1:game path:_files -/' ;;
     config) _arguments '--help[show help]' '1:config command:(show set)' ;;
-    launch) _arguments '--help[show help]' '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' '--copy-root-file[copy a direct game-root file into the isolated session]:file:' '--allow-network[allow host network access for this launch only]' '--allow-game-writes[allow game directory writes for this launch only]' ;;
+    launch) _arguments '--help[show help]' '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' '--copy-root-file[copy a direct game-root file into the isolated session]:file:' '--allow-network[allow host network access for this launch only]' '--allow-game-writes[allow game directory writes for this launch only]' '--x11[use the local X11 display for this launch only]' ;;
     diagnose) _arguments '--help[show help]' '--runtime[use an NW.js version]:version:' '--sdk[use an NW.js SDK build]' ;;
   esac
 }

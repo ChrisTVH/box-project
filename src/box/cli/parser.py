@@ -108,6 +108,11 @@ def build_parser() -> argparse.ArgumentParser:
         help=_("allow game directory writes for this launch only"),
     )
     launch.add_argument(
+        "--x11",
+        action="store_true",
+        help=_("use the local X11 display for this launch only (weaker isolation)"),
+    )
+    launch.add_argument(
         "--copy-root-file",
         action="append",
         default=[],
