@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-12 14:31-0400\n"
+"POT-Creation-Date: 2026-09-12 15:35-0400\n"
 "PO-Revision-Date: 2026-09-08 00:00+0000\n"
 "Last-Translator: Christopher Herasme <5632734-"
 "christvh@users.noreply.gitlab.com>\n"
@@ -378,8 +378,8 @@ msgstr "  a. Eliminar todos los datos gestionados de la lista"
 msgid "Select 1-4, [a]ll, or [q]uit: "
 msgstr "Selecciona 1-4, [a] todos o [q] salir: "
 
-#: src/box/cli/cleanup.py:261 src/box/cli/launch.py:206
-#: src/box/cli/launch.py:246 src/box/cli/menu.py:70 src/box/cli/runtime.py:105
+#: src/box/cli/cleanup.py:261 src/box/cli/launch.py:207
+#: src/box/cli/launch.py:247 src/box/cli/menu.py:70 src/box/cli/runtime.py:105
 #: src/box/cli/runtime.py:109 src/box/cli/runtime.py:238
 msgid "Invalid selection."
 msgstr "Selección no válida."
@@ -400,7 +400,7 @@ msgstr[1] "Se eliminaron {removed} elementos; fallos: {failed}."
 msgid "Cleanup scope:"
 msgstr "Alcance de la limpieza:"
 
-#: src/box/cli/cleanup.py:375 src/box/cli/launch.py:223
+#: src/box/cli/cleanup.py:375 src/box/cli/launch.py:224
 #: src/box/cli/runtime.py:162
 msgid "standard"
 msgstr "estándar"
@@ -463,13 +463,13 @@ msgstr "(desconocido)"
 msgid "plugins"
 msgstr "complementos"
 
-#: src/box/cli/launch.py:37
+#: src/box/cli/launch.py:38
 msgid "explicit consent is required for X11; run interactively to continue"
 msgstr ""
 "se requiere consentimiento explícito para X11; ejecuta de forma interactiva "
 "para continuar"
 
-#: src/box/cli/launch.py:42
+#: src/box/cli/launch.py:43
 #, python-brace-format
 msgid ""
 "warning: X11 display {display} is insecure; X11 clients can capture input "
@@ -478,53 +478,53 @@ msgstr ""
 "advertencia: la pantalla X11 {display} no es segura; los clientes de X11 "
 "pueden capturar la entrada y el contenido de la pantalla (keylogging)."
 
-#: src/box/cli/launch.py:48
+#: src/box/cli/launch.py:49
 msgid "Continue with X11? [y/N] "
 msgstr "¿Continuar con X11? [y/N] "
 
-#: src/box/cli/launch.py:50 src/box/cli/launch.py:52
+#: src/box/cli/launch.py:51 src/box/cli/launch.py:53
 msgid "X11 launch was not confirmed"
 msgstr "el inicio con X11 no fue confirmado"
 
-#: src/box/cli/launch.py:108
+#: src/box/cli/launch.py:109
 #, python-brace-format
 msgid "{sdk} and {copy_root_file} are only available for NW.js games"
 msgstr "{sdk} y {copy_root_file} solo están disponibles para juegos de NW.js"
 
-#: src/box/cli/launch.py:188
+#: src/box/cli/launch.py:189
 msgid "Installed EasyRPG Player runtimes (x64):"
 msgstr "Entornos de ejecución de EasyRPG Player instalados (x64):"
 
-#: src/box/cli/launch.py:194
+#: src/box/cli/launch.py:195
 #, python-brace-format
 msgid "Select an EasyRPG Player runtime 1-{count} (default 1), or [q]uit: "
 msgstr ""
 "Selecciona un entorno de ejecución de EasyRPG Player 1-{count} "
 "(predeterminado 1) o [q] salir: "
 
-#: src/box/cli/launch.py:199 src/box/cli/launch.py:203
-#: src/box/cli/launch.py:239 src/box/cli/launch.py:243
+#: src/box/cli/launch.py:200 src/box/cli/launch.py:204
+#: src/box/cli/launch.py:240 src/box/cli/launch.py:244
 msgid "runtime selection was cancelled"
 msgstr "se canceló la selección del entorno de ejecución"
 
-#: src/box/cli/launch.py:225
+#: src/box/cli/launch.py:226
 #, python-brace-format
 msgid "Installed NW.js runtimes ({architecture}, {flavor}):"
 msgstr "Entornos de ejecución de NW.js instalados ({architecture}, {flavor}):"
 
-#: src/box/cli/launch.py:234
+#: src/box/cli/launch.py:235
 #, python-brace-format
 msgid "Select an NW.js runtime 1-{count} (default 1), or [q]uit: "
 msgstr ""
 "Selecciona un entorno de ejecución de NW.js 1-{count} (predeterminado 1) o "
 "[q] salir: "
 
-#: src/box/cli/launch.py:279
+#: src/box/cli/launch.py:320
 #, python-brace-format
 msgid "Add {path} to allowed game roots? [y/N] "
-msgstr "¿Agregar {path} a las raíces de juego permitidas? [y/N] "
+msgstr "¿Agregar {path} a los juegos permitidos? [y/N] "
 
-#: src/box/cli/launch.py:287 src/box/cli/launch.py:289
+#: src/box/cli/launch.py:336 src/box/cli/launch.py:338
 msgid "game root was not authorized"
 msgstr "la raíz del juego no fue autorizada"
 

@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 # pyright: reportPrivateUsage=false
-from box.cli.launch import _setup_desktop, authorize_game, execute
+from box.cli.launch import _abbreviate_prompt_path, _setup_desktop, authorize_game, execute
 from box.config.models import AppConfig
 from box.config.repository import ConfigRepository
 from box.engines.registry import EngineRegistry
@@ -107,6 +107,57 @@ def test_authorization_escapes_prompt_controls_without_changing_stored_path(tmp_
     assert len(prompts) == 1
     assert r"game\x1b[31m\x0a\x09\x9b\u202e" in prompts[0]
     assert all(control not in prompts[0] for control in ("\x1b", "\n", "\t", "\x9b", "\u202e"))
+    assert config.allowed_game_roots == (game_root,)
+    assert repository.load().allowed_game_roots == (game_root,)
+
+
+def test_prompt_path_abbreviation_ladder(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    game = home / "Documentos" / "Juegos" / "Linux" / "The Demon King's Reclusive Strategist"
+    full = "~/Documentos/Juegos/Linux/The Demon King's Reclusive Strategist"
+    assert _abbreviate_prompt_path(game, 80, home) == full
+    assert (
+        _abbreviate_prompt_path(game, 45, home) == "~/D/J/L/The Demon King's Reclusive Strategist"
+    )
+    assert _abbreviate_prompt_path(game, 44, home) == "…D/J/L/The Demon King's Reclusive Strategist"
+    assert _abbreviate_prompt_path(game, 43, home) == "…/J/L/The Demon King's Reclusive Strategist"
+    assert _abbreviate_prompt_path(game, 41, home) == "…/L/The Demon King's Reclusive Strategist"
+    assert _abbreviate_prompt_path(game, 39, home) == "…/The Demon King's Reclusive Strategist"
+    assert _abbreviate_prompt_path(game, 30, home) == "…/The Demon King's Reclusive S"
+    assert _abbreviate_prompt_path(home, 80, home) == "~"
+
+
+def test_prompt_path_outside_home_uses_absolute_ladder(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    game = tmp_path / "mnt" / "games" / "Xyz Quest"
+    assert _abbreviate_prompt_path(game, 400, home) == game.as_posix()
+    assert _abbreviate_prompt_path(game, 12, home) == "…/Xyz Quest"
+
+
+@pytest.mark.parametrize("engine", [EngineName.RPG_MAKER_MZ, EngineName.RPG_MAKER_2000_2003])
+def test_authorization_prompt_abbreviates_home_and_stores_absolute(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, engine: EngineName
+) -> None:
+    home = tmp_path / "home"
+    game_root = home / "Documentos" / "Juegos" / "Linux" / "The Demon King's Reclusive Strategist"
+    game_root.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("COLUMNS", "60")
+    game = GameInfo(engine, game_root)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    prompts: list[str] = []
+
+    def confirm(prompt: str) -> str:
+        prompts.append(prompt)
+        return "yes"
+
+    config = authorize_game(game, repository.load(), repository, read=confirm)
+
+    assert len(prompts) == 1
+    assert "…/The Demon King's Reclusi" in prompts[0]
+    assert len(prompts[0]) <= 60
+    assert "Documentos" not in prompts[0]
     assert config.allowed_game_roots == (game_root,)
     assert repository.load().allowed_game_roots == (game_root,)
 

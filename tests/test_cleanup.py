@@ -1,12 +1,16 @@
 import json
+import os
+import shutil
 from pathlib import Path
 
 import pytest
 
-from box.cli.cleanup import execute
+# pyright: reportPrivateUsage=false
+from box.cli.cleanup import CleanupItem, _render_cleanup_item, execute
 from box.config.repository import ConfigRepository
 from box.errors import RuntimeError
 from box.paths import AppPaths
+from box.utils.terminal import abbreviate_prompt_path
 
 
 def test_cleanup_lists_stable_selectors_without_a_terminal(tmp_path: Path) -> None:
@@ -207,3 +211,84 @@ def test_cleanup_rejects_invalid_selector_and_ambiguous_remove_target(tmp_path: 
             yes=True,
             has_tty=False,
         )
+
+
+def test_cleanup_interactive_root_label_abbreviates_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    root = home / "Documentos" / "Juegos" / "Linux" / "The Demon King's Reclusive Strategist"
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setattr(shutil, "get_terminal_size", lambda: os.terminal_size((120, 24)))
+    item = CleanupItem("roots", str(root), str(root), root)
+
+    assert _render_cleanup_item(item) == abbreviate_prompt_path(root, 120 - len("  10. "), home)
+    assert _render_cleanup_item(item).startswith("~/Documentos/")
+
+
+def test_cleanup_interactive_root_label_uses_ellipsis_when_narrow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    root = home / "Documentos" / "Juegos" / "Linux" / "The Demon King's Reclusive Strategist"
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setattr(shutil, "get_terminal_size", lambda: os.terminal_size((40, 24)))
+    item = CleanupItem("roots", str(root), str(root), root)
+
+    rendered = _render_cleanup_item(item)
+    assert rendered == abbreviate_prompt_path(root, 40 - len("  10. "), home)
+    assert "Documentos" not in rendered
+
+
+def test_cleanup_interactive_root_display_keeps_absolute_selector_and_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    root = home / "Documentos" / "Juegos" / "Linux" / "The Demon King's Reclusive Strategist"
+    root.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setattr(shutil, "get_terminal_size", lambda: os.terminal_size((120, 24)))
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(root)
+    output: list[str] = []
+    choices = iter(("1", "q", "q"))
+
+    assert (
+        execute(
+            paths,
+            repository,
+            interactive=True,
+            has_tty=True,
+            read=lambda _: next(choices),
+            write=output.append,
+        )
+        == 0
+    )
+    assert any("~/Documentos/" in line for line in output)
+    assert not any(str(root) in line for line in output if line.startswith("  1. "))
+    assert repository.load().allowed_game_roots == (root,)
+
+    listing: list[str] = []
+    assert (
+        execute(
+            paths, repository, command="list", category="roots", has_tty=False, write=listing.append
+        )
+        == 0
+    )
+    assert json.loads(listing[0])["selector"] == str(root)
+
+
+def test_cleanup_interactive_root_label_escapes_controls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    root = tmp_path / "game\x1b[31m\n"
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setattr(shutil, "get_terminal_size", lambda: os.terminal_size((120, 24)))
+    item = CleanupItem("roots", str(root), str(root), root)
+
+    rendered = _render_cleanup_item(item)
+    assert "\x1b" not in rendered
+    assert "\n" not in rendered
+    assert r"\x1b" in rendered

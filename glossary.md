@@ -24,7 +24,7 @@
 | version index | índice de versiones | |
 | download path | ruta de descarga | |
 | managed directory | directorio gestionado | |
-| allowed game root | raíz de juego permitida | |
+| allowed game root | raíz de juego permitida | The launch authorization prompt renders it as «juegos permitidos». |
 | authorized game root | raíz de juego autorizada | |
 | game-root file | archivo de la raíz del juego | |
 | host | servidor | En mensajes técnicos. |

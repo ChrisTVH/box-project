@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
@@ -27,7 +28,9 @@ from box.runtime.easyrpg import executable as easyrpg_executable
 from box.runtime.platform import current_architecture
 from box.runtime.selector import matching_runtimes, select_runtime
 from box.utils.i18n import _
-from box.utils.terminal import safe_terminal_text
+from box.utils.terminal import abbreviate_prompt_path, safe_terminal_text
+
+_abbreviate_prompt_path = abbreviate_prompt_path
 
 
 def _confirm_x11(sandbox: Sandbox, read: Callable[[str], str] | None) -> None:
@@ -273,11 +276,14 @@ def _authorize_open_game(
         ensure_allowed_root(game, config.allowed_game_roots)
         validate_game_descriptor(game, descriptor)
         return config
+    template = _("Add {path} to allowed game roots? [y/N] ")
+    prefix, suffix = template.split("{path}")
+    budget = shutil.get_terminal_size().columns - len(prefix) - len(suffix)
     try:
         answer = (
             read(
-                _("Add {path} to allowed game roots? [y/N] ").format(
-                    path=safe_terminal_text(game.root)
+                template.format(
+                    path=safe_terminal_text(_abbreviate_prompt_path(game.root, budget, Path.home()))
                 )
             )
             .strip()

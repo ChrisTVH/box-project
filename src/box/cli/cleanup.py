@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +17,7 @@ from box.runtime.catalog import ManagedRuntime, RuntimeCatalog
 from box.runtime.downloads import DownloadCatalog
 from box.runtime.easyrpg import EasyRPGCatalog, EasyRPGDownloadCatalog, EasyRPGRuntime
 from box.utils.i18n import _, ngettext
+from box.utils.terminal import abbreviate_prompt_path, safe_terminal_text
 
 CATEGORIES = ("roots", "runtimes", "downloads", "profiles")
 
@@ -261,6 +263,15 @@ def _interactive_cleanup(
         write(_("Invalid selection."))
 
 
+def _render_cleanup_item(item: CleanupItem) -> str:
+    """Render one cleanup item for the interactive menu without altering stored data."""
+    if item.category == "roots":
+        assert isinstance(item.value, Path)
+        available = max(shutil.get_terminal_size().columns - len("  10. "), 1)
+        return safe_terminal_text(abbreviate_prompt_path(item.value, available, Path.home()))
+    return item.label
+
+
 def _interactive_choose(
     catalog: CleanupCatalog,
     category: str,
@@ -271,7 +282,7 @@ def _interactive_choose(
     selection = choose_paged(
         _category_title(category),
         items,
-        lambda item: item.label,
+        _render_cleanup_item,
         allow_all=True,
         read=read,
         write=write,
