@@ -2,14 +2,17 @@ from pathlib import Path
 
 import pytest
 
+from box.cli import diagnose as diagnose_command
 from box.cli.main import main
 from box.cli.parser import build_parser
 from box.config.models import AppConfig
 from box.config.repository import ConfigRepository
 from box.diagnostics.versions import VersionReport
 from box.engines.registry import EngineRegistry
+from box.errors import GameValidationError
 from box.models import EngineName, GameInfo
 from box.paths import AppPaths
+from box.runtime.easyrpg import EasyRPGRuntime
 
 
 def test_main_launches_the_current_directory_without_arguments(
@@ -109,6 +112,59 @@ def test_diagnose_uses_configured_runtime_preferences(
 
     assert main(["diagnose", str(tmp_path)]) == 0
     assert selected == [("v0.90.0", True)]
+
+
+def test_diagnose_easyrpg_uses_explicit_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    game = GameInfo(EngineName.RPG_MAKER_2000_2003, game_root)
+    paths = AppPaths(tmp_path / "config", tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    seen: dict[str, str] = {}
+
+    class FakeCatalog:
+        def __init__(self, paths: AppPaths) -> None:
+            pass
+
+        def get(self, version: str) -> EasyRPGRuntime:
+            seen["version"] = version
+            return EasyRPGRuntime(version, tmp_path)
+
+        def latest(self) -> EasyRPGRuntime:
+            raise AssertionError("explicit version must be used")
+
+    def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
+        return game
+
+    def collect_versions(_: GameInfo, runtime: EasyRPGRuntime) -> VersionReport:
+        return VersionReport("rpg-maker-2000-2003", None, None, runtime.version)
+
+    monkeypatch.setattr("box.cli.diagnose.detect_game", detect_game)
+    monkeypatch.setattr("box.cli.diagnose.EasyRPGCatalog", FakeCatalog)
+    monkeypatch.setattr("box.cli.diagnose.collect_easyrpg_versions", collect_versions)
+
+    assert diagnose_command.execute(paths, repository, game_root, "0.8", False) == 0
+    assert seen == {"version": "0.8"}
+
+
+def test_diagnose_easyrpg_still_rejects_sdk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    game = GameInfo(EngineName.RPG_MAKER_2000_2003, game_root)
+    paths = AppPaths(tmp_path / "config", tmp_path / "cache")
+    repository = ConfigRepository(paths)
+
+    def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
+        return game
+
+    monkeypatch.setattr("box.cli.diagnose.detect_game", detect_game)
+
+    with pytest.raises(GameValidationError, match="--sdk"):
+        diagnose_command.execute(paths, repository, game_root, None, True)
 
 
 def test_launch_command_defaults_to_the_current_directory() -> None:

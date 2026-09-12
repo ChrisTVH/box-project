@@ -31,13 +31,12 @@ def execute(
     game = detect_game(game_path, default_registry())
     config = repository.load()
     if game.engine is EngineName.RPG_MAKER_2000_2003:
-        if version is not None or sdk:
+        if sdk:
             raise GameValidationError(
-                _("{runtime} and {sdk} are only available for NW.js games").format(
-                    runtime="--runtime", sdk="--sdk"
-                )
+                _("{sdk} is only available for NW.js games").format(sdk="--sdk")
             )
-        runtime = EasyRPGCatalog(paths).latest()
+        catalog = EasyRPGCatalog(paths)
+        runtime = catalog.get(version) if version is not None else catalog.latest()
         print(render_report(collect_environment(), collect_easyrpg_versions(game, runtime)), end="")
         return 0
     runtime = select_runtime(

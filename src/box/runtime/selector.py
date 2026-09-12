@@ -8,6 +8,19 @@ from box.runtime.catalog import RuntimeCatalog
 from box.utils.i18n import _
 
 
+def matching_runtimes(
+    catalog: RuntimeCatalog, architecture: str, sdk: bool
+) -> tuple[RuntimeInfo, ...]:
+    """Return installed runtimes for an architecture and flavor, newest first."""
+    candidates = [
+        runtime
+        for runtime in catalog.list()
+        if runtime.spec.architecture == architecture and runtime.spec.sdk == sdk
+    ]
+    candidates.sort(key=lambda runtime: _version_key(runtime.spec.version), reverse=True)
+    return tuple(candidates)
+
+
 def select_runtime(
     catalog: RuntimeCatalog,
     architecture: str,
@@ -17,11 +30,7 @@ def select_runtime(
     """Select an explicit runtime, or the latest matching installed runtime."""
     if version is not None:
         return catalog.get(version, architecture, sdk)
-    candidates = [
-        runtime
-        for runtime in catalog.list()
-        if runtime.spec.architecture == architecture and runtime.spec.sdk == sdk
-    ]
+    candidates = matching_runtimes(catalog, architecture, sdk)
     if not candidates:
         raise RuntimeError(
             _(
@@ -29,7 +38,7 @@ def select_runtime(
                 "'box-rpg runtime nwjs available --interactive'"
             )
         )
-    return max(candidates, key=lambda runtime: _version_key(runtime.spec.version))
+    return candidates[0]
 
 
 def _version_key(version: str) -> tuple[int, int, int]:

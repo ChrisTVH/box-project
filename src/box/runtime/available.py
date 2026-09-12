@@ -16,7 +16,7 @@ from box.runtime.http import open_official, validate_source
 from box.runtime.validator import normalize_version
 from box.utils.i18n import _
 
-PAGE_SIZE = 5
+PAGE_SIZE = 10
 VERSIONS_INDEX = "https://dl.nwjs.io/"
 MAX_INDEX_BYTES = 4 * 1024 * 1024
 OFFICIAL_DOWNLOAD_HOSTS = frozenset({"dl.nwjs.io", "dl.node-webkit.org"})

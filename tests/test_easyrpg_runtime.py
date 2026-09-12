@@ -90,23 +90,43 @@ def test_easyrpg_versions_accept_two_to_four_numeric_components() -> None:
             normalize_version(invalid)
 
 
-def test_easyrpg_local_html_index_is_sorted_and_paginated_in_fives() -> None:
+def test_easyrpg_local_html_index_is_sorted_and_paginated_in_tens() -> None:
     content = """
     <a href="/downloads/player/0.8/">0.8</a>
     <a href="/downloads/player/0.8.1/">0.8.1</a>
     <a href="/downloads/player/0.8.1.1/">0.8.1.1</a>
     <a href="0.7.0/">0.7.0</a>
     <a href="0.6.2.3/">0.6.2.3</a>
+    <a href="0.6.2/">0.6.2</a>
+    <a href="0.6.1/">0.6.1</a>
+    <a href="0.6.0/">0.6.0</a>
+    <a href="0.5.0/">0.5.0</a>
+    <a href="0.4.0/">0.4.0</a>
+    <a href="0.3.0/">0.3.0</a>
     <a href="0.6.2.3/">duplicate</a>
     <a href="latest/">latest</a>
     <a href="0.8.1-linux.tar.gz">archive</a>
     """
-
-    assert parse_versions(content) == ("0.8.1.1", "0.8.1", "0.8", "0.7.0", "0.6.2.3")
-    assert parse_available_versions(content, 1) == AvailableEasyRPGVersions(
-        page=1, versions=("0.8.1.1", "0.8.1", "0.8", "0.7.0", "0.6.2.3")
+    newest_ten = (
+        "0.8.1.1",
+        "0.8.1",
+        "0.8",
+        "0.7.0",
+        "0.6.2.3",
+        "0.6.2",
+        "0.6.1",
+        "0.6.0",
+        "0.5.0",
+        "0.4.0",
     )
-    assert parse_available_versions(content, 2) == AvailableEasyRPGVersions(page=2, versions=())
+
+    assert parse_versions(content) == (*newest_ten, "0.3.0")
+    assert parse_available_versions(content, 1) == AvailableEasyRPGVersions(
+        page=1, versions=newest_ten
+    )
+    assert parse_available_versions(content, 2) == AvailableEasyRPGVersions(
+        page=2, versions=("0.3.0",)
+    )
 
 
 def test_easyrpg_catalog_lists_selects_and_removes_managed_runtimes(tmp_path: Path) -> None:
@@ -266,6 +286,59 @@ def test_easyrpg_uses_the_open_archive_inode_after_name_replacement(
     destination = tmp_path / "destination"
     destination.mkdir()
     assert (extract_runtime(archive, destination) / "easyrpg-player").read_bytes() == b"safe"
+
+
+def test_easyrpg_interactive_browser_retries_a_failed_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from box.cli import runtime as cli_runtime
+    from box.runtime.easyrpg import EasyRPGRuntime
+
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    output: list[str] = []
+    installed: list[str] = []
+    attempts = iter((False, True))
+    choices = iter(("r", "1", "yes"))
+
+    def flaky_fetch(page: int) -> AvailableEasyRPGVersions:
+        if next(attempts):
+            return AvailableEasyRPGVersions(page=page, versions=("0.8.1.1",))
+        raise RuntimeError("connection reset")
+
+    def install_version(_: AppPaths, version: str) -> EasyRPGRuntime:
+        installed.append(version)
+        return EasyRPGRuntime(version, tmp_path)
+
+    monkeypatch.setattr("box.cli.runtime.fetch_easyrpg_versions", flaky_fetch)
+    monkeypatch.setattr("box.cli.runtime.install_easyrpg_runtime", install_version)
+    browser = cli_runtime._easyrpg_available  # pyright: ignore[reportPrivateUsage]
+
+    result = browser(paths, 1, True, read=lambda _: next(choices), write=output.append)
+
+    assert result == 0
+    assert installed == ["0.8.1.1"]
+    assert any("Could not load the version list" in line for line in output)
+
+
+def test_easyrpg_interactive_browser_quits_after_a_failed_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from box.cli import runtime as cli_runtime
+
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    output: list[str] = []
+    choices = iter(("q",))
+
+    def failing_fetch(page: int) -> AvailableEasyRPGVersions:
+        raise RuntimeError("connection reset")
+
+    monkeypatch.setattr("box.cli.runtime.fetch_easyrpg_versions", failing_fetch)
+    browser = cli_runtime._easyrpg_available  # pyright: ignore[reportPrivateUsage]
+
+    result = browser(paths, 1, True, read=lambda _: next(choices), write=output.append)
+
+    assert result == 0
+    assert output[-1] == "Selection cancelled."
 
 
 def test_easyrpg_extraction_uses_shared_quotas(

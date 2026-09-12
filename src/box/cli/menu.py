@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from box.utils.i18n import _
 
-PAGE_SIZE = 5
+PAGE_SIZE = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +43,7 @@ def choose_paged[T](
         )
         for index, item in enumerate(visible, start=1):
             write(f"  {index}. {render(item)}")
-        prompt = _("Select 1-5, [n]ext, [p]revious")
+        prompt = _("Select 1-10, [n]ext, [p]revious")
         if allow_all:
             prompt += _(", [a]ll")
         prompt += _(", or [q]uit: ")

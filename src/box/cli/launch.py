@@ -19,13 +19,13 @@ from box.launch.links import open_game_root
 from box.launch.process import run_process
 from box.launch.sandbox import Sandbox, validate_tree
 from box.launch.session import create_session
-from box.models import EngineName, GameInfo
+from box.models import EngineName, GameInfo, RuntimeInfo
 from box.paths import AppPaths
 from box.runtime.catalog import RuntimeCatalog
-from box.runtime.easyrpg import EasyRPGCatalog
+from box.runtime.easyrpg import EasyRPGCatalog, EasyRPGRuntime
 from box.runtime.easyrpg import executable as easyrpg_executable
 from box.runtime.platform import current_architecture
-from box.runtime.selector import select_runtime
+from box.runtime.selector import matching_runtimes, select_runtime
 from box.utils.i18n import _
 from box.utils.terminal import safe_terminal_text
 
@@ -93,13 +93,13 @@ def execute(
         config = repository.load()
         read = input if sys.stdin.isatty() else None
         if game.engine is EngineName.RPG_MAKER_2000_2003:
-            if version is not None or sdk or copy_root_files:
+            if sdk or copy_root_files:
                 raise GameValidationError(
-                    _(
-                        "{runtime}, {sdk}, and {copy_root_file} are only available for NW.js games"
-                    ).format(runtime="--runtime", sdk="--sdk", copy_root_file="--copy-root-file")
+                    _("{sdk} and {copy_root_file} are only available for NW.js games").format(
+                        sdk="--sdk", copy_root_file="--copy-root-file"
+                    )
                 )
-            runtime = EasyRPGCatalog(paths).latest()
+            runtime = _select_easyrpg_runtime(EasyRPGCatalog(paths), version, read)
             authorize_game(game, config, repository, read)
             validate_game_descriptor(game, game_descriptor)
             with Sandbox(
@@ -132,11 +132,13 @@ def execute(
                     ),
                     pass_fds=sandbox.pass_fds,
                 )
-        runtime = select_runtime(
+        runtime = _select_launch_runtime(
             RuntimeCatalog(paths),
             current_architecture(),
-            config.preferred_runtime if version is None else version,
+            version,
             sdk or config.prefer_sdk,
+            config.preferred_runtime,
+            read,
         )
         authorize_game(game, config, repository, read)
         validate_game_descriptor(game, game_descriptor)
@@ -162,6 +164,76 @@ def execute(
                 return run_process(
                     sandbox.command(command, cwd="/session"), pass_fds=sandbox.pass_fds
                 )
+
+
+def _select_easyrpg_runtime(
+    catalog: EasyRPGCatalog, version: str | None, read: Callable[[str], str] | None
+) -> EasyRPGRuntime:
+    """Use an explicit version, the latest runtime, or ask when several qualify."""
+    if version is not None:
+        return catalog.get(version)
+    candidates = catalog.list()
+    if len(candidates) < 2 or read is None:
+        return catalog.latest()
+    print(_("Installed EasyRPG Player runtimes (x64):"))
+    for index, runtime in enumerate(candidates, start=1):
+        print(f"  {index}. {runtime.version}")
+    while True:
+        try:
+            answer = read(
+                _("Select an EasyRPG Player runtime 1-{count} (default 1), or [q]uit: ").format(
+                    count=len(candidates)
+                )
+            ).strip()
+        except EOFError as exc:
+            raise GameValidationError(_("runtime selection was cancelled")) from exc
+        if answer == "":
+            return candidates[0]
+        if answer.lower() == "q":
+            raise GameValidationError(_("runtime selection was cancelled"))
+        if answer.isdigit() and 1 <= int(answer) <= len(candidates):
+            return candidates[int(answer) - 1]
+        print(_("Invalid selection."))
+
+
+def _select_launch_runtime(
+    catalog: RuntimeCatalog,
+    architecture: str,
+    version: str | None,
+    sdk: bool,
+    preferred: str | None,
+    read: Callable[[str], str] | None,
+) -> RuntimeInfo:
+    """Use an explicit choice, or ask when several installed runtimes qualify."""
+    if version is not None or preferred is not None or read is None:
+        return select_runtime(catalog, architecture, preferred if version is None else version, sdk)
+    candidates = matching_runtimes(catalog, architecture, sdk)
+    if len(candidates) < 2:
+        return select_runtime(catalog, architecture, None, sdk)
+    flavor = "SDK" if sdk else _("standard")
+    print(
+        _("Installed NW.js runtimes ({architecture}, {flavor}):").format(
+            architecture=architecture, flavor=flavor
+        )
+    )
+    for index, runtime in enumerate(candidates, start=1):
+        print(f"  {index}. {runtime.spec.version}")
+    while True:
+        try:
+            answer = read(
+                _("Select an NW.js runtime 1-{count} (default 1), or [q]uit: ").format(
+                    count=len(candidates)
+                )
+            ).strip()
+        except EOFError as exc:
+            raise GameValidationError(_("runtime selection was cancelled")) from exc
+        if answer == "":
+            return candidates[0]
+        if answer.lower() == "q":
+            raise GameValidationError(_("runtime selection was cancelled"))
+        if answer.isdigit() and 1 <= int(answer) <= len(candidates):
+            return candidates[int(answer) - 1]
+        print(_("Invalid selection."))
 
 
 def authorize_game(

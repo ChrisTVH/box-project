@@ -115,8 +115,8 @@ Running `box-rpg` without arguments requires the current directory to contain a
 supported game; otherwise it prints help and explains how to launch one.
 
 `runtime nwjs available` queries the official stable NW.js version index in pages
-of five. Add `--interactive` to browse pages, choose a version, and confirm its
-installation. The architecture is detected automatically unless `--architecture`
+of ten. Add `--interactive` to browse pages, choose a version, and confirm its
+installation. Transient list failures offer a retry instead of aborting. The architecture is detected automatically unless `--architecture`
 is supplied. Runtime downloads use a 60-second network timeout and restart from
 zero after temporary failures instead of combining partial representations.
 Interactive terminals display a progress bar. Downloads and extraction enforce

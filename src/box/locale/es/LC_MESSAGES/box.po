@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-12 02:47-0400\n"
+"POT-Creation-Date: 2026-09-12 04:26-0400\n"
 "PO-Revision-Date: 2026-09-08 00:00+0000\n"
 "Last-Translator: Christopher Herasme <5632734-"
 "christvh@users.noreply.gitlab.com>\n"
@@ -378,8 +378,9 @@ msgstr "  a. Eliminar todos los datos gestionados de la lista"
 msgid "Select 1-4, [a]ll, or [q]uit: "
 msgstr "Selecciona 1-4, [a] todos o [q] salir: "
 
-#: src/box/cli/cleanup.py:261 src/box/cli/menu.py:69 src/box/cli/runtime.py:92
-#: src/box/cli/runtime.py:96 src/box/cli/runtime.py:207
+#: src/box/cli/cleanup.py:261 src/box/cli/launch.py:196
+#: src/box/cli/launch.py:236 src/box/cli/menu.py:69 src/box/cli/runtime.py:105
+#: src/box/cli/runtime.py:109 src/box/cli/runtime.py:238
 msgid "Invalid selection."
 msgstr "Selección no válida."
 
@@ -399,7 +400,8 @@ msgstr[1] "Se eliminaron {removed} elementos; fallos: {failed}."
 msgid "Cleanup scope:"
 msgstr "Alcance de la limpieza:"
 
-#: src/box/cli/cleanup.py:375 src/box/cli/runtime.py:149
+#: src/box/cli/cleanup.py:375 src/box/cli/launch.py:213
+#: src/box/cli/runtime.py:162
 msgid "standard"
 msgstr "estándar"
 
@@ -430,8 +432,8 @@ msgstr "claves compatibles: {allowed_root}, {preferred_runtime}"
 
 #: src/box/cli/diagnose.py:36
 #, python-brace-format
-msgid "{runtime} and {sdk} are only available for NW.js games"
-msgstr "{runtime} y {sdk} solo están disponibles para juegos de NW.js"
+msgid "{sdk} is only available for NW.js games"
+msgstr "{sdk} solo está disponible para juegos de NW.js"
 
 #: src/box/cli/inspect.py:15
 msgid "engine"
@@ -461,102 +463,6 @@ msgstr "(desconocido)"
 msgid "plugins"
 msgstr "complementos"
 
-#: src/box/cli/menu.py:32
-msgid "(no entries)"
-msgstr "(sin entradas)"
-
-#: src/box/cli/menu.py:40
-#, python-brace-format
-msgid "{title} (page {page}/{total_pages}):"
-msgstr "{title} (página {page}/{total_pages}):"
-
-#: src/box/cli/menu.py:46
-msgid "Select 1-5, [n]ext, [p]revious"
-msgstr "Selecciona 1-5, [n] siguiente, [p] anterior"
-
-#: src/box/cli/menu.py:48
-msgid ", [a]ll"
-msgstr ", [a] todos"
-
-#: src/box/cli/menu.py:49
-msgid ", or [q]uit: "
-msgstr ", o [q] salir: "
-
-#: src/box/cli/menu.py:53 src/box/cli/runtime.py:81 src/box/cli/runtime.py:110
-#: src/box/cli/runtime.py:196 src/box/cli/runtime.py:217
-msgid "Selection cancelled."
-msgstr "Selección cancelada."
-
-#: src/box/cli/runtime.py:29
-msgid "no NW.js runtimes installed"
-msgstr "no hay entornos de ejecución de NW.js instalados"
-
-#: src/box/cli/runtime.py:42
-#, python-brace-format
-msgid "installed {version} ({flavor}) at {path}"
-msgstr "se instaló {version} ({flavor}) en {path}"
-
-#: src/box/cli/runtime.py:79 src/box/cli/runtime.py:194
-msgid "Select 1-5, [n]ext, [p]revious, or [q]uit: "
-msgstr "Selecciona 1-5, [n] siguiente, [p] anterior o [q] salir: "
-
-#: src/box/cli/runtime.py:102
-#, python-brace-format
-msgid "Install NW.js {version} for {architecture}? [y/N] "
-msgstr "¿Instalar NW.js {version} para {architecture}? [y/N] "
-
-#: src/box/cli/runtime.py:113 src/box/cli/runtime.py:227
-msgid "Installation cancelled."
-msgstr "Instalación cancelada."
-
-#: src/box/cli/runtime.py:128
-#, python-brace-format
-msgid "Available NW.js versions (page {page}, {architecture}, {flavor}):"
-msgstr ""
-"Versiones disponibles de NW.js (página {page}, {architecture}, {flavor}):"
-
-#: src/box/cli/runtime.py:133
-msgid "  (no stable versions on this page)"
-msgstr "  (no hay versiones estables en esta página)"
-
-#: src/box/cli/runtime.py:139
-#, python-brace-format
-msgid "Install with: {command}"
-msgstr "Instala con: {command}"
-
-#: src/box/cli/runtime.py:155
-#, python-brace-format
-msgid "removed {version}"
-msgstr "se eliminó {version}"
-
-#: src/box/cli/runtime.py:165
-msgid "no EasyRPG Player runtimes installed"
-msgstr "no hay entornos de ejecución de EasyRPG Player instalados"
-
-#: src/box/cli/runtime.py:172 src/box/cli/runtime.py:222
-#, python-brace-format
-msgid "installed EasyRPG Player {version} at {path}"
-msgstr "se instaló EasyRPG Player {version} en {path}"
-
-#: src/box/cli/runtime.py:179
-#, python-brace-format
-msgid "removed EasyRPG Player {version}"
-msgstr "se eliminó EasyRPG Player {version}"
-
-#: src/box/cli/runtime.py:212
-#, python-brace-format
-msgid "Install EasyRPG Player {version} for x64? [y/N] "
-msgstr "¿Instalar EasyRPG Player {version} para x64? [y/N] "
-
-#: src/box/cli/runtime.py:232
-#, python-brace-format
-msgid "Available EasyRPG Player versions (page {page}, x64):"
-msgstr "Versiones disponibles de EasyRPG Player (página {page}, x64):"
-
-#: src/box/cli/runtime.py:234
-msgid "  (no versions on this page)"
-msgstr "  (no hay versiones en esta página)"
-
 #: src/box/cli/launch.py:37
 msgid "explicit consent is required for X11; run interactively to continue"
 msgstr ""
@@ -580,20 +486,47 @@ msgstr "¿Continuar con X11? [y/N] "
 msgid "X11 launch was not confirmed"
 msgstr "el inicio con X11 no fue confirmado"
 
-#: src/box/cli/launch.py:99
+#: src/box/cli/launch.py:98
 #, python-brace-format
-msgid ""
-"{runtime}, {sdk}, and {copy_root_file} are only available for NW.js games"
+msgid "{sdk} and {copy_root_file} are only available for NW.js games"
 msgstr ""
-"{runtime}, {sdk} y {copy_root_file} solo están disponibles para juegos de "
+"{sdk} y {copy_root_file} solo están disponibles para juegos de "
 "NW.js"
 
-#: src/box/cli/launch.py:197
+#: src/box/cli/launch.py:178
+msgid "Installed EasyRPG Player runtimes (x64):"
+msgstr "Entornos de ejecución de EasyRPG Player instalados (x64):"
+
+#: src/box/cli/launch.py:184
+#, python-brace-format
+msgid "Select an EasyRPG Player runtime 1-{count} (default 1), or [q]uit: "
+msgstr ""
+"Selecciona un entorno de ejecución de EasyRPG Player 1-{count} "
+"(predeterminado 1) o [q] salir: "
+
+#: src/box/cli/launch.py:189 src/box/cli/launch.py:193
+#: src/box/cli/launch.py:229 src/box/cli/launch.py:233
+msgid "runtime selection was cancelled"
+msgstr "se canceló la selección del entorno de ejecución"
+
+#: src/box/cli/launch.py:215
+#, python-brace-format
+msgid "Installed NW.js runtimes ({architecture}, {flavor}):"
+msgstr "Entornos de ejecución de NW.js instalados ({architecture}, {flavor}):"
+
+#: src/box/cli/launch.py:224
+#, python-brace-format
+msgid "Select an NW.js runtime 1-{count} (default 1), or [q]uit: "
+msgstr ""
+"Selecciona un entorno de ejecución de NW.js 1-{count} (predeterminado 1) o "
+"[q] salir: "
+
+#: src/box/cli/launch.py:269
 #, python-brace-format
 msgid "Add {path} to allowed game roots? [y/N] "
 msgstr "¿Agregar {path} a las raíces de juego permitidas? [y/N] "
 
-#: src/box/cli/launch.py:205 src/box/cli/launch.py:207
+#: src/box/cli/launch.py:277 src/box/cli/launch.py:279
 msgid "game root was not authorized"
 msgstr "la raíz del juego no fue autorizada"
 
@@ -613,6 +546,34 @@ msgstr "error"
 #, python-brace-format
 msgid "unsupported command: {command}"
 msgstr "comando no compatible: {command}"
+
+#: src/box/cli/menu.py:32
+msgid "(no entries)"
+msgstr "(sin entradas)"
+
+#: src/box/cli/menu.py:40
+#, python-brace-format
+msgid "{title} (page {page}/{total_pages}):"
+msgstr "{title} (página {page}/{total_pages}):"
+
+#: src/box/cli/menu.py:46
+msgid "Select 1-10, [n]ext, [p]revious"
+msgstr "Selecciona 1-10, [n] siguiente, [p] anterior"
+
+#: src/box/cli/menu.py:48
+msgid ", [a]ll"
+msgstr ", [a] todos"
+
+#: src/box/cli/menu.py:49
+msgid ", or [q]uit: "
+msgstr ", o [q] salir: "
+
+#: src/box/cli/menu.py:53 src/box/cli/runtime.py:84 src/box/cli/runtime.py:87
+#: src/box/cli/runtime.py:94 src/box/cli/runtime.py:123
+#: src/box/cli/runtime.py:217 src/box/cli/runtime.py:220
+#: src/box/cli/runtime.py:227 src/box/cli/runtime.py:248
+msgid "Selection cancelled."
+msgstr "Selección cancelada."
 
 #: src/box/cli/parser.py:15
 msgid "Launch RPG Maker games with managed NW.js or EasyRPG Player runtimes."
@@ -673,8 +634,8 @@ msgid "list online NW.js versions"
 msgstr "muestra las versiones de NW.js disponibles en línea"
 
 #: src/box/cli/parser.py:63
-msgid "online version page (five versions)"
-msgstr "página de versiones en línea (cinco versiones)"
+msgid "online version page (ten versions)"
+msgstr "página de versiones en línea (diez versiones)"
 
 #: src/box/cli/parser.py:66 src/box/cli/parser.py:87
 msgid "select and install a version"
@@ -758,6 +719,85 @@ msgstr ""
 #: src/box/cli/parser.py:127
 msgid "print a local diagnostic report"
 msgstr "imprime un informe de diagnóstico local"
+
+#: src/box/cli/runtime.py:30
+msgid "no NW.js runtimes installed"
+msgstr "no hay entornos de ejecución de NW.js instalados"
+
+#: src/box/cli/runtime.py:43
+#, python-brace-format
+msgid "installed {version} ({flavor}) at {path}"
+msgstr "se instaló {version} ({flavor}) en {path}"
+
+#: src/box/cli/runtime.py:80 src/box/cli/runtime.py:213
+#, python-brace-format
+msgid "Could not load the version list: {error}"
+msgstr "No se pudo cargar la lista de versiones: {error}"
+
+#: src/box/cli/runtime.py:82 src/box/cli/runtime.py:215
+msgid "[r]etry this page, or [q]uit: "
+msgstr "[r] Reintentar esta página o [q] salir: "
+
+#: src/box/cli/runtime.py:92 src/box/cli/runtime.py:225
+msgid "Select 1-10, [n]ext, [p]revious, or [q]uit: "
+msgstr "Selecciona 1-10, [n] siguiente, [p] anterior o [q] salir: "
+
+#: src/box/cli/runtime.py:115
+#, python-brace-format
+msgid "Install NW.js {version} for {architecture}? [y/N] "
+msgstr "¿Instalar NW.js {version} para {architecture}? [y/N] "
+
+#: src/box/cli/runtime.py:126 src/box/cli/runtime.py:258
+msgid "Installation cancelled."
+msgstr "Instalación cancelada."
+
+#: src/box/cli/runtime.py:141
+#, python-brace-format
+msgid "Available NW.js versions (page {page}, {architecture}, {flavor}):"
+msgstr ""
+"Versiones disponibles de NW.js (página {page}, {architecture}, {flavor}):"
+
+#: src/box/cli/runtime.py:146
+msgid "  (no stable versions on this page)"
+msgstr "  (no hay versiones estables en esta página)"
+
+#: src/box/cli/runtime.py:152
+#, python-brace-format
+msgid "Install with: {command}"
+msgstr "Instala con: {command}"
+
+#: src/box/cli/runtime.py:168
+#, python-brace-format
+msgid "removed {version}"
+msgstr "se eliminó {version}"
+
+#: src/box/cli/runtime.py:178
+msgid "no EasyRPG Player runtimes installed"
+msgstr "no hay entornos de ejecución de EasyRPG Player instalados"
+
+#: src/box/cli/runtime.py:185 src/box/cli/runtime.py:253
+#, python-brace-format
+msgid "installed EasyRPG Player {version} at {path}"
+msgstr "se instaló EasyRPG Player {version} en {path}"
+
+#: src/box/cli/runtime.py:192
+#, python-brace-format
+msgid "removed EasyRPG Player {version}"
+msgstr "se eliminó EasyRPG Player {version}"
+
+#: src/box/cli/runtime.py:243
+#, python-brace-format
+msgid "Install EasyRPG Player {version} for x64? [y/N] "
+msgstr "¿Instalar EasyRPG Player {version} para x64? [y/N] "
+
+#: src/box/cli/runtime.py:263
+#, python-brace-format
+msgid "Available EasyRPG Player versions (page {page}, x64):"
+msgstr "Versiones disponibles de EasyRPG Player (página {page}, x64):"
+
+#: src/box/cli/runtime.py:265
+msgid "  (no versions on this page)"
+msgstr "  (no hay versiones en esta página)"
 
 #: src/box/config/reader.py:36
 msgid "configuration has unsafe type, ownership or permissions"
@@ -935,6 +975,15 @@ msgstr "no se puede extraer el archivo de NW.js: {error}"
 msgid "cannot validate extracted NW.js runtime: {error}"
 msgstr "no se puede validar el entorno de ejecución de NW.js extraído: {error}"
 
+#: src/box/runtime/authenticity.py:41
+#, python-brace-format
+msgid ""
+"Warning: NW.js {url} is NOT VERIFIED: official signature returned HTTP 404; "
+"relying on HTTPS only."
+msgstr ""
+"Advertencia: NW.js {url} NO ESTÁ VERIFICADO: la firma oficial devolvió HTTP "
+"404; se usa solo HTTPS."
+
 #: src/box/runtime/available.py:50
 msgid "runtime version page must be at least 1"
 msgstr "la página de versiones del entorno de ejecución debe ser al menos 1"
@@ -973,6 +1022,40 @@ msgid "cannot securely open managed runtime directory: {error}"
 msgstr ""
 "no se puede abrir de forma segura el directorio de entorno de ejecución "
 "gestionado: {error}"
+
+#: src/box/runtime/downloader.py:115
+#, python-brace-format
+msgid "cannot securely install NW.js runtime: {error}"
+msgstr ""
+"no se puede instalar de forma segura el entorno de ejecución de NW.js: "
+"{error}"
+
+#: src/box/runtime/downloader.py:195
+#, python-brace-format
+msgid "cannot download NW.js from {url}: {error}"
+msgstr "no se puede descargar NW.js desde {url}: {error}"
+
+#: src/box/runtime/downloader.py:200 src/box/runtime/downloader.py:208
+#, python-brace-format
+msgid "cannot download NW.js from {url} after {attempt} attempts: {error}"
+msgstr ""
+"no se puede descargar NW.js desde {url} después de {attempt} intentos: "
+"{error}"
+
+#: src/box/runtime/downloader.py:246
+#, python-brace-format
+msgid "NW.js download returned unexpected HTTP status {status}"
+msgstr "la descarga de NW.js devolvió el estado HTTP inesperado {status}"
+
+#: src/box/runtime/downloader.py:338
+#, python-brace-format
+msgid "Downloading NW.js: [{bar}] {percentage:3d}%"
+msgstr "Descargando NW.js: [{bar}] {percentage:3d}%"
+
+#: src/box/runtime/downloader.py:352
+#, python-brace-format
+msgid "refusing unsafe download path: {name}"
+msgstr "se rechaza una ruta de descarga no segura: {name}"
 
 #: src/box/runtime/downloads.py:46 src/box/runtime/downloads.py:55
 #, python-brace-format
@@ -1059,7 +1142,7 @@ msgstr ""
 "arquitectura de NW.js no compatible {architecture!r}; se esperaba una de: "
 "{supported}"
 
-#: src/box/runtime/selector.py:28
+#: src/box/runtime/selector.py:37
 msgid ""
 "no matching NW.js runtime is installed; run 'box-rpg runtime nwjs available "
 "--interactive'"
@@ -1081,49 +1164,6 @@ msgstr ""
 msgid "invalid NW.js runtime; executable is missing: nw"
 msgstr "entorno de ejecución de NW.js no válido; falta el ejecutable: nw"
 
-#: src/box/runtime/authenticity.py:41
-#, python-brace-format
-msgid ""
-"Warning: NW.js {url} is NOT VERIFIED: official signature returned HTTP 404; "
-"relying on HTTPS only."
-msgstr ""
-"Advertencia: NW.js {url} NO ESTÁ VERIFICADO: la firma oficial devolvió HTTP "
-"404; se usa solo HTTPS."
-
-#: src/box/runtime/downloader.py:115
-#, python-brace-format
-msgid "cannot securely install NW.js runtime: {error}"
-msgstr ""
-"no se puede instalar de forma segura el entorno de ejecución de NW.js: "
-"{error}"
-
-#: src/box/runtime/downloader.py:189
-#, python-brace-format
-msgid "cannot download NW.js from {url}: {error}"
-msgstr "no se puede descargar NW.js desde {url}: {error}"
-
-#: src/box/runtime/downloader.py:193 src/box/runtime/downloader.py:201
-#, python-brace-format
-msgid "cannot download NW.js from {url} after {attempt} attempts: {error}"
-msgstr ""
-"no se puede descargar NW.js desde {url} después de {attempt} intentos: "
-"{error}"
-
-#: src/box/runtime/downloader.py:237
-#, python-brace-format
-msgid "NW.js download returned unexpected HTTP status {status}"
-msgstr "la descarga de NW.js devolvió el estado HTTP inesperado {status}"
-
-#: src/box/runtime/downloader.py:303
-#, python-brace-format
-msgid "Downloading NW.js: [{bar}] {percentage:3d}%"
-msgstr "Descargando NW.js: [{bar}] {percentage:3d}%"
-
-#: src/box/runtime/downloader.py:317
-#, python-brace-format
-msgid "refusing unsafe download path: {name}"
-msgstr "se rechaza una ruta de descarga no segura: {name}"
-
 #: src/box/launch/cleanup.py:31 src/box/launch/cleanup.py:35
 #, python-brace-format
 msgid "refusing to remove invalid session path: {path}"
@@ -1138,66 +1178,6 @@ msgstr "la ruta de sesión cambió antes de la limpieza: {path}"
 #, python-brace-format
 msgid "cannot remove launch session {path}: {error}"
 msgstr "no se puede eliminar la sesión de inicio {path}: {error}"
-
-#: src/box/launch/manifest.py:105
-msgid "a NW.js launch session requires a web game manifest and entrypoint"
-msgstr ""
-"una sesión de inicio de NW.js requiere un manifiesto del juego web y un "
-"punto de entrada"
-
-#: src/box/launch/manifest.py:132 src/box/launch/manifest.py:139
-#, python-brace-format
-msgid "cannot write session manifest: {error}"
-msgstr "no se puede escribir el manifiesto de sesión: {error}"
-
-#: src/box/launch/manifest.py:142
-#, python-brace-format
-msgid "cannot create session manifest: {error}"
-msgstr "no se puede crear el manifiesto de sesión: {error}"
-
-#: src/box/launch/manifest.py:165
-msgid "game manifest must be in the game root"
-msgstr "el manifiesto del juego debe estar en la raíz del juego"
-
-#: src/box/launch/manifest.py:172
-#, python-brace-format
-msgid "cannot read game manifest {manifest}: {error}"
-msgstr "no se puede leer el manifiesto del juego {manifest}: {error}"
-
-#: src/box/launch/manifest.py:178
-#, python-brace-format
-msgid "game manifest is not a JSON object: {manifest}"
-msgstr "el manifiesto del juego no es un objeto JSON: {manifest}"
-
-#: src/box/launch/profiles.py:33 src/box/launch/session.py:192
-#, python-brace-format
-msgid "cannot identify game root {root}: {error}"
-msgstr "no se puede identificar la raíz del juego {root}: {error}"
-
-#: src/box/launch/profiles.py:58 src/box/launch/profiles.py:86
-#, python-brace-format
-msgid "game profile directory is missing or unsafe: {path}"
-msgstr "el directorio del perfil del juego no existe o no es seguro: {path}"
-
-#: src/box/launch/profiles.py:67
-#, python-brace-format
-msgid "invalid game profile identifier: {identifier}"
-msgstr "identificador del perfil del juego no válido: {identifier}"
-
-#: src/box/launch/profiles.py:76
-#, python-brace-format
-msgid "invalid game profile directory: {path}"
-msgstr "directorio del perfil del juego no válido: {path}"
-
-#: src/box/launch/profiles.py:81
-#, python-brace-format
-msgid "refusing to manage unexpected game profile path: {path}"
-msgstr "se rechaza gestionar una ruta inesperada del perfil del juego: {path}"
-
-#: src/box/launch/profiles.py:102
-#, python-brace-format
-msgid "cannot securely open managed profiles: {error}"
-msgstr "no se pueden abrir de forma segura los perfiles gestionados: {error}"
 
 #: src/box/launch/links.py:22
 #, python-brace-format
@@ -1238,10 +1218,70 @@ msgid "cannot copy game-root file into session: {error}"
 msgstr ""
 "no se puede copiar el archivo de la raíz del juego a la sesión: {error}"
 
+#: src/box/launch/manifest.py:105
+msgid "a NW.js launch session requires a web game manifest and entrypoint"
+msgstr ""
+"una sesión de inicio de NW.js requiere un manifiesto del juego web y un "
+"punto de entrada"
+
+#: src/box/launch/manifest.py:132 src/box/launch/manifest.py:139
+#, python-brace-format
+msgid "cannot write session manifest: {error}"
+msgstr "no se puede escribir el manifiesto de sesión: {error}"
+
+#: src/box/launch/manifest.py:142
+#, python-brace-format
+msgid "cannot create session manifest: {error}"
+msgstr "no se puede crear el manifiesto de sesión: {error}"
+
+#: src/box/launch/manifest.py:165
+msgid "game manifest must be in the game root"
+msgstr "el manifiesto del juego debe estar en la raíz del juego"
+
+#: src/box/launch/manifest.py:172
+#, python-brace-format
+msgid "cannot read game manifest {manifest}: {error}"
+msgstr "no se puede leer el manifiesto del juego {manifest}: {error}"
+
+#: src/box/launch/manifest.py:178
+#, python-brace-format
+msgid "game manifest is not a JSON object: {manifest}"
+msgstr "el manifiesto del juego no es un objeto JSON: {manifest}"
+
 #: src/box/launch/process.py:33
 #, python-brace-format
 msgid "cannot start game runtime: {error}"
 msgstr "no se puede iniciar el entorno de ejecución del juego: {error}"
+
+#: src/box/launch/profiles.py:33 src/box/launch/session.py:192
+#, python-brace-format
+msgid "cannot identify game root {root}: {error}"
+msgstr "no se puede identificar la raíz del juego {root}: {error}"
+
+#: src/box/launch/profiles.py:58 src/box/launch/profiles.py:86
+#, python-brace-format
+msgid "game profile directory is missing or unsafe: {path}"
+msgstr "el directorio del perfil del juego no existe o no es seguro: {path}"
+
+#: src/box/launch/profiles.py:67
+#, python-brace-format
+msgid "invalid game profile identifier: {identifier}"
+msgstr "identificador del perfil del juego no válido: {identifier}"
+
+#: src/box/launch/profiles.py:76
+#, python-brace-format
+msgid "invalid game profile directory: {path}"
+msgstr "directorio del perfil del juego no válido: {path}"
+
+#: src/box/launch/profiles.py:81
+#, python-brace-format
+msgid "refusing to manage unexpected game profile path: {path}"
+msgstr "se rechaza gestionar una ruta inesperada del perfil del juego: {path}"
+
+#: src/box/launch/profiles.py:102
+#, python-brace-format
+msgid "cannot securely open managed profiles: {error}"
+msgstr "no se pueden abrir de forma segura los perfiles gestionados: {error}"
 
 #: src/box/launch/session.py:137
 #, python-brace-format

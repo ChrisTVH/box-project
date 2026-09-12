@@ -28,6 +28,10 @@ without a documented decision.
 
 Configuration examples belong in `res/config/`; shell completions belong in
 `res/completions/`; longer user guidance belongs in `docs/`.
+When shell completions change, pin the replaced official bytes in
+`PREVIOUS_COMPLETION_HASHES` (`install.py`) so upgrades from intermediate
+releases still migrate instead of being refused as foreign; extend the
+reversal chain in `tests/test_install.py` to reconstruct them exactly.
 
 ## Internationalization
 

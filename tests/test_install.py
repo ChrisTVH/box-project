@@ -682,23 +682,31 @@ def test_verified_uninstall_uses_pip_and_safe_completion_removal(
 # Pinned pre-change completions from d28845f, before --allow-network was added.
 # Derive them from the current files with an exact, hash-checked reversal so the
 # migration tests never silently skip when the Git object is unavailable. Any
-# future completion change must update this reversal and its reviewed hashes.
-_HISTORICAL_COMPLETION_REVERSALS: dict[str, tuple[bytes, bytes]] = {
+# future completion change must extend the chain below and keep the reviewed
+# hashes in PREVIOUS_COMPLETION_HASHES matching.
+_HISTORICAL_COMPLETION_REVERSALS: dict[str, tuple[tuple[bytes, bytes], ...]] = {
     "box-rpg.bash": (
-        b"--copy-root-file --allow-network --allow-game-writes --help",
-        b"--copy-root-file --help",
+        (
+            b"--copy-root-file --allow-network --allow-game-writes --help",
+            b"--copy-root-file --help",
+        ),
     ),
     "box-rpg.fish": (
-        b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-network"
-        b" -d 'Allow host network access for this launch only'\n"
-        b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-game-writes"
-        b" -d 'Allow game directory writes for this launch only'\n",
-        b"",
+        (
+            b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-network"
+            b" -d 'Allow host network access for this launch only'\n"
+            b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-game-writes"
+            b" -d 'Allow game directory writes for this launch only'\n",
+            b"",
+        ),
+        (b"ten-version page", b"five-version page"),
     ),
     "_box-rpg": (
-        b" '--allow-network[allow host network access for this launch only]'"
-        b" '--allow-game-writes[allow game directory writes for this launch only]'",
-        b"",
+        (
+            b" '--allow-network[allow host network access for this launch only]'"
+            b" '--allow-game-writes[allow game directory writes for this launch only]'",
+            b"",
+        ),
     ),
 }
 
@@ -709,8 +717,9 @@ def previous_completion(
 ) -> tuple[Path, Path, bytes]:
     name = str(request.param)
     current = (install.REPO_ROOT / "res/completions" / name).read_bytes()
-    new, old = _HISTORICAL_COMPLETION_REVERSALS[name]
-    previous = current.replace(new, old)
+    previous = current
+    for new, old in _HISTORICAL_COMPLETION_REVERSALS[name]:
+        previous = previous.replace(new, old)
     assert previous != current
     assert hashlib.sha256(previous).hexdigest() in install.PREVIOUS_COMPLETION_HASHES[name]
     home = tmp_path / "home"
@@ -736,6 +745,24 @@ def test_previous_official_completion_upgrade_and_uninstall(
         assert target.read_bytes() == source.read_bytes()
         install.update_completion(source, target, uninstall=True)
         assert not target.exists()
+
+
+def test_intermediate_official_completion_migrates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A shipped official copy newer than the oldest pin still upgrades."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(install.Path, "home", lambda: home)
+    name = "box-rpg.fish"
+    source = tmp_path / name
+    source.write_bytes((install.REPO_ROOT / "res/completions" / name).read_bytes())
+    previous = source.read_bytes().replace(b"ten-version page", b"five-version page")
+    assert hashlib.sha256(previous).hexdigest() in install.PREVIOUS_COMPLETION_HASHES[name]
+    target = home / name
+    target.write_bytes(previous)
+    install.update_completion(source, target)
+    assert target.read_bytes() == source.read_bytes()
 
 
 @pytest.mark.parametrize("uninstall", [False, True])

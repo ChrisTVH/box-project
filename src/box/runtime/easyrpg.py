@@ -26,7 +26,7 @@ from box.runtime.platform import current_architecture
 from box.runtime.security import cache_lock, validate_private_file, validate_runtime_links
 from box.utils.i18n import _
 
-PAGE_SIZE = 5
+PAGE_SIZE = 10
 VERSIONS_INDEX = "https://easyrpg.org/downloads/player/"
 MAX_INDEX_BYTES = 4 * 1024 * 1024
 _OFFICIAL_HOST = "easyrpg.org"
@@ -125,7 +125,7 @@ def fetch_available_versions(page: int) -> AvailableEasyRPGVersions:
 
 
 def parse_available_versions(content: str, page: int) -> AvailableEasyRPGVersions:
-    """Parse one five-item client-side page from a local EasyRPG Player index."""
+    """Parse one ten-item client-side page from a local EasyRPG Player index."""
     _validate_page(page)
     versions = parse_versions(content)
     start = (page - 1) * PAGE_SIZE

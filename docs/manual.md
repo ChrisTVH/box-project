@@ -66,7 +66,14 @@ box-rpg runtime nwjs available --interactive
 ```
 
 Use `n` and `p` to browse version pages, enter a number to choose a version,
-and confirm the installation. NW.js uses the owned Wayland socket selected by
+and confirm the installation.
+
+When several matching runtimes are installed and no version was requested
+(`--runtime`) or preferred (`box-rpg config set preferred-runtime`), an
+interactive launch asks which one to use; empty input keeps the newest.
+Non-interactive launches always use the newest without asking.
+
+NW.js uses the owned Wayland socket selected by
 `WAYLAND_DISPLAY` under `XDG_RUNTIME_DIR`. On X11 the launcher asks first and
 then exposes only the local X socket with `DISPLAY` set. GPU devices under
 `/dev/dri` and your PipeWire audio socket are exposed after validation so games
@@ -113,6 +120,12 @@ explicit X11 consent (as described above) and exposes only the local X socket
 next to the Wayland one, letting SDL negotiate the backend. Without XWayland
 the game cannot open a window; `diagnose` still works because it never opens
 one.
+
+When several player versions are installed, an interactive launch asks which
+one to use; empty input keeps the newest. Non-interactive launches always use
+the newest without asking. Pass an explicit version with
+`box-rpg launch /path/to/game --runtime 0.8.1.1` to skip the question
+(`diagnose` accepts `--runtime` the same way).
 
 To continue older saves, close the game, back up the root-level `Save*.lsd` files,
 and copy them into `<game>/save/` without overwriting newer slots. There is no

@@ -7,7 +7,7 @@ from box.paths import AppPaths
 from box.runtime.available import AvailableVersions, available_url, parse_versions
 
 
-def test_available_url_uses_pages_of_five_versions() -> None:
+def test_available_url_uses_pages_of_ten_versions() -> None:
     assert available_url(2) == "https://dl.nwjs.io/"
 
 
@@ -67,7 +67,7 @@ def test_interactive_selection_installs_the_chosen_version(
     assert any("page 1, x64, standard" in line for line in output)
 
 
-def test_interactive_selection_uses_five_item_pages(
+def test_interactive_selection_uses_ten_item_pages(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from box.cli import runtime
@@ -105,6 +105,83 @@ def test_interactive_selection_handles_end_of_input(
         raise EOFError
 
     monkeypatch.setattr("box.cli.runtime.fetch_available_versions", fetch)
+
+    assert (
+        runtime.select_interactively(paths, 1, "x64", False, read=end_of_input, write=output.append)
+        == 0
+    )
+    assert output[-1] == "Selection cancelled."
+
+
+def test_interactive_selection_retries_a_failed_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from box.cli import runtime
+
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    output: list[str] = []
+    installed: list[str] = []
+    attempts = iter((False, True))
+    choices = iter(("r", "1", "yes"))
+
+    def flaky_fetch(page: int, architecture: str, sdk: bool) -> AvailableVersions:
+        if next(attempts):
+            return AvailableVersions(page=page, versions=("v0.90.0",))
+        raise RuntimeError("connection reset")
+
+    def install_version(_: AppPaths, version: str, architecture: str, sdk: bool) -> int:
+        installed.append(version)
+        return 0
+
+    monkeypatch.setattr("box.cli.runtime.fetch_available_versions", flaky_fetch)
+    monkeypatch.setattr("box.cli.runtime.install", install_version)
+
+    result = runtime.select_interactively(
+        paths, 1, "x64", False, read=lambda _: next(choices), write=output.append
+    )
+
+    assert result == 0
+    assert installed == ["v0.90.0"]
+    assert any("Could not load the version list" in line for line in output)
+
+
+def test_interactive_selection_quits_after_a_failed_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from box.cli import runtime
+
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    output: list[str] = []
+    choices = iter(("q",))
+
+    def failing_fetch(page: int, architecture: str, sdk: bool) -> AvailableVersions:
+        raise RuntimeError("connection reset")
+
+    monkeypatch.setattr("box.cli.runtime.fetch_available_versions", failing_fetch)
+
+    result = runtime.select_interactively(
+        paths, 1, "x64", False, read=lambda _: next(choices), write=output.append
+    )
+
+    assert result == 0
+    assert output[-1] == "Selection cancelled."
+
+
+def test_interactive_selection_handles_end_of_input_on_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from box.cli import runtime
+
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    output: list[str] = []
+
+    def failing_fetch(page: int, architecture: str, sdk: bool) -> AvailableVersions:
+        raise RuntimeError("connection reset")
+
+    def end_of_input(_: str) -> str:
+        raise EOFError
+
+    monkeypatch.setattr("box.cli.runtime.fetch_available_versions", failing_fetch)
 
     assert (
         runtime.select_interactively(paths, 1, "x64", False, read=end_of_input, write=output.append)

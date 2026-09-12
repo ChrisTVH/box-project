@@ -13,6 +13,7 @@ from box.launch.sandbox import Sandbox
 from box.models import EngineName, GameInfo, RuntimeInfo, RuntimeSpec
 from box.paths import AppPaths
 from box.runtime.easyrpg import EasyRPGRuntime
+from box.runtime.platform import current_architecture
 
 
 def test_authorize_game_registers_the_detected_game_root_after_confirmation(
@@ -1027,3 +1028,372 @@ def test_execute_easyrpg_extra_x11_consent(
         with pytest.raises(GameValidationError):
             execute(paths, repository, game_root, None, False)
         assert x11_calls == []
+
+
+def _prepare_runtime_choice_game(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    versions: tuple[str, ...],
+    answers: list[str],
+    *,
+    tty: bool = True,
+) -> tuple[AppPaths, ConfigRepository, GameInfo, list[Path]]:
+    """Fake an NW.js game with installed runtimes and scripted terminal input."""
+    root = tmp_path / "game"
+    root.mkdir()
+    (root / "index.html").write_text("fixture")
+    (root / "package.json").write_text('{"name": "fixture"}')
+    game = GameInfo(EngineName.RPG_MAKER_MZ, root, root / "index.html", root / "package.json")
+    architecture = current_architecture()
+    binaries: list[Path] = []
+    for version in versions:
+        binary = (
+            tmp_path
+            / "cache"
+            / "runtimes"
+            / "nwjs"
+            / f"linux-{architecture}"
+            / f"standard-{version}"
+            / "nw"
+        )
+        binary.parent.mkdir(parents=True)
+        binary.write_text("#!/bin/sh\n")
+        binary.chmod(0o700)
+        binaries.append(binary)
+    paths = AppPaths(tmp_path / "config", tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(root)
+
+    def detect(_: Path, __: EngineRegistry) -> GameInfo:
+        return game
+
+    def desktop(_: Sandbox) -> None:
+        pass
+
+    def devices(_: Sandbox) -> None:
+        pass
+
+    def audio(_: Sandbox) -> None:
+        pass
+
+    remaining = list(answers)
+
+    def confirm(prompt: str) -> str:
+        assert remaining, f"unexpected prompt: {prompt}"
+        return remaining.pop(0)
+
+    def stdin_is_tty() -> bool:
+        return tty
+
+    def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect)
+    monkeypatch.setattr(Sandbox, "desktop", desktop)
+    monkeypatch.setattr(Sandbox, "devices", devices)
+    monkeypatch.setattr(Sandbox, "audio", audio)
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("sys.stdin.isatty", stdin_is_tty)
+    monkeypatch.setattr("builtins.input", confirm)
+    return paths, repository, game, binaries
+
+
+def _record_selected_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[Path]:
+    seen: list[Path] = []
+
+    def fake_runtime(self: Sandbox, executable: Path) -> str:
+        seen.append(executable)
+        return "/runtime/nw"
+
+    monkeypatch.setattr(Sandbox, "runtime", fake_runtime)
+    return seen
+
+
+@pytest.mark.parametrize(
+    ("answers", "selected"),
+    [(["2"], 1), ([""], 0), (["9", "x", "1"], 0)],
+)
+def test_execute_launch_prompts_for_runtime_choice(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    answers: list[str],
+    selected: int,
+) -> None:
+    versions = ("v0.115.0", "v0.112.0")
+    paths, repository, game, binaries = _prepare_runtime_choice_game(
+        tmp_path, monkeypatch, versions, answers
+    )
+    seen = _record_selected_runtime(monkeypatch)
+
+    assert execute(paths, repository, game.root, None, False) == 0
+    assert seen == [binaries[selected]]
+    output = capsys.readouterr().out
+    assert "Installed NW.js runtimes" in output
+    assert "  1. v0.115.0" in output
+    assert "  2. v0.112.0" in output
+    if len(answers) > 1:
+        assert "Invalid selection." in output
+
+
+@pytest.mark.parametrize("answer", ["q", "Q"])
+def test_execute_launch_runtime_decline_aborts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, answer: str
+) -> None:
+    paths, repository, game, _binaries = _prepare_runtime_choice_game(
+        tmp_path, monkeypatch, ("v0.115.0", "v0.112.0"), [answer]
+    )
+    seen = _record_selected_runtime(monkeypatch)
+
+    with pytest.raises(GameValidationError, match="cancelled"):
+        execute(paths, repository, game.root, None, False)
+    assert seen == []
+
+
+def test_execute_launch_runtime_end_of_input_aborts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths, repository, game, _binaries = _prepare_runtime_choice_game(
+        tmp_path, monkeypatch, ("v0.115.0", "v0.112.0"), []
+    )
+
+    def missing(prompt: str) -> str:
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", missing)
+
+    with pytest.raises(GameValidationError, match="cancelled"):
+        execute(paths, repository, game.root, None, False)
+
+
+def test_execute_launch_skips_prompt_with_single_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths, repository, game, binaries = _prepare_runtime_choice_game(
+        tmp_path, monkeypatch, ("v0.115.0",), []
+    )
+    seen = _record_selected_runtime(monkeypatch)
+
+    assert execute(paths, repository, game.root, None, False) == 0
+    assert seen == [binaries[0]]
+
+
+def test_execute_launch_skips_prompt_with_explicit_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths, repository, game, binaries = _prepare_runtime_choice_game(
+        tmp_path, monkeypatch, ("v0.115.0", "v0.112.0"), []
+    )
+    seen = _record_selected_runtime(monkeypatch)
+
+    assert execute(paths, repository, game.root, "v0.112.0", False) == 0
+    assert seen == [binaries[1]]
+
+
+def test_execute_launch_skips_prompt_with_preferred_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths, repository, game, binaries = _prepare_runtime_choice_game(
+        tmp_path, monkeypatch, ("v0.115.0", "v0.112.0"), []
+    )
+    repository.save(AppConfig(allowed_game_roots=(game.root,), preferred_runtime="v0.112.0"))
+    seen = _record_selected_runtime(monkeypatch)
+
+    assert execute(paths, repository, game.root, None, False) == 0
+    assert seen == [binaries[1]]
+
+
+def test_execute_launch_skips_prompt_without_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths, repository, game, binaries = _prepare_runtime_choice_game(
+        tmp_path, monkeypatch, ("v0.115.0", "v0.112.0"), [], tty=False
+    )
+    seen = _record_selected_runtime(monkeypatch)
+
+    assert execute(paths, repository, game.root, None, False) == 0
+    assert seen == [binaries[0]]
+
+
+def _prepare_easyrpg_choice_game(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    versions: tuple[str, ...],
+    answers: list[str],
+    *,
+    tty: bool = True,
+) -> tuple[AppPaths, ConfigRepository, GameInfo, list[Path], list[list[str]]]:
+    """Fake a 2000/2003 game with installed players and scripted terminal input."""
+    from box.runtime.easyrpg import EasyRPGCatalog
+
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    game = GameInfo(EngineName.RPG_MAKER_2000_2003, game_root)
+    binaries: list[Path] = []
+    for version in versions:
+        binary = tmp_path / "cache" / "runtimes" / "easyrpg" / version / "easyrpg-player"
+        binary.parent.mkdir(parents=True)
+        binary.write_text("#!/bin/sh\n")
+        binary.chmod(0o700)
+        binaries.append(binary)
+    paths = AppPaths(tmp_path / "config", tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(game_root)
+    candidates = [runtime.root / "easyrpg-player" for runtime in EasyRPGCatalog(paths).list()]
+
+    def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
+        return game
+
+    def desktop(_: Sandbox) -> None:
+        pass
+
+    def devices(_: Sandbox) -> None:
+        pass
+
+    def audio(_: Sandbox) -> None:
+        pass
+
+    remaining = list(answers)
+
+    def confirm(prompt: str) -> str:
+        assert remaining, f"unexpected prompt: {prompt}"
+        return remaining.pop(0)
+
+    def stdin_is_tty() -> bool:
+        return tty
+
+    launched: list[list[str]] = []
+
+    def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
+        launched.append(command)
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
+    monkeypatch.setattr(Sandbox, "desktop", desktop)
+    monkeypatch.setattr(Sandbox, "devices", devices)
+    monkeypatch.setattr(Sandbox, "audio", audio)
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("sys.stdin.isatty", stdin_is_tty)
+    monkeypatch.setattr("builtins.input", confirm)
+    # Hermetic display: the extra-X11 consent reads the real DISPLAY.
+    monkeypatch.delenv("DISPLAY", raising=False)
+    return paths, repository, game, candidates, launched
+
+
+@pytest.mark.parametrize(
+    ("answers", "selected"),
+    [(["2"], 1), ([""], 0), (["9", "x", "1"], 0)],
+)
+def test_execute_easyrpg_prompts_for_player_choice(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    answers: list[str],
+    selected: int,
+) -> None:
+    paths, repository, game, candidates, launched = _prepare_easyrpg_choice_game(
+        tmp_path, monkeypatch, ("0.8.1.1", "0.8"), answers
+    )
+    seen: list[Path] = []
+
+    def fake_runtime(self: Sandbox, executable: Path) -> str:
+        seen.append(executable)
+        return "/runtime/easyrpg-player"
+
+    monkeypatch.setattr(Sandbox, "runtime", fake_runtime)
+
+    assert execute(paths, repository, game.root, None, False) == 0
+    assert len(launched) == 1
+    assert seen == [candidates[selected]]
+    output = capsys.readouterr().out
+    assert "Installed EasyRPG Player runtimes (x64):" in output
+    assert "  1. 0.8.1.1" in output
+    assert "  2. 0.8" in output
+    if len(answers) > 1:
+        assert "Invalid selection." in output
+
+
+@pytest.mark.parametrize("answer", ["q", "Q"])
+def test_execute_easyrpg_player_decline_aborts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, answer: str
+) -> None:
+    paths, repository, game, _candidates, launched = _prepare_easyrpg_choice_game(
+        tmp_path, monkeypatch, ("0.8.1.1", "0.8"), [answer]
+    )
+
+    with pytest.raises(GameValidationError, match="cancelled"):
+        execute(paths, repository, game.root, None, False)
+    assert launched == []
+
+
+def test_execute_easyrpg_player_end_of_input_aborts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths, repository, game, _candidates, launched = _prepare_easyrpg_choice_game(
+        tmp_path, monkeypatch, ("0.8.1.1", "0.8"), []
+    )
+
+    def missing(prompt: str) -> str:
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", missing)
+
+    with pytest.raises(GameValidationError, match="cancelled"):
+        execute(paths, repository, game.root, None, False)
+    assert launched == []
+
+
+def test_execute_easyrpg_skips_prompt_with_single_player(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths, repository, game, _candidates, launched = _prepare_easyrpg_choice_game(
+        tmp_path, monkeypatch, ("0.8.1.1",), []
+    )
+
+    assert execute(paths, repository, game.root, None, False) == 0
+    assert len(launched) == 1
+
+
+def test_execute_easyrpg_skips_prompt_without_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths, repository, game, candidates, launched = _prepare_easyrpg_choice_game(
+        tmp_path, monkeypatch, ("0.8.1.1", "0.8"), [], tty=False
+    )
+
+    assert execute(paths, repository, game.root, None, False) == 0
+    assert len(launched) == 1
+    assert candidates[0].name == "easyrpg-player"
+
+
+def test_execute_easyrpg_uses_explicit_version_without_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths, repository, game, candidates, launched = _prepare_easyrpg_choice_game(
+        tmp_path, monkeypatch, ("0.8.1.1", "0.8"), []
+    )
+    seen: list[Path] = []
+
+    def fake_runtime(self: Sandbox, executable: Path) -> str:
+        seen.append(executable)
+        return "/runtime/easyrpg-player"
+
+    monkeypatch.setattr(Sandbox, "runtime", fake_runtime)
+
+    assert execute(paths, repository, game.root, "0.8", False) == 0
+    assert len(launched) == 1
+    assert seen == [candidates[1]]
+
+
+def test_execute_easyrpg_rejects_unknown_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths, repository, game, _candidates, launched = _prepare_easyrpg_choice_game(
+        tmp_path, monkeypatch, ("0.8.1.1",), []
+    )
+
+    with pytest.raises(RuntimeError, match="not installed"):
+        execute(paths, repository, game.root, "0.7.0", False)
+    assert launched == []

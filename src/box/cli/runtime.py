@@ -5,6 +5,7 @@ from __future__ import annotations
 from argparse import Namespace
 from collections.abc import Callable
 
+from box.errors import RuntimeError
 from box.paths import AppPaths
 from box.runtime.available import AvailableVersions, fetch_available_versions
 from box.runtime.catalog import RuntimeCatalog
@@ -70,13 +71,25 @@ def select_interactively(
     read: Callable[[str], str] = input,
     write: Callable[[str], None] = print,
 ) -> int:
-    """Browse five online versions per page and install a confirmed selection."""
+    """Browse ten online versions per page and install a confirmed selection."""
     page = initial_page
     while True:
-        available_versions = fetch_available_versions(page, architecture, sdk)
+        try:
+            available_versions = fetch_available_versions(page, architecture, sdk)
+        except RuntimeError as exc:
+            write(_("Could not load the version list: {error}").format(error=exc))
+            try:
+                retry = read(_("[r]etry this page, or [q]uit: ")).strip().lower()
+            except EOFError:
+                write(_("Selection cancelled."))
+                return 0
+            if retry == "q":
+                write(_("Selection cancelled."))
+                return 0
+            continue
         _print_available(available_versions, architecture, sdk, write)
         try:
-            action = read(_("Select 1-5, [n]ext, [p]revious, or [q]uit: ")).strip().lower()
+            action = read(_("Select 1-10, [n]ext, [p]revious, or [q]uit: ")).strip().lower()
         except EOFError:
             write(_("Selection cancelled."))
             return 0
@@ -181,19 +194,37 @@ def easyrpg(paths: AppPaths, action: str, arguments: Namespace) -> int:
     return _easyrpg_available(paths, arguments.page, arguments.interactive)
 
 
-def _easyrpg_available(paths: AppPaths, page: int, interactive: bool) -> int:
+def _easyrpg_available(
+    paths: AppPaths,
+    page: int,
+    interactive: bool,
+    read: Callable[[str], str] = input,
+    write: Callable[[str], None] = print,
+) -> int:
     """List online EasyRPG Player releases or choose one to install."""
     if not interactive:
         _print_easyrpg_versions(fetch_easyrpg_versions(page))
         return 0
     current_page = page
     while True:
-        versions = fetch_easyrpg_versions(current_page)
+        try:
+            versions = fetch_easyrpg_versions(current_page)
+        except RuntimeError as exc:
+            write(_("Could not load the version list: {error}").format(error=exc))
+            try:
+                retry = read(_("[r]etry this page, or [q]uit: ")).strip().lower()
+            except EOFError:
+                write(_("Selection cancelled."))
+                return 0
+            if retry == "q":
+                write(_("Selection cancelled."))
+                return 0
+            continue
         _print_easyrpg_versions(versions)
         try:
-            action = input(_("Select 1-5, [n]ext, [p]revious, or [q]uit: ")).strip().lower()
+            action = read(_("Select 1-10, [n]ext, [p]revious, or [q]uit: ")).strip().lower()
         except EOFError:
-            print(_("Selection cancelled."))
+            write(_("Selection cancelled."))
             return 0
         if action == "q":
             return 0
@@ -204,27 +235,27 @@ def _easyrpg_available(paths: AppPaths, page: int, interactive: bool) -> int:
             current_page = max(1, current_page - 1)
             continue
         if not action.isdigit() or not 1 <= int(action) <= len(versions.versions):
-            print(_("Invalid selection."))
+            write(_("Invalid selection."))
             continue
         version = versions.versions[int(action) - 1]
         try:
             confirmation = (
-                input(_("Install EasyRPG Player {version} for x64? [y/N] ").format(version=version))
+                read(_("Install EasyRPG Player {version} for x64? [y/N] ").format(version=version))
                 .strip()
                 .lower()
             )
         except EOFError:
-            print(_("Selection cancelled."))
+            write(_("Selection cancelled."))
             return 0
         if confirmation in {"y", "yes"}:
             runtime = install_easyrpg_runtime(paths, version)
-            print(
+            write(
                 _("installed EasyRPG Player {version} at {path}").format(
                     version=runtime.version, path=runtime.root
                 )
             )
             return 0
-        print(_("Installation cancelled."))
+        write(_("Installation cancelled."))
 
 
 def _print_easyrpg_versions(versions: AvailableEasyRPGVersions) -> None:

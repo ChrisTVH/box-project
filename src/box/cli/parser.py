@@ -60,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     nwjs_commands.add_parser("list", help=_("list installed NW.js runtimes"))
     available = nwjs_commands.add_parser("available", help=_("list online NW.js versions"))
     available.add_argument(
-        "--page", type=int, default=1, help=_("online version page (five versions)")
+        "--page", type=int, default=1, help=_("online version page (ten versions)")
     )
     available.add_argument(
         "--interactive", action="store_true", help=_("select and install a version")

@@ -36,11 +36,18 @@ INIT_PY = REPO_ROOT / "src/box/__init__.py"
 BWRAP = Path("/usr/bin/bwrap")
 GPG = Path("/usr/bin/gpg")
 
-# Official completions from d28845f2a6aa7053a117b0d2ee71dae214b45f38.
-# Add only reviewed release artifacts here when completions change.
+# Previously shipped official completions, by content hash.
+# Add only reviewed release artifacts here when completions change, otherwise
+# upgrades from an intermediate official copy are refused as foreign.
 PREVIOUS_COMPLETION_HASHES: dict[str, frozenset[str]] = {
     "box-rpg.bash": frozenset({"1203e09485bdad9cdfaf26f501e651c5658be2d4fcb5ea51e62ad6a13d3c0731"}),
-    "box-rpg.fish": frozenset({"1807f59915eb0d07bc355761d5050adc129d4c831c52070068cf911a51210cb2"}),
+    "box-rpg.fish": frozenset(
+        {
+            "1807f59915eb0d07bc355761d5050adc129d4c831c52070068cf911a51210cb2",
+            # 1084e65: identical except "five-version page".
+            "727ecbaf346ad3aefd5a3b34a235d7947db6ff3182f3d0b2315a6b550dfce10f",
+        }
+    ),
     "_box-rpg": frozenset({"cc9b852afe34240e453fe23f70c9673b6f9889f944ed72e5a438d13428a78ef6"}),
 }
 

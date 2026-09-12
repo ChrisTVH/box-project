@@ -46,3 +46,5 @@
 | user namespaces | espacios de nombres de usuario | Función del kernel Linux. |
 | install plan | plan de instalación | |
 | private directory | directorio privado | |
+| version list | lista de versiones | |
+| version page | página de versiones | |

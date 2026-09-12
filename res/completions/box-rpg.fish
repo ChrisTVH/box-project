@@ -14,7 +14,7 @@ complete -c box-rpg -n '__fish_seen_subcommand_from nwjs; and not __fish_seen_su
 complete -c box-rpg -n '__fish_seen_subcommand_from easyrpg; and not __fish_seen_subcommand_from list available install remove' -a 'list available install remove'
 complete -c box-rpg -n '__fish_seen_subcommand_from easyrpg; and __fish_seen_subcommand_from available' -l page -d 'Select an EasyRPG Player version page'
 complete -c box-rpg -n '__fish_seen_subcommand_from easyrpg; and __fish_seen_subcommand_from available' -l interactive -d 'Select and install an EasyRPG Player version'
-complete -c box-rpg -n '__fish_seen_subcommand_from nwjs; and __fish_seen_subcommand_from available' -l page -d 'Select a five-version page'
+complete -c box-rpg -n '__fish_seen_subcommand_from nwjs; and __fish_seen_subcommand_from available' -l page -d 'Select a ten-version page'
 complete -c box-rpg -n '__fish_seen_subcommand_from nwjs; and __fish_seen_subcommand_from available' -l interactive -d 'Select and install a version'
 complete -c box-rpg -n '__fish_seen_subcommand_from nwjs; and __fish_seen_subcommand_from available install remove' -l architecture -d 'Use an NW.js architecture'
 complete -c box-rpg -n '__fish_seen_subcommand_from nwjs; and __fish_seen_subcommand_from available install remove' -l sdk -d 'Use an NW.js SDK build'

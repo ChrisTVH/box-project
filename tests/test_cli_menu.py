@@ -7,13 +7,13 @@ def test_choose_paged_selects_an_item_on_the_next_page() -> None:
 
     selection = choose_paged(
         "Entries",
-        tuple(range(6)),
+        tuple(range(11)),
         str,
         read=lambda _: next(choices),
         write=output.append,
     )
 
-    assert selection == MenuSelection(item=5)
+    assert selection == MenuSelection(item=10)
     assert any("page 2/2" in line for line in output)
 
 
