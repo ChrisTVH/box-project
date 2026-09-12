@@ -92,11 +92,10 @@ discovery only. A path-entry finder blocks imports from user-site; no `.pth`
 files are processed. This lets pip remove the previous wheel's recorded files
 and metadata on upgrade without loading user-provided Python modules.
 
-Completion upgrades/removal accept the current source or the exact reviewed
-historical SHA256 entries in `install.py`. Customized copies remain untouched;
-raced replacements are never overwritten. When releasing changed completions,
-add only hashes of reviewed previous release artifacts to that registry. Do
-not trust arbitrary local files or discover ownership from Git at install time.
+Completion install overwrites any existing file with the current source and
+removal deletes it; symlinks are never followed and raced replacements are
+never overwritten. Do not trust arbitrary local files or discover ownership
+from Git at install time.
 
 The installer ignores external pip/Python configuration for these commands.
 The base Python and its existing pip remain trust anchors for user installation.

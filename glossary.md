@@ -48,3 +48,7 @@
 | private directory | directorio privado | |
 | version list | lista de versiones | |
 | version page | página de versiones | |
+| game directory | directorio del juego | Used in game directory help strings; distinct from «managed directory» → «directorio gestionado». |
+| current directory | directorio actual | Used in «(predeterminado: directorio actual)». |
+| runtime version | versión del entorno de ejecución | |
+| configuration key | clave de configuración | Keys themselves (allowed-game-root, preferred-runtime) and `none` stay in English. |

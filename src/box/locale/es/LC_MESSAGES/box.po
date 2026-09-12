@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-12 09:25-0400\n"
+"POT-Creation-Date: 2026-09-12 14:31-0400\n"
 "PO-Revision-Date: 2026-09-08 00:00+0000\n"
 "Last-Translator: Christopher Herasme <5632734-"
 "christvh@users.noreply.gitlab.com>\n"
@@ -18,51 +18,51 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: install.py:571
+#: install.py:554
 msgid "error: refusing to run as root"
 msgstr "error: se rechaza ejecutar como root"
 
-#: install.py:586
+#: install.py:569
 #, python-brace-format
 msgid "warning: completion source missing: {source}"
 msgstr "advertencia: falta el origen del autocompletado: {source}"
 
-#: install.py:594
+#: install.py:577
 #, python-brace-format
 msgid "error: cannot install completion {target}: {error}"
 msgstr "error: no se pudo instalar el autocompletado en {target}: {error}"
 
-#: install.py:602
+#: install.py:585
 #, python-brace-format
 msgid "installed {count} shell completions"
 msgstr "se instalaron {count} autocompletados del shell"
 
-#: install.py:616
+#: install.py:599
 msgid ""
 "error: uninstall requires a verified user-site package and a non-root user"
 msgstr ""
 "error: la desinstalación requiere un paquete verificado de user-site y un "
 "usuario no root"
 
-#: install.py:622
+#: install.py:605
 msgid "error: pip uninstall failed"
 msgstr "error: falló la desinstalación con pip"
 
-#: install.py:630
+#: install.py:613
 #, python-brace-format
 msgid "error: failed to remove completion {target}: {error}"
 msgstr "error: no se pudo eliminar el autocompletado {target}: {error}"
 
-#: install.py:638
+#: install.py:621
 #, python-brace-format
 msgid "removed {count} shell completions"
 msgstr "se eliminaron {count} autocompletados del shell"
 
-#: install.py:653 install.py:749 install.py:849 install.py:855 install.py:861
+#: install.py:636 install.py:732 install.py:832 install.py:838 install.py:844
 msgid "Aborted."
 msgstr "Se canceló."
 
-#: install.py:662
+#: install.py:645
 msgid ""
 "Install box-rpg on the system.\n"
 "\n"
@@ -88,58 +88,58 @@ msgstr ""
 "omitir la solicitud. Pasa --uninstall para eliminar el paquete y sus\n"
 "autocompletados."
 
-#: install.py:675
+#: install.py:658
 msgid "actually install (default is a dry run)"
 msgstr "instala realmente (de forma predeterminada, se hace una simulación)"
 
-#: install.py:680
+#: install.py:663
 msgid "uninstall the package and its completions"
 msgstr "desinstala el paquete y sus autocompletados"
 
-#: install.py:685
+#: install.py:668
 msgid "skip the confirmation prompts"
 msgstr "omite las solicitudes de confirmación"
 
-#: install.py:695
+#: install.py:678
 msgid "reinstall the package even when the same version is installed"
 msgstr "reinstala el paquete incluso cuando ya está instalada la misma versión"
 
-#: install.py:700
+#: install.py:683
 msgid "show the exact commands that would run"
 msgstr "muestra los comandos exactos que se ejecutarían"
 
-#: install.py:707
+#: install.py:690
 msgid "error: --install and --uninstall are mutually exclusive"
 msgstr "error: --install y --uninstall son mutuamente excluyentes"
 
-#: install.py:711
+#: install.py:694
 msgid "error: this script requires Linux"
 msgstr "error: este script requiere Linux"
 
-#: install.py:713
+#: install.py:696
 msgid "OK: Linux system detected."
 msgstr "OK: se detectó un sistema Linux."
 
-#: install.py:717
+#: install.py:700
 #, python-brace-format
 msgid "error: Python 3.14+ required, found {major}.{minor}"
 msgstr ""
 "error: se requiere Python 3.14 o posterior; se encontró {major}.{minor}"
 
-#: install.py:724
+#: install.py:707
 #, python-brace-format
 msgid "OK: Python {major}.{minor} found."
 msgstr "OK: se encontró Python {major}.{minor}."
 
-#: install.py:730
+#: install.py:713
 msgid "error: pip is required for the system Python"
 msgstr "error: se requiere pip para el Python del sistema"
 
-#: install.py:732
+#: install.py:715
 msgid "OK: pip found for the system Python."
 msgstr "OK: se encontró pip para el Python del sistema."
 
-#: install.py:736
+#: install.py:719
 #, python-brace-format
 msgid ""
 "\n"
@@ -148,21 +148,21 @@ msgstr ""
 "\n"
 "Instalado:   {installed}"
 
-#: install.py:737
+#: install.py:720
 #, python-brace-format
 msgid "Repo:      {repo}"
 msgstr "Repositorio: {repo}"
 
-#: install.py:741
+#: install.py:724
 #, python-brace-format
 msgid "error: {package} is not installed"
 msgstr "error: {package} no está instalado"
 
-#: install.py:744
+#: install.py:727
 msgid "Uninstall commands that would be run:"
 msgstr "Comandos de desinstalación que se ejecutarían:"
 
-#: install.py:746
+#: install.py:729
 msgid ""
 "\n"
 "Proceed with uninstall? [y/N] "
@@ -170,17 +170,17 @@ msgstr ""
 "\n"
 "¿Continuar con la desinstalación? [y/N] "
 
-#: install.py:757
+#: install.py:740
 #, python-brace-format
 msgid "error: Bubblewrap ({bwrap}) is required to launch games"
 msgstr "error: se requiere Bubblewrap ({bwrap}) para iniciar juegos"
 
-#: install.py:763
+#: install.py:746
 #, python-brace-format
 msgid "error: Bubblewrap ({bwrap}) is installed but does not run"
 msgstr "error: Bubblewrap ({bwrap}) está instalado pero no se ejecuta"
 
-#: install.py:770
+#: install.py:753
 msgid ""
 "error: user namespaces are blocked, so the game sandbox cannot start (check: "
 "sysctl kernel.unprivileged_userns_clone)"
@@ -189,49 +189,49 @@ msgstr ""
 "entorno aislado del juego no puede iniciarse (comprueba: sysctl "
 "kernel.unprivileged_userns_clone)"
 
-#: install.py:776
+#: install.py:759
 msgid "OK: Bubblewrap is ready to launch games."
 msgstr "OK: Bubblewrap está listo para iniciar juegos."
 
-#: install.py:780
+#: install.py:763
 #, python-brace-format
 msgid "error: GnuPG ({gpg}) is required to install verified runtimes"
 msgstr ""
 "error: se requiere GnuPG ({gpg}) para instalar entornos de ejecución "
 "verificados"
 
-#: install.py:786
+#: install.py:769
 #, python-brace-format
 msgid "error: GnuPG ({gpg}) is installed but does not run"
 msgstr "error: GnuPG ({gpg}) está instalado pero no se ejecuta"
 
-#: install.py:790
+#: install.py:773
 msgid "OK: GnuPG found."
 msgstr "OK: se encontró GnuPG."
 
-#: install.py:794
+#: install.py:777
 msgid "Install commands that would be run:"
 msgstr "Comandos de instalación que se ejecutarían:"
 
-#: install.py:796
+#: install.py:779
 msgid "Install plan:"
 msgstr "Plan de instalación:"
 
-#: install.py:798
+#: install.py:781
 #, python-brace-format
 msgid "  - Build {package} {repo} in a private directory."
 msgstr "  - Compila {package} {repo} en un directorio privado."
 
-#: install.py:802
+#: install.py:785
 msgid "  - Install it for your user."
 msgstr "  - Se instala solo para tu usuario."
 
-#: install.py:803
+#: install.py:786
 #, python-brace-format
 msgid "  - Install {count} shell completions."
 msgstr "  - Instala {count} autocompletados del shell."
 
-#: install.py:809
+#: install.py:792
 #, python-brace-format
 msgid ""
 "\n"
@@ -241,7 +241,7 @@ msgstr ""
 "Hay una actualización disponible (instalado: {installed}, repositorio: "
 "{repo})."
 
-#: install.py:815
+#: install.py:798
 #, python-brace-format
 msgid ""
 "\n"
@@ -251,7 +251,7 @@ msgstr ""
 "La versión instalada ({installed}) es más reciente que la del repositorio "
 "({repo})."
 
-#: install.py:821
+#: install.py:804
 #, python-brace-format
 msgid ""
 "\n"
@@ -260,7 +260,7 @@ msgstr ""
 "\n"
 "Reinstalando la misma versión ({installed}) según lo solicitado."
 
-#: install.py:827
+#: install.py:810
 #, python-brace-format
 msgid ""
 "\n"
@@ -269,7 +269,7 @@ msgstr ""
 "\n"
 "Ya está instalada la misma versión ({installed})."
 
-#: install.py:833
+#: install.py:816
 msgid ""
 "\n"
 "Run with --install to actually install."
@@ -277,11 +277,11 @@ msgstr ""
 "\n"
 "Ejecuta con --install para instalar realmente."
 
-#: install.py:835
+#: install.py:818
 msgid "To remove it instead, run with --uninstall."
 msgstr "Para eliminarlo, ejecuta con --uninstall."
 
-#: install.py:841
+#: install.py:824
 #, python-brace-format
 msgid ""
 "\n"
@@ -292,7 +292,7 @@ msgstr ""
 "{package} ya está instalado. [r] Reinstalar/actualizar, [u] Desinstalar, [c] "
 "Cancelar [r/u/c] "
 
-#: install.py:846
+#: install.py:829
 msgid ""
 "\n"
 "Confirm uninstall? [y/N] "
@@ -300,7 +300,7 @@ msgstr ""
 "\n"
 "¿Confirmar la desinstalación? [y/N] "
 
-#: install.py:858
+#: install.py:841
 msgid ""
 "\n"
 "Proceed with installation? [y/N] "
@@ -308,7 +308,7 @@ msgstr ""
 "\n"
 "¿Continuar con la instalación? [y/N] "
 
-#: install.py:869
+#: install.py:852
 #, python-brace-format
 msgid "warning: {bindir} is not on PATH; add it to run {prog} from anywhere"
 msgstr ""
@@ -379,7 +379,7 @@ msgid "Select 1-4, [a]ll, or [q]uit: "
 msgstr "Selecciona 1-4, [a] todos o [q] salir: "
 
 #: src/box/cli/cleanup.py:261 src/box/cli/launch.py:206
-#: src/box/cli/launch.py:246 src/box/cli/menu.py:69 src/box/cli/runtime.py:105
+#: src/box/cli/launch.py:246 src/box/cli/menu.py:70 src/box/cli/runtime.py:105
 #: src/box/cli/runtime.py:109 src/box/cli/runtime.py:238
 msgid "Invalid selection."
 msgstr "Selección no válida."
@@ -425,7 +425,7 @@ msgstr "Perfiles del juego"
 msgid "(none)"
 msgstr "(ninguno)"
 
-#: src/box/cli/config.py:30
+#: src/box/cli/config.py:31
 #, python-brace-format
 msgid "supported keys: {allowed_root}, {preferred_runtime}"
 msgstr "claves compatibles: {allowed_root}, {preferred_runtime}"
@@ -443,7 +443,7 @@ msgstr "motor"
 msgid "root"
 msgstr "raíz"
 
-#: src/box/cli/inspect.py:18
+#: src/box/cli/inspect.py:17
 msgid "entrypoint"
 msgstr "punto de entrada"
 
@@ -451,7 +451,7 @@ msgstr "punto de entrada"
 msgid "(not applicable)"
 msgstr "(no aplicable)"
 
-#: src/box/cli/inspect.py:20
+#: src/box/cli/inspect.py:19
 msgid "title"
 msgstr "título"
 
@@ -540,7 +540,7 @@ msgstr ""
 msgid "error"
 msgstr "error"
 
-#: src/box/cli/main.py:122
+#: src/box/cli/main.py:123
 #, python-brace-format
 msgid "unsupported command: {command}"
 msgstr "comando no compatible: {command}"
@@ -549,178 +549,226 @@ msgstr "comando no compatible: {command}"
 msgid "(no entries)"
 msgstr "(sin entradas)"
 
-#: src/box/cli/menu.py:40
+#: src/box/cli/menu.py:41
 #, python-brace-format
 msgid "{title} (page {page}/{total_pages}):"
 msgstr "{title} (página {page}/{total_pages}):"
 
-#: src/box/cli/menu.py:46
+#: src/box/cli/menu.py:47
 msgid "Select 1-10, [n]ext, [p]revious"
 msgstr "Selecciona 1-10, [n] siguiente, [p] anterior"
 
-#: src/box/cli/menu.py:48
+#: src/box/cli/menu.py:49
 msgid ", [a]ll"
 msgstr ", [a] todos"
 
-#: src/box/cli/menu.py:49
+#: src/box/cli/menu.py:50
 msgid ", or [q]uit: "
 msgstr ", o [q] salir: "
 
-#: src/box/cli/menu.py:53 src/box/cli/runtime.py:84 src/box/cli/runtime.py:87
+#: src/box/cli/menu.py:54 src/box/cli/runtime.py:84 src/box/cli/runtime.py:87
 #: src/box/cli/runtime.py:94 src/box/cli/runtime.py:123
 #: src/box/cli/runtime.py:217 src/box/cli/runtime.py:220
 #: src/box/cli/runtime.py:227 src/box/cli/runtime.py:248
 msgid "Selection cancelled."
 msgstr "Selección cancelada."
 
-#: src/box/cli/parser.py:15
+#: src/box/cli/parser.py:27
 msgid "Launch RPG Maker games with managed NW.js or EasyRPG Player runtimes."
 msgstr ""
 "Inicia juegos de RPG Maker con entornos de ejecución gestionados de NW.js o "
 "EasyRPG Player."
 
-#: src/box/cli/parser.py:20
+#: src/box/cli/parser.py:35
 msgid "list or remove launcher-managed data"
 msgstr "muestra o elimina datos gestionados por el iniciador"
 
-#: src/box/cli/parser.py:23
+#: src/box/cli/parser.py:39
 msgid "open the cleanup selection menu"
 msgstr "abre el menú de selección de limpieza"
 
-#: src/box/cli/parser.py:26
+#: src/box/cli/parser.py:42
 msgid "skip the global cleanup confirmation"
 msgstr "omite la confirmación global de limpieza"
 
-#: src/box/cli/parser.py:29
+#: src/box/cli/parser.py:48
 msgid "list stable cleanup selectors"
 msgstr "muestra los selectores de limpieza estables"
 
-#: src/box/cli/parser.py:34
+#: src/box/cli/parser.py:55
+msgid "cleanup category to list"
+msgstr "categoría de limpieza para mostrar"
+
+#: src/box/cli/parser.py:60
 msgid "remove one managed cleanup item"
 msgstr "elimina un elemento de limpieza gestionado"
 
-#: src/box/cli/parser.py:43
+#: src/box/cli/parser.py:66
+msgid "cleanup category to remove"
+msgstr "categoría de limpieza para eliminar"
+
+#: src/box/cli/parser.py:69
+msgid "cleanup selector to remove"
+msgstr "selector de limpieza para eliminar"
+
+#: src/box/cli/parser.py:75
+msgid "remove all selectors in the category"
+msgstr "elimina todos los selectores de la categoría"
+
+#: src/box/cli/parser.py:81
 msgid "skip the removal confirmation"
 msgstr "omite la confirmación de eliminación"
 
-#: src/box/cli/parser.py:45
+#: src/box/cli/parser.py:86
 msgid "remove all managed cleanup data"
 msgstr "elimina todos los datos de limpieza gestionados"
 
-#: src/box/cli/parser.py:50
+#: src/box/cli/parser.py:92
 msgid "skip the cleanup confirmation"
 msgstr "omite la confirmación de limpieza"
 
-#: src/box/cli/parser.py:53
+#: src/box/cli/parser.py:98
 msgid "inspect a supported game without changing it"
 msgstr "inspecciona un juego compatible sin modificarlo"
 
-#: src/box/cli/parser.py:56
+#: src/box/cli/parser.py:100
+msgid "game directory to inspect"
+msgstr "directorio del juego para inspeccionar"
+
+#: src/box/cli/parser.py:105
 msgid "manage cached game runtimes"
 msgstr "gestiona los entornos de ejecución de juegos en caché"
 
-#: src/box/cli/parser.py:58
+#: src/box/cli/parser.py:109
 msgid "manage NW.js runtimes"
 msgstr "gestiona los entornos de ejecución de NW.js"
 
-#: src/box/cli/parser.py:60
+#: src/box/cli/parser.py:115
 msgid "list installed NW.js runtimes"
 msgstr "muestra los entornos de ejecución de NW.js instalados"
 
-#: src/box/cli/parser.py:61
+#: src/box/cli/parser.py:120
 msgid "list online NW.js versions"
 msgstr "muestra las versiones de NW.js disponibles en línea"
 
-#: src/box/cli/parser.py:63
+#: src/box/cli/parser.py:123
 msgid "online version page (ten versions)"
 msgstr "página de versiones en línea (diez versiones)"
 
-#: src/box/cli/parser.py:66 src/box/cli/parser.py:87
+#: src/box/cli/parser.py:126 src/box/cli/parser.py:159
 msgid "select and install a version"
 msgstr "selecciona e instala una versión"
 
-#: src/box/cli/parser.py:68
+#: src/box/cli/parser.py:128 src/box/cli/parser.py:138
 msgid "override the detected NW.js architecture"
 msgstr "anula la arquitectura de NW.js detectada"
 
-#: src/box/cli/parser.py:69 src/box/cli/parser.py:77 src/box/cli/parser.py:99
-#: src/box/cli/parser.py:135
+#: src/box/cli/parser.py:129 src/box/cli/parser.py:139
+#: src/box/cli/parser.py:189 src/box/cli/parser.py:254
 msgid "use the NW.js SDK build"
 msgstr "usa la compilación SDK de NW.js"
 
-#: src/box/cli/parser.py:71
+#: src/box/cli/parser.py:131
 msgid "download and install a runtime"
 msgstr "descarga e instala un entorno de ejecución"
 
-#: src/box/cli/parser.py:72
+#: src/box/cli/parser.py:132
 msgid "remove a managed runtime"
 msgstr "elimina un entorno de ejecución gestionado"
 
-#: src/box/cli/parser.py:79
+#: src/box/cli/parser.py:137 src/box/cli/parser.py:168
+msgid "runtime version"
+msgstr "versión del entorno de ejecución"
+
+#: src/box/cli/parser.py:144
 msgid "manage EasyRPG Player x64 runtimes"
 msgstr "gestiona los entornos de ejecución x64 de EasyRPG Player"
 
-#: src/box/cli/parser.py:81
+#: src/box/cli/parser.py:150
 msgid "list installed EasyRPG Player runtimes"
 msgstr "muestra los entornos de ejecución de EasyRPG Player instalados"
 
-#: src/box/cli/parser.py:83
+#: src/box/cli/parser.py:155
 msgid "list online EasyRPG Player versions"
 msgstr "muestra las versiones de EasyRPG Player disponibles en línea"
 
-#: src/box/cli/parser.py:85
+#: src/box/cli/parser.py:157
 msgid "online version page"
 msgstr "página de versiones en línea"
 
-#: src/box/cli/parser.py:90
+#: src/box/cli/parser.py:162
 msgid "download and install an EasyRPG Player runtime"
 msgstr "descarga e instala un entorno de ejecución de EasyRPG Player"
 
-#: src/box/cli/parser.py:91
+#: src/box/cli/parser.py:163
 msgid "remove a managed EasyRPG Player runtime"
 msgstr "elimina un entorno de ejecución gestionado de EasyRPG Player"
 
-#: src/box/cli/parser.py:96
+#: src/box/cli/parser.py:173
 msgid "launch an allowed game in an isolated session"
 msgstr "inicia un juego permitido en una sesión aislada"
 
-#: src/box/cli/parser.py:103
+#: src/box/cli/parser.py:181
+msgid "game directory to launch (default: current directory)"
+msgstr "directorio del juego para iniciar (predeterminado: directorio actual)"
+
+#: src/box/cli/parser.py:187 src/box/cli/parser.py:252
+msgid "runtime version to use (NW.js or EasyRPG Player, autodetected)"
+msgstr ""
+"versión del entorno de ejecución para usar (NW.js o EasyRPG Player, "
+"autodetectada)"
+
+#: src/box/cli/parser.py:193
 msgid ""
 "allow host network access for this launch only (including local services)"
 msgstr ""
 "permite el acceso a la red del servidor solo para este inicio (incluidos los "
 "servicios locales)"
 
-#: src/box/cli/parser.py:108
+#: src/box/cli/parser.py:198
 msgid "allow game directory writes for this launch only"
 msgstr "permite la escritura en el directorio del juego solo para este inicio"
 
-#: src/box/cli/parser.py:113
+#: src/box/cli/parser.py:203
 msgid "use the local X11 display for this launch only (weaker isolation)"
-msgstr "usa la pantalla X11 local solo para este inicio (aislamiento más débil)"
+msgstr ""
+"usa la pantalla X11 local solo para este inicio (aislamiento más débil)"
 
-#: src/box/cli/parser.py:120
+#: src/box/cli/parser.py:210
 msgid "copy a direct game-root file into the isolated NW.js session"
 msgstr ""
 "copia un archivo ubicado directamente en la raíz del juego en la sesión "
 "aislada de NW.js"
 
-#: src/box/cli/parser.py:123
+#: src/box/cli/parser.py:216
 msgid "show or update launcher configuration"
 msgstr "muestra o actualiza la configuración del iniciador"
 
-#: src/box/cli/parser.py:125
+#: src/box/cli/parser.py:222
 msgid "show current configuration"
 msgstr "muestra la configuración actual"
 
-#: src/box/cli/parser.py:127
+#: src/box/cli/parser.py:227
 msgid "set an allowed game root or preferred runtime"
 msgstr ""
 "establece una raíz de juego permitida o un entorno de ejecución preferido"
 
-#: src/box/cli/parser.py:132
+#: src/box/cli/parser.py:232
+msgid "configuration key: allowed-game-root or preferred-runtime"
+msgstr "clave de configuración: allowed-game-root o preferred-runtime"
+
+#: src/box/cli/parser.py:237
+msgid "directory for allowed-game-root, version or none for preferred-runtime"
+msgstr ""
+"directorio para allowed-game-root, versión o none para preferred-runtime"
+
+#: src/box/cli/parser.py:243
 msgid "print a local diagnostic report"
 msgstr "imprime un informe de diagnóstico local"
+
+#: src/box/cli/parser.py:246
+msgid "game directory to diagnose"
+msgstr "directorio del juego para diagnosticar"
 
 #: src/box/cli/runtime.py:30
 msgid "no NW.js runtimes installed"
@@ -1541,6 +1589,15 @@ msgstr "el directorio gestionado tiene permisos no seguros: {path}"
 msgid "cannot safely create managed directory {path}: {error}"
 msgstr ""
 "no se puede crear de forma segura el directorio gestionado {path}: {error}"
+
+#~ msgid ""
+#~ "runtime version to use (NW.js or EasyRPG Player, inferred from the game)"
+#~ msgstr ""
+#~ "versión del entorno de ejecución para usar (NW.js o EasyRPG Player, "
+#~ "inferida del juego)"
+
+#~ msgid "runtime version to use"
+#~ msgstr "versión del entorno de ejecución para usar"
 
 #, python-brace-format
 #~ msgid "installed completion {target}"

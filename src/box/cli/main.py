@@ -54,7 +54,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return _dispatch(arguments)
     except (BoxError, ValueError) as exc:
-        print(f"{_('error')}: {safe_terminal_text(exc)}", file=sys.stderr)
+        error_label = _("error")
+        print(f"{error_label}: {safe_terminal_text(exc)}", file=sys.stderr)
         return 1
 
 

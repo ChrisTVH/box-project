@@ -11,7 +11,8 @@ from box.utils.i18n import _
 def show(repository: ConfigRepository) -> int:
     """Print active configuration in a stable human-readable format."""
     config = repository.load()
-    print(f"preferred_runtime: {config.preferred_runtime or _('(none)')}")
+    none_label = _("(none)")
+    print(f"preferred_runtime: {config.preferred_runtime or none_label}")
     print(f"prefer_sdk: {str(config.prefer_sdk).lower()}")
     print("allowed_game_roots:")
     for root in config.allowed_game_roots:

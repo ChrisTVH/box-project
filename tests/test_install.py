@@ -519,16 +519,18 @@ def test_completion_rejects_symlinks(
 
 
 @pytest.mark.parametrize("uninstall", [False, True])
-def test_completion_preserves_modified_files(
+def test_completion_overwrites_modified_files(
     completion: tuple[Path, Path],
     uninstall: bool,
 ) -> None:
     source, target = completion
     target.parent.mkdir()
     target.write_bytes(b"custom content")
-    with pytest.raises(PermissionError):
-        install.update_completion(source, target, uninstall=uninstall)
-    assert target.read_bytes() == b"custom content"
+    install.update_completion(source, target, uninstall=uninstall)
+    if uninstall:
+        assert not target.exists()
+    else:
+        assert target.read_bytes() == source.read_bytes()
 
 
 def test_completion_confines_home(completion: tuple[Path, Path], tmp_path: Path) -> None:
@@ -679,68 +681,26 @@ def test_verified_uninstall_uses_pip_and_safe_completion_removal(
     assert not target.exists()
 
 
-# Pinned pre-change completions from d28845f, before --allow-network was added.
-# Derive them from the current files with an exact, hash-checked reversal so the
-# migration tests never silently skip when the Git object is unavailable. Any
-# future completion change must extend the chain below and keep the reviewed
-# hashes in PREVIOUS_COMPLETION_HASHES matching.
-_HISTORICAL_COMPLETION_REVERSALS: dict[str, tuple[tuple[bytes, bytes], ...]] = {
-    "box-rpg.bash": (
-        (
-            b"--copy-root-file --allow-network --allow-game-writes --x11 --help",
-            b"--copy-root-file --help",
-        ),
-    ),
-    "box-rpg.fish": (
-        (
-            b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-network"
-            b" -d 'Allow host network access for this launch only'\n"
-            b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-game-writes"
-            b" -d 'Allow game directory writes for this launch only'\n"
-            b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l x11"
-            b" -d 'Use the local X11 display for this launch only'\n",
-            b"",
-        ),
-        (b"ten-version page", b"five-version page"),
-    ),
-    "_box-rpg": (
-        (
-            b" '--allow-network[allow host network access for this launch only]'"
-            b" '--allow-game-writes[allow game directory writes for this launch only]'"
-            b" '--x11[use the local X11 display for this launch only]'",
-            b"",
-        ),
-    ),
-}
-
-
 @pytest.fixture(params=["box-rpg.bash", "box-rpg.fish", "_box-rpg"])
-def previous_completion(
+def stale_completion(
     request: pytest.FixtureRequest, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> tuple[Path, Path, bytes]:
+) -> tuple[Path, Path]:
     name = str(request.param)
-    current = (install.REPO_ROOT / "res/completions" / name).read_bytes()
-    previous = current
-    for new, old in _HISTORICAL_COMPLETION_REVERSALS[name]:
-        previous = previous.replace(new, old)
-    assert previous != current
-    assert hashlib.sha256(previous).hexdigest() in install.PREVIOUS_COMPLETION_HASHES[name]
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setattr(install.Path, "home", lambda: home)
     source = tmp_path / name
     source.write_bytes((install.REPO_ROOT / "res/completions" / name).read_bytes())
-    assert source.read_bytes() != previous
     target = home / name
-    target.write_bytes(previous)
-    return source, target, previous
+    target.write_bytes(b"outdated completion")
+    return source, target
 
 
 @pytest.mark.parametrize("uninstall", [False, True])
-def test_previous_official_completion_upgrade_and_uninstall(
-    previous_completion: tuple[Path, Path, bytes], uninstall: bool
+def test_stale_completion_is_overwritten_or_removed(
+    stale_completion: tuple[Path, Path], uninstall: bool
 ) -> None:
-    source, target, _previous = previous_completion
+    source, target = stale_completion
     install.update_completion(source, target, uninstall=uninstall)
     if uninstall:
         assert not target.exists()
@@ -750,45 +710,10 @@ def test_previous_official_completion_upgrade_and_uninstall(
         assert not target.exists()
 
 
-def test_intermediate_official_completion_migrates(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A shipped official copy newer than the oldest pin still upgrades."""
-    home = tmp_path / "home"
-    home.mkdir()
-    monkeypatch.setattr(install.Path, "home", lambda: home)
-    name = "box-rpg.fish"
-    source = tmp_path / name
-    source.write_bytes((install.REPO_ROOT / "res/completions" / name).read_bytes())
-    previous = source.read_bytes().replace(b"ten-version page", b"five-version page")
-    previous = previous.replace(
-        b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l x11"
-        b" -d 'Use the local X11 display for this launch only'\n",
-        b"",
-    )
-    assert hashlib.sha256(previous).hexdigest() in install.PREVIOUS_COMPLETION_HASHES[name]
-    target = home / name
-    target.write_bytes(previous)
-    install.update_completion(source, target)
-    assert target.read_bytes() == source.read_bytes()
-
-
-@pytest.mark.parametrize("uninstall", [False, True])
-def test_customized_previous_completion_is_preserved(
-    previous_completion: tuple[Path, Path, bytes], uninstall: bool
-) -> None:
-    source, target, previous = previous_completion
-    customized = previous + b"\n# Local customization\n"
-    target.write_bytes(customized)
-    with pytest.raises(PermissionError):
-        install.update_completion(source, target, uninstall=uninstall)
-    assert target.read_bytes() == customized
-
-
 def test_previous_completion_upgrade_preserves_raced_replacement(
-    previous_completion: tuple[Path, Path, bytes], monkeypatch: pytest.MonkeyPatch
+    stale_completion: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    source, target, _previous = previous_completion
+    source, target = stale_completion
     original = os.rename
 
     def raced_rename(src: str, dst: str, **kwargs: object) -> None:
@@ -802,9 +727,9 @@ def test_previous_completion_upgrade_preserves_raced_replacement(
 
 
 def test_previous_completion_upgrade_never_overwrites_raced_publication(
-    previous_completion: tuple[Path, Path, bytes], monkeypatch: pytest.MonkeyPatch
+    stale_completion: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    source, target, _previous = previous_completion
+    source, target = stale_completion
     original = os.link
 
     def raced_link(src: str, dst: str, **kwargs: object) -> None:
@@ -819,15 +744,16 @@ def test_previous_completion_upgrade_never_overwrites_raced_publication(
 
 @pytest.mark.parametrize("uninstall", [False, True])
 def test_previous_official_completion_symlink_is_never_followed(
-    previous_completion: tuple[Path, Path, bytes], tmp_path: Path, uninstall: bool
+    stale_completion: tuple[Path, Path], tmp_path: Path, uninstall: bool
 ) -> None:
-    source, target, previous = previous_completion
+    source, target = stale_completion
     outside = tmp_path / "outside-completion"
-    target.rename(outside)
+    outside.write_bytes(b"outdated completion")
+    target.unlink()
     target.symlink_to(outside)
     with pytest.raises(OSError):
         install.update_completion(source, target, uninstall=uninstall)
-    assert outside.read_bytes() == previous
+    assert outside.read_bytes() == b"outdated completion"
     assert target.is_symlink()
 
 

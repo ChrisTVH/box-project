@@ -372,6 +372,62 @@ def test_nwjs_runtime_available_uses_the_detected_architecture(
     assert calls == [(1, False, "arm64", False)]
 
 
+def test_help_pages_share_the_same_layout(capsys: pytest.CaptureFixture[str]) -> None:
+    assert build_parser().parse_args(["launch"]).game == "."
+
+    def help_text(args: list[str]) -> str:
+        with pytest.raises(SystemExit):
+            build_parser().parse_args([*args, "--help"])
+        return capsys.readouterr().out
+
+    inspect_help = help_text(["inspect"])
+    assert "GAME_DIR" in inspect_help
+    assert "game directory to inspect" in inspect_help
+
+    launch_help = help_text(["launch"])
+    assert "GAME_DIR" in launch_help
+    flat_launch = " ".join(launch_help.split())
+    assert "game directory to launch (default: current directory)" in flat_launch
+    assert "--runtime VERSION" in launch_help
+    assert "runtime version to use (NW.js or EasyRPG Player, autodetected)" in flat_launch
+
+    diagnose_help = help_text(["diagnose"])
+    assert "GAME_DIR" in diagnose_help
+    assert "game directory to diagnose" in diagnose_help
+    assert "--runtime VERSION" in diagnose_help
+    flat_diagnose = " ".join(diagnose_help.split())
+    assert "runtime version to use (NW.js or EasyRPG Player, autodetected)" in flat_diagnose
+
+    set_help = help_text(["config", "set"])
+    assert "allowed-game-root" in set_help
+    assert "preferred-runtime" in set_help
+    assert "none" in set_help
+
+    remove_help = help_text(["cleanup", "remove"])
+    assert "CATEGORY" in remove_help
+    assert "SELECTOR" in remove_help
+    assert "remove all selectors in the category" in remove_help
+
+
+def test_help_text_starts_inline_for_long_options(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("COLUMNS", "80")
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["launch", "--help"])
+    launch_help = capsys.readouterr().out
+    copy_line = next(
+        line
+        for line in launch_help.splitlines()
+        if line.strip().startswith("--copy-root-file FILE")
+    )
+    assert "copy a direct game-root file" in copy_line
+    runtime_line = next(
+        line for line in launch_help.splitlines() if line.strip().startswith("--runtime VERSION")
+    )
+    assert "runtime version to use" in runtime_line
+
+
 def test_nwjs_runtime_available_rejects_an_unsupported_architecture(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

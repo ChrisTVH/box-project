@@ -29,7 +29,8 @@ def choose_paged[T](
 ) -> MenuSelection[T] | None:
     """Interactively select one item, all items, or cancel without side effects."""
     if not items:
-        write(f"{title}: {_('(no entries)')}")
+        no_entries = _("(no entries)")
+        write(f"{title}: {no_entries}")
         return None
     page = 1
     total_pages = (len(items) + PAGE_SIZE - 1) // PAGE_SIZE
