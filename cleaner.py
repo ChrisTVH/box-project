@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Clean generated artifacts from the repository.
 
-Removes ignored Python bytecode and empty root build/environment directories.
-Nonempty build outputs, environments and tool caches require manual review:
-their names alone do not prove ownership. By default lists what would be removed;
-pass --apply to actually delete (with a confirmation prompt) and --yes to
-skip the prompt.
+Recursively removes tool caches, virtual environments, build outputs,
+egg-info directories and Python bytecode. Only ignored generated names are
+eligible; tracked files and nested projects are always preserved. Deleted
+environments can be recreated from the locked requirements. By default lists
+what would be removed; pass --apply to actually delete (with a confirmation
+prompt) and --yes to skip the prompt.
 """
 
 from __future__ import annotations
@@ -23,7 +24,10 @@ from install import open_directory, read_regular, remove_matching
 REPO_ROOT = Path(__file__).resolve().parent
 VENV_NAMES = {".venv", "venv"}
 BUILD_DIRS = {"dist", "build"}
+TOOL_CACHES = {".pytest_cache", ".ruff_cache"}
+EGG_INFO = {"box_rpg.egg-info"}
 PROJECT_MARKERS = {".git", "pyproject.toml", "setup.py", "package.json", "Cargo.toml"}
+_MAX_TREE_DEPTH = 128
 
 
 def _protected(root: Path) -> set[Path]:
@@ -41,11 +45,6 @@ def _eligible(root: Path, relative: Path, protected: set[Path]) -> str | None:
         return None
     if any(path.is_relative_to(relative) or relative.is_relative_to(path) for path in protected):
         return None
-    # Only root caches and the launcher's source/test trees are in scope.
-    if len(relative.parts) > 1 and relative.parts[0] not in {"src", "tests", "__pycache__"}:
-        return None
-    if any(part in VENV_NAMES | BUILD_DIRS for part in relative.parts[:-1]):
-        return None
     for ancestor in relative.parents:
         if ancestor == Path("."):
             continue
@@ -55,13 +54,16 @@ def _eligible(root: Path, relative: Path, protected: set[Path]) -> str | None:
     with open_directory((root / relative).parent) as parent:
         info = os.stat(relative.name, dir_fd=parent, follow_symlinks=False)
         if stat.S_ISDIR(info.st_mode):
-            if len(relative.parts) != 1:
-                return None
-            category = "venvs" if relative.name in VENV_NAMES else "build"
-            if relative.name not in VENV_NAMES | BUILD_DIRS:
-                return None
             with open_directory(root / relative) as directory:
-                return None if os.listdir(directory) else category
+                if PROJECT_MARKERS.intersection(os.listdir(directory)):
+                    return None
+            if relative.name in TOOL_CACHES:
+                return "caches"
+            if relative.name in VENV_NAMES:
+                return "venvs"
+            if relative.name in BUILD_DIRS | EGG_INFO:
+                return "build"
+            return None
         if (
             stat.S_ISREG(info.st_mode)
             and relative.suffix == ".pyc"
@@ -79,19 +81,39 @@ def _walk(root: Path, relative: Path, protected: set[Path], targets: dict[str, l
         if relative != Path(".") and PROJECT_MARKERS.intersection(names):
             return
         for name in names:
+            if name == ".git":
+                continue
             child = relative / name
             category = _eligible(root, child, protected)
             if category:
                 targets[category].append(root / child)
-            elif (
-                (relative == Path(".") and name in {"src", "tests", "__pycache__"})
-                or (
-                    relative != Path(".")
-                    and name not in VENV_NAMES | BUILD_DIRS
-                    and not name.startswith(".")
-                )
-            ) and stat.S_ISDIR(os.stat(name, dir_fd=descriptor, follow_symlinks=False).st_mode):
+            elif stat.S_ISDIR(os.stat(name, dir_fd=descriptor, follow_symlinks=False).st_mode):
                 _walk(root, child, protected, targets)
+
+
+def _remove_tree(parent: int, name: str, depth: int = 0) -> None:
+    """Recursively delete an owned directory without following symlinks.
+
+    Only entries listed at each level are removed; a fresh listing must show
+    an empty directory afterwards, otherwise a concurrent change aborts the
+    removal instead of consuming foreign files.
+    """
+    if depth > _MAX_TREE_DEPTH:
+        raise OSError(f"directory tree too deep: {name}")
+    child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+    try:
+        for entry in sorted(os.listdir(child)):
+            info = os.stat(entry, dir_fd=child, follow_symlinks=False)
+            if stat.S_ISDIR(info.st_mode):
+                _remove_tree(child, entry, depth + 1)
+            else:
+                # Files, symlinks, FIFOs and sockets are unlinked, never followed.
+                os.unlink(entry, dir_fd=child)
+        if os.listdir(child):
+            raise OSError(f"directory changed during removal: {name}")
+    finally:
+        os.close(child)
+    os.rmdir(name, dir_fd=parent)
 
 
 def collect_targets(root: Path) -> dict[str, list[Path]]:
@@ -106,7 +128,7 @@ def collect_targets(root: Path) -> dict[str, list[Path]]:
 
 def print_targets(root: Path, targets: dict[str, list[Path]]) -> None:
     labels = {
-        "caches": "Python caches",
+        "caches": "Caches",
         "venvs": "Virtual environments",
         "build": "Build artifacts",
     }
@@ -131,8 +153,7 @@ def remove(targets: dict[str, list[Path]]) -> bool:
                 with open_directory(path.parent) as parent:
                     info = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
                     if stat.S_ISDIR(info.st_mode):
-                        # Unlike rmtree, rmdir cannot consume newly added foreign files.
-                        os.rmdir(path.name, dir_fd=parent)
+                        _remove_tree(parent, path.name)
                     else:
                         expected = read_regular(parent, path.name)
                         if len(expected) < 16 or expected[:4] != importlib.util.MAGIC_NUMBER:

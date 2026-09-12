@@ -39,25 +39,58 @@ def test_cache_policy_preserves_foreign_and_nested_projects(repository: Path) ->
     (repository / "src" / "vendor" / "pyproject.toml").touch()
     other = bytecode(repository / "unrelated" / "__pycache__" / "other.pyc")
     targets = cleaner.collect_targets(repository)
-    assert targets["caches"] == [owned]
+    assert targets["caches"] == [owned, other]
     assert cleaner.remove(targets)
-    assert not owned.exists()
-    assert all(path.exists() for path in [foreign, invalid, nested, other])
+    assert not owned.exists() and not other.exists()
+    assert all(path.exists() for path in [foreign, invalid, nested])
 
 
-def test_only_empty_root_outputs_are_owned(repository: Path) -> None:
-    (repository / "build").mkdir()
-    (repository / "venv").mkdir()
-    nested = repository / "src" / "build"
-    nested.mkdir(parents=True)
-    foreign = repository / "dist" / "release.zip"
-    foreign.parent.mkdir()
-    foreign.write_bytes(b"keep")
+def test_nonempty_owned_trees_are_removed_recursively(repository: Path) -> None:
+    build_file = repository / "build" / "output" / "result.bin"
+    build_file.parent.mkdir(parents=True)
+    build_file.write_bytes(b"generated")
+    venv_file = repository / ".venv" / "lib" / "package.py"
+    venv_file.parent.mkdir(parents=True)
+    venv_file.write_bytes(b"generated")
+    cache_file = repository / "sub" / ".pytest_cache" / "v" / "cache.bin"
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_bytes(b"generated")
+    egg_file = repository / "box_rpg.egg-info" / "PKG-INFO"
+    egg_file.parent.mkdir(parents=True)
+    egg_file.write_text("generated")
+    nested = repository / "vendor" / "build" / "output.bin"
+    nested.parent.mkdir(parents=True)
+    nested.write_bytes(b"keep")
+    (repository / "vendor" / "pyproject.toml").touch()
     targets = cleaner.collect_targets(repository)
-    assert targets["build"] == [repository / "build"]
-    assert targets["venvs"] == [repository / "venv"]
+    assert repository / "build" in targets["build"]
+    assert repository / ".venv" in targets["venvs"]
+    assert repository / "sub" / ".pytest_cache" in targets["caches"]
+    assert repository / "box_rpg.egg-info" in targets["build"]
     assert cleaner.remove(targets)
-    assert nested.exists() and foreign.exists()
+    assert not (repository / "build").exists()
+    assert not (repository / ".venv").exists()
+    assert nested.exists()
+
+
+def test_symlinks_inside_owned_trees_never_reach_outside(repository: Path, tmp_path: Path) -> None:
+    victim = tmp_path / "outside.txt"
+    victim.write_text("keep")
+    link_dir = repository / "build"
+    link_dir.mkdir()
+    (link_dir / "evil").symlink_to(victim)
+    (link_dir / "real").write_text("generated")
+    targets = cleaner.collect_targets(repository)
+    assert cleaner.remove(targets)
+    assert not link_dir.exists()
+    assert victim.read_text() == "keep"
+
+
+def test_git_dir_is_never_entered(repository: Path) -> None:
+    planted = bytecode(repository / ".git" / "objects" / "__pycache__" / "planted.pyc")
+    targets = cleaner.collect_targets(repository)
+    assert not any(targets.values())
+    assert planted.exists()
 
 
 def test_tracked_files_and_containers_are_protected(
@@ -135,6 +168,41 @@ def test_new_foreign_file_prevents_directory_removal(
     monkeypatch.setattr(cleaner.os, "rmdir", raced_rmdir)
     assert not cleaner.remove(targets)
     assert (directory / "foreign").read_text() == "keep"
+
+
+def test_foreign_file_added_during_tree_removal_aborts(
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    directory = repository / "build"
+    (directory / "old").mkdir(parents=True)
+    (directory / "old" / "stale.txt").write_text("stale")
+    targets = cleaner.collect_targets(repository)
+    original_unlink = os.unlink
+
+    def raced_unlink(path: str, *, dir_fd: int | None = None) -> None:
+        original_unlink(path, dir_fd=dir_fd)
+        (directory / "foreign").write_text("keep")
+
+    monkeypatch.setattr(cleaner.os, "unlink", raced_unlink)
+    assert not cleaner.remove(targets)
+    assert directory.exists()
+    assert (directory / "foreign").read_text() == "keep"
+
+
+def test_remove_tree_rejects_excessive_depth(
+    repository: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cleaner, "_MAX_TREE_DEPTH", -1)
+    directory = repository / "build"
+    directory.mkdir()
+    descriptor = os.open(repository, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        with pytest.raises(OSError, match="too deep"):
+            cleaner._remove_tree(descriptor, "build")
+    finally:
+        os.close(descriptor)
+    assert directory.exists()
 
 
 def test_traversal_and_root_rejected(repository: Path, tmp_path: Path) -> None:

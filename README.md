@@ -50,8 +50,8 @@ and install the pinned bootstrap, build, and development requirements with hashe
 The installer builds in a private temporary environment using the same build lock;
 plain `pip install .` does not provide that guarantee.
 
-Preview conservative cleanup of eligible ignored bytecode and empty root-level
-artifact directories:
+Preview recursive cleanup of ignored tool caches, environments, build outputs,
+egg-info, and bytecode:
 
 ```sh
 ./cleaner.py
@@ -64,8 +64,8 @@ Apply the cleanup after reviewing the listed paths:
 ./cleaner.py --yes
 ```
 
-Tracked files, nested projects, and nonempty build, cache, and environment trees
-are preserved. Review and remove those trees manually when no longer needed.
+Tracked files and nested projects are preserved. Deleted environments can be
+recreated from the locked requirements in `docs/development.md`.
 
 ## Commands
 
