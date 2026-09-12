@@ -166,43 +166,52 @@ def _download_archive_locked(
         return
     temporary_name = f"{destination_name}.part"
     _ensure_regular_download_entry(temporary_name, directory_descriptor)
-    reporter = _report_download_progress if progress is None else progress
+    line: _TerminalProgressLine | None = None
+    if progress is None:
+        line = _TerminalProgressLine()
+        reporter = line
+    else:
+        reporter = progress
     budget = limits.Budget(limits.MAX_TRANSFER_BYTES)
-    for attempt, delay in enumerate((*DOWNLOAD_RETRY_DELAYS, None), start=1):
-        try:
-            _download_attempt(
-                url, temporary_name, directory_descriptor, reporter, allowed_hosts, budget
-            )
-            budget.check()
-            _chmod_regular_file(temporary_name, directory_descriptor, 0o600)
-            os.replace(
-                temporary_name,
-                destination_name,
-                src_dir_fd=directory_descriptor,
-                dst_dir_fd=directory_descriptor,
-            )
-            return
-        except HTTPError as exc:
-            exc.close()
-            if exc.code not in RETRYABLE_HTTP_STATUSES:
-                raise RuntimeError(
-                    _("cannot download NW.js from {url}: {error}").format(url=url, error=exc)
-                ) from exc
-            if delay is None:
-                raise RuntimeError(
-                    _("cannot download NW.js from {url} after {attempt} attempts: {error}").format(
-                        url=url, attempt=attempt, error=exc
-                    )
-                ) from exc
-            time.sleep(min(delay, budget.check()))
-        except (IncompleteRead, OSError, URLError) as exc:
-            if delay is None:
-                raise RuntimeError(
-                    _("cannot download NW.js from {url} after {attempt} attempts: {error}").format(
-                        url=url, attempt=attempt, error=exc
-                    )
-                ) from exc
-            time.sleep(min(delay, budget.check()))
+    try:
+        for attempt, delay in enumerate((*DOWNLOAD_RETRY_DELAYS, None), start=1):
+            try:
+                _download_attempt(
+                    url, temporary_name, directory_descriptor, reporter, allowed_hosts, budget
+                )
+                budget.check()
+                _chmod_regular_file(temporary_name, directory_descriptor, 0o600)
+                os.replace(
+                    temporary_name,
+                    destination_name,
+                    src_dir_fd=directory_descriptor,
+                    dst_dir_fd=directory_descriptor,
+                )
+                return
+            except HTTPError as exc:
+                exc.close()
+                if exc.code not in RETRYABLE_HTTP_STATUSES:
+                    raise RuntimeError(
+                        _("cannot download NW.js from {url}: {error}").format(url=url, error=exc)
+                    ) from exc
+                if delay is None:
+                    raise RuntimeError(
+                        _(
+                            "cannot download NW.js from {url} after {attempt} attempts: {error}"
+                        ).format(url=url, attempt=attempt, error=exc)
+                    ) from exc
+                time.sleep(min(delay, budget.check()))
+            except (IncompleteRead, OSError, URLError) as exc:
+                if delay is None:
+                    raise RuntimeError(
+                        _(
+                            "cannot download NW.js from {url} after {attempt} attempts: {error}"
+                        ).format(url=url, attempt=attempt, error=exc)
+                    ) from exc
+                time.sleep(min(delay, budget.check()))
+    finally:
+        if line is not None:
+            line.close()
 
 
 def _download_attempt(
@@ -288,6 +297,32 @@ def _archive_size(response: _DownloadResponse, completed: int) -> int | None:
         except ValueError as exc:
             raise RuntimeError("invalid archive content length") from exc
     return None
+
+
+class _TerminalProgressLine:
+    """Forward progress to the terminal bar and close its line exactly once.
+
+    The bar is drawn with carriage returns, so a failed download would leave
+    the next error glued to it (``16%error: ...``). The wrapper terminates the
+    line when the download ends without reaching 100%; custom reporters are
+    never wrapped and stay silent.
+    """
+
+    def __init__(self) -> None:
+        self._open = False
+
+    def __call__(self, completed: int, total: int | None) -> None:
+        _report_download_progress(completed, total)
+        # Mirror the reporter's own completion rule: it ends the line itself
+        # at 100% (or writes nothing without a total or a terminal).
+        self._open = total is not None and total > 0 and completed < total and sys.stderr.isatty()
+
+    def close(self) -> None:
+        """Terminate the bar line unless it already ended."""
+        if self._open:
+            self._open = False
+            sys.stderr.write("\n")
+            sys.stderr.flush()
 
 
 def _report_download_progress(completed: int, total: int | None) -> None:

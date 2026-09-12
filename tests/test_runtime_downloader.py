@@ -1,4 +1,5 @@
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from io import StringIO
 from pathlib import Path
@@ -93,6 +94,53 @@ def test_download_retries_with_a_fresh_representation_after_a_reset(
     assert not destination.with_suffix(".gz.part").exists()
     assert requests[1].get_header("Range") is None
     assert updates == [(0, 4), (2, 4), (0, 4), (4, 4)]
+
+
+def test_failed_download_terminates_the_progress_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "runtime.tar.gz"
+    terminal = FakeTerminal()
+
+    def reset_connection(_: Request, timeout: float, allowed_hosts: frozenset[str]) -> FakeResponse:
+        return FakeResponse(200, {"Content-Length": "100"}, [b"x" * 16, ConnectionResetError()])
+
+    def no_sleep(_: int) -> None:
+        return None
+
+    monkeypatch.setattr("box.runtime.downloader.open_official", reset_connection)
+    monkeypatch.setattr("box.runtime.downloader.time.sleep", no_sleep)
+    monkeypatch.setattr(sys, "stderr", terminal)
+
+    with pytest.raises(RuntimeError, match="after 4 attempts"):
+        download_archive("https://dl.nwjs.io/v0.90.0/runtime.tar.gz", destination)
+
+    output = terminal.getvalue()
+    assert "\r" in output
+    terminal.write("error: boom\n")  # what cli/main.py prints next on failure
+    assert "\nerror: boom\n" in terminal.getvalue()
+
+
+def test_finished_download_ends_the_progress_line_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "runtime.tar.gz"
+    terminal = FakeTerminal()
+    response = FakeResponse(200, {"Content-Length": "4"}, [b"ab", b"cd"])
+
+    def complete_response(
+        _: Request, timeout: float, allowed_hosts: frozenset[str]
+    ) -> FakeResponse:
+        return response
+
+    monkeypatch.setattr("box.runtime.downloader.open_official", complete_response)
+    monkeypatch.setattr(sys, "stderr", terminal)
+
+    download_archive("https://dl.nwjs.io/v0.90.0/runtime.tar.gz", destination)
+
+    assert destination.read_bytes() == b"abcd"
+    assert terminal.getvalue().endswith("100%\n")
+    assert not terminal.getvalue().endswith("\n\n")
 
 
 def test_download_restarts_when_a_server_ignores_a_resume_range(
