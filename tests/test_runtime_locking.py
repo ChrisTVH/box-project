@@ -63,6 +63,12 @@ def test_install_holds_download_and_runtime_locks_until_publication(
 
     monkeypatch.setattr(downloader, "extract_runtime_at", checked_extract)
 
+    # Authentication is exercised separately with offline signed fixtures.
+    def verified(source: int, url: str) -> None:
+        return None
+
+    monkeypatch.setattr(downloader, "verify_archive", verified)
+
     def checked_validate(directory_descriptor: int) -> None:
         validate(directory_descriptor)
         if not (paths.runtimes_root / "linux-x64" / "standard-v0.90.0").exists():

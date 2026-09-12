@@ -14,14 +14,17 @@ from __future__ import annotations
 import argparse
 import contextlib
 import gettext
+import hashlib
 import json
 import os
 import re
 import shlex
+import shutil
 import site
 import stat
 import subprocess
 import sys
+import tempfile
 import uuid
 from collections.abc import Generator
 from pathlib import Path
@@ -30,6 +33,68 @@ from typing import cast
 REPO_ROOT = Path(__file__).resolve().parent
 PACKAGE = "box-rpg"
 INIT_PY = REPO_ROOT / "src/box/__init__.py"
+
+# Official completions from d28845f2a6aa7053a117b0d2ee71dae214b45f38.
+# Add only reviewed release artifacts here when completions change.
+PREVIOUS_COMPLETION_HASHES: dict[str, frozenset[str]] = {
+    "box-rpg.bash": frozenset({"1203e09485bdad9cdfaf26f501e651c5658be2d4fcb5ea51e62ad6a13d3c0731"}),
+    "box-rpg.fish": frozenset({"1807f59915eb0d07bc355761d5050adc129d4c831c52070068cf911a51210cb2"}),
+    "_box-rpg": frozenset({"cc9b852afe34240e453fe23f70c9673b6f9889f944ed72e5a438d13428a78ef6"}),
+}
+
+# Run only under -I: load trusted pip before exposing user metadata. The
+# path-entry finder blocks ALL imports from user-site, including lazy imports.
+# Unlike addsitedir(), this never processes .pth files or sitecustomize.
+USER_PIP_BOOTSTRAP = """
+import json, os, site, sys
+from pathlib import Path
+from importlib import metadata
+from pip._internal.cli.main import main
+
+home = Path.home().resolve()
+user_site = Path(site.getusersitepackages()).resolve()
+if (not home.is_absolute() or not user_site.is_absolute()
+        or user_site == home or not user_site.is_relative_to(home)
+        or '..' in user_site.parts):
+    raise SystemExit('error: user-site must be inside the user home')
+descriptor = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+try:
+    current = Path('/')
+    for component in user_site.parts[1:]:
+        current /= component
+        try:
+            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                            dir_fd=descriptor)
+        except FileNotFoundError:
+            break
+        os.close(descriptor)
+        descriptor = child
+        entry = os.fstat(descriptor)
+        if current.is_relative_to(home) and (
+            entry.st_uid != os.getuid() or entry.st_mode & 0o022
+        ):
+            raise SystemExit('error: user-site ancestors must be user-owned without group/other write')
+finally:
+    os.close(descriptor)
+
+class MetadataOnlyFinder:
+    def find_spec(self, fullname, target=None):
+        return None
+
+sys.path_importer_cache[str(user_site)] = MetadataOnlyFinder()
+sys.path.insert(0, str(user_site))
+# Permit pip's explicit --user scheme, not Python's site initialization.
+site.ENABLE_USER_SITE = True
+if sys.argv[1] in ('--verify-user-distribution', 'uninstall'):
+    distribution = metadata.distribution('box-rpg')
+    location = Path(distribution.locate_file('')).resolve()
+    if location != user_site:
+        raise SystemExit('error: refusing a non-user-site distribution')
+    if sys.argv[1] == '--verify-user-distribution':
+        print(json.dumps([str(location), str(user_site)]))
+        raise SystemExit(0)
+raise SystemExit(main(['--isolated', *sys.argv[1:]]))
+"""
 
 
 def _languages() -> tuple[str, ...] | None:
@@ -104,12 +169,14 @@ def installed_version() -> str | None:
     do --user installs and whose site-packages hide the user ones).
     """
     user_site = Path(site.getusersitepackages())
-    if str(user_site) not in sys.path:
-        sys.path.insert(0, str(user_site))
     try:
         from importlib import metadata
 
-        return metadata.version(PACKAGE)
+        return next(
+            distribution.version
+            for distribution in metadata.distributions(path=[str(user_site)])
+            if distribution.metadata["Name"] == PACKAGE
+        )
     except Exception:  # PackageNotFoundError / import errors
         return None
 
@@ -128,9 +195,25 @@ def compare_versions(a: str, b: str) -> int:
     return (ta > tb) - (ta < tb)
 
 
+def _command_environment() -> dict[str, str]:
+    """Sanitize the environment for installer subprocesses.
+
+    Loader injection variables must not reach venv/pip children, and PATH is
+    pinned because every installer command uses absolute interpreter paths.
+    """
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(("PIP_", "PYTHON", "LD_", "DYLD_")) and key != "VIRTUAL_ENV"
+    }
+    environment["PATH"] = "/usr/bin:/bin"
+    environment["PIP_CONFIG_FILE"] = os.devnull
+    return environment
+
+
 def run(args: list[str]) -> int:
     """Run a command, streaming output, returning its exit code."""
-    proc = subprocess.run(args, check=False)
+    proc = subprocess.run(args, check=False, env=_command_environment())
     return proc.returncode
 
 
@@ -146,10 +229,11 @@ def has_pip() -> bool:
     """Return whether the system Python can invoke pip."""
     try:
         result = subprocess.run(
-            [system_python(), "-m", "pip", "--version"],
+            [system_python(), "-I", "-m", "pip", "--version"],
             check=False,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            env=_command_environment(),
         )
     except OSError:
         return False
@@ -157,6 +241,7 @@ def has_pip() -> bool:
 
 
 allow_system_packages = False
+force_reinstall = False
 
 
 def _break_system_packages_args() -> list[str]:
@@ -230,7 +315,7 @@ def remove_matching(parent: int, name: str, expected: bytes) -> None:
 
 
 def update_completion(source: Path, target: Path, *, uninstall: bool = False) -> None:
-    """Publish without replacement; remove only exact copies of this source."""
+    """Publish without replacement; accept current and reviewed official copies."""
     home = Path.home()
     if target == home or not target.is_relative_to(home) or ".." in target.parts:
         raise PermissionError(f"Completion outside home: {target}")
@@ -244,11 +329,15 @@ def update_completion(source: Path, target: Path, *, uninstall: bool = False) ->
                 if uninstall:
                     return
             else:
-                if existing != expected:
+                previous = hashlib.sha256(existing).hexdigest() in PREVIOUS_COMPLETION_HASHES.get(
+                    source.name, frozenset()
+                )
+                if existing != expected and not previous:
                     raise PermissionError(f"Modified or unowned completion: {target}")
-                if uninstall:
-                    remove_matching(parent, target.name, expected)
-                return
+                if uninstall or existing != expected:
+                    remove_matching(parent, target.name, existing)
+                if uninstall or existing == expected:
+                    return
             temporary = f".box-rpg-{uuid.uuid4().hex}"
             descriptor = os.open(
                 temporary,
@@ -269,16 +358,13 @@ def update_completion(source: Path, target: Path, *, uninstall: bool = False) ->
 
 def _user_distribution_verified() -> bool:
     """Verify what the base interpreter (and therefore pip) will select."""
-    probe = (
-        "import importlib.metadata as m,json,site; "
-        "from pathlib import Path; "
-        "d=m.distribution('box-rpg'); "
-        "print(json.dumps([str(Path(d.locate_file('')).resolve()), "
-        "str(Path(site.getusersitepackages()).resolve())]))"
-    )
     try:
         result = subprocess.run(
-            [system_python(), "-c", probe], check=False, capture_output=True, text=True
+            [*_user_pip_args(), "--verify-user-distribution"],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=_command_environment(),
         )
         payload: object = json.loads(result.stdout)
         if not isinstance(payload, list):
@@ -289,34 +375,116 @@ def _user_distribution_verified() -> bool:
             and len(locations) == 2
             and isinstance(locations[0], str)
             and locations[0] == locations[1]
-            and Path(locations[0]).is_relative_to(Path.home())
+            and Path(locations[0]).is_relative_to(Path.home().resolve())
         )
     except OSError, ValueError:
         return False
 
 
-def _pip_install_args() -> list[str]:
+def _user_pip_args() -> list[str]:
+    return [system_python(), "-I", "-c", USER_PIP_BOOTSTRAP]
+
+
+def _pip_install_args(wheel: Path) -> list[str]:
     args = [
-        system_python(),
-        "-m",
-        "pip",
+        *_user_pip_args(),
         "install",
         "--user",
-        str(REPO_ROOT),
+        "--no-deps",
+        "--no-index",
+        str(wheel),
         "--no-input",
         "--disable-pip-version-check",
     ]
+    if force_reinstall:
+        args.append("--force-reinstall")
     return [*args, *_break_system_packages_args()]
+
+
+def copy_build_source(destination: Path) -> None:
+    """Stage the trusted checkout without venvs or previous build artifacts."""
+    destination.mkdir()
+    for name in ("pyproject.toml", "README.md", "LICENSE"):
+        shutil.copyfile(REPO_ROOT / name, destination / name)
+    for name in ("src", "res", "docs"):
+        shutil.copytree(
+            REPO_ROOT / name,
+            destination / name,
+            ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"),
+        )
+
+
+def _wheel_args(python: Path, workspace: Path) -> list[str]:
+    return [
+        str(python),
+        "-I",
+        "-m",
+        "pip",
+        "--isolated",
+        "wheel",
+        "--no-build-isolation",
+        "--no-deps",
+        "--no-index",
+        "--no-input",
+        "--disable-pip-version-check",
+        "--wheel-dir",
+        str(workspace / "wheels"),
+        str(workspace / "source"),
+    ]
+
+
+def _build_commands(workspace: Path) -> list[list[str]]:
+    python = workspace / "venv/bin/python"
+    return [
+        [sys.executable, "-I", "-m", "venv", str(workspace / "venv")],
+        [
+            str(python),
+            "-I",
+            "-m",
+            "pip",
+            "--isolated",
+            "install",
+            "--require-hashes",
+            "--only-binary=:all:",
+            "--force-reinstall",
+            "--index-url",
+            "https://pypi.org/simple",
+            "--no-input",
+            "--disable-pip-version-check",
+            "-r",
+            str(workspace / "source/res/requirements/build.txt"),
+        ],
+        _wheel_args(python, workspace),
+    ]
+
+
+def build_wheel(workspace: Path) -> Path:
+    """Build with hash-checked tools in a private, disposable environment."""
+    copy_build_source(workspace / "source")
+    for command in _build_commands(workspace):
+        if run(command) != 0:
+            raise RuntimeError("locked wheel build failed")
+    wheels = list((workspace / "wheels").glob("box_rpg-*.whl"))
+    if len(wheels) != 1 or not wheels[0].is_file() or wheels[0].is_symlink():
+        raise RuntimeError("expected exactly one box-rpg wheel")
+    return wheels[0]
 
 
 def _pip_uninstall_args() -> list[str]:
     """Build pip's user-level uninstall command."""
-    args = [system_python(), "-m", "pip", "uninstall", "-y", PACKAGE]
+    args = [*_user_pip_args(), "uninstall", "-y", PACKAGE]
     return [*args, *_break_system_packages_args()]
 
 
 def install_commands() -> list[str]:
-    cmds = [shlex.join(_pip_install_args())]
+    workspace = Path("<private-temporary-directory>")
+    cmds = [
+        "stage trusted checkout in private temporary directory; "
+        + " && ".join(shlex.join(command) for command in _build_commands(workspace))
+        + " && "
+        + shlex.join(_pip_install_args(workspace / "wheels/box_rpg-<version>-py3-none-any.whl"))
+        + "; clean up temporary directory"
+    ]
     for source, target in COMPLETION_TARGETS:
         cmds.append(
             f"safe completion install: {shlex.quote(str(source))} -> {shlex.quote(str(target))}"
@@ -329,9 +497,14 @@ def run_install() -> bool:
         print(_("error: refusing to run as root"), file=sys.stderr)
         return False
     ok = True
-    if run(_pip_install_args()) != 0:
-        print(_("error: pip install failed"), file=sys.stderr)
-        ok = False
+    try:
+        with tempfile.TemporaryDirectory(prefix="box-rpg-build-") as directory:
+            wheel = build_wheel(Path(directory))
+            if run(_pip_install_args(wheel)) != 0:
+                raise RuntimeError("pip install failed")
+    except (OSError, RuntimeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return False
     for source, target in COMPLETION_TARGETS:
         if not source.exists():
             print(
@@ -404,7 +577,7 @@ def _prompt(prompt: str) -> str | None:
 
 
 def main() -> int:
-    global allow_system_packages
+    global allow_system_packages, force_reinstall
     _configure_translation()
     parser = argparse.ArgumentParser(
         description=_(
@@ -438,8 +611,14 @@ prompt. Pass --uninstall to remove the package and its completions."""
         action="store_true",
         help="explicitly allow pip to override PEP 668 (not implied by --yes)",
     )
+    parser.add_argument(
+        "--force-reinstall",
+        action="store_true",
+        help=_("reinstall the package even when the same version is installed"),
+    )
     args = parser.parse_args()
     allow_system_packages = args.break_system_packages
+    force_reinstall = args.force_reinstall
 
     if args.install and args.uninstall:
         print(_("error: --install and --uninstall are mutually exclusive"), file=sys.stderr)
@@ -504,6 +683,12 @@ prompt. Pass --uninstall to remove the package and its completions."""
             print(
                 _("\nThe installed version ({installed}) is newer than the repo ({repo}).").format(
                     installed=installed, repo=repo
+                )
+            )
+        elif force_reinstall:
+            print(
+                _("\nReinstalling the same version ({installed}) as requested.").format(
+                    installed=installed
                 )
             )
         else:

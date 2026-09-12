@@ -4,3 +4,6 @@
 
 !config/box-rpg.toml.example
 !config/*.conf
+
+!requirements/*.in
+!requirements/*.txt

@@ -21,6 +21,7 @@ from box.models import RuntimeInfo, RuntimeSpec
 from box.paths import AppPaths
 from box.runtime import limits
 from box.runtime.archive import extract_runtime_at
+from box.runtime.authenticity import verify_archive
 from box.runtime.http import open_official, validate_source
 from box.runtime.platform import normalize_architecture
 from box.runtime.security import cache_lock, validate_private_file
@@ -78,6 +79,7 @@ def install_runtime(
             download_archive_at(download_url(spec), archive_name, download_descriptor)
             archive_descriptor = _open_regular_file(archive_name, download_descriptor)
             try:
+                verify_archive(archive_descriptor, download_url(spec))
                 temporary_name = Path(
                     tempfile.mkdtemp(prefix=".install-", dir=f"/proc/self/fd/{runtime_descriptor}")
                 ).name

@@ -136,6 +136,7 @@ def create_session(
             os.close(game_descriptor)
         raise LaunchError(_("cannot create launch session: {error}").format(error=exc)) from exc
     try:
+        os.mkdir("save", 0o700, dir_fd=session_descriptor)
         link_game(
             root,
             session_descriptor=session_descriptor,

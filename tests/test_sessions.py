@@ -45,7 +45,7 @@ def test_session_links_game_writes_wrapper_and_cleans_up_without_mutation(
         assert session.profile_root == paths.profiles_root / game_id(game_root)
         assert session.profile_root.stat().st_mode & 0o777 == 0o700
         assert (session.root / "game").is_symlink()
-        assert (session.root / "game").resolve() == game_root
+        assert (session.root / "game").readlink() == Path("/game")
         copied_auxiliary = session.root / "game_messages.csv"
         assert copied_auxiliary.is_file()
         assert not copied_auxiliary.is_symlink()
@@ -214,7 +214,7 @@ def test_session_links_the_validated_game_directory(
     paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
 
     with create_session(paths, game) as session:
-        assert (session.reference / "game" / "index.html").read_text(encoding="utf-8") == "original"
+        assert (session.reference / "game").readlink() == Path("/game")
 
 
 def test_session_cleanup_does_not_remove_a_replacement_directory(tmp_path: Path) -> None:

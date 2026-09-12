@@ -35,3 +35,8 @@
 | EasyRPG download | descarga de EasyRPG | |
 | session | sesión | |
 | EasyRPG runtime | entorno de ejecución de EasyRPG | |
+| confirmed game root | raíz del juego confirmada | |
+| byte limit | límite de bytes | |
+| game file | archivo del juego | |
+| traversal | recorrido | En rutas: sin recorrido. |
+| regular file | archivo regular | Término Unix. |

@@ -2,3 +2,5 @@
 !/box/**/py.typed
 !/box/**/locale/**/*.po
 !/box/**/locale/**/*.mo
+!/box/runtime/keys/*.asc
+!/box/runtime/keys/README.md

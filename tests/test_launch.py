@@ -3,11 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from box.cli.launch import authorize_game, execute
+# pyright: reportPrivateUsage=false
+from box.cli.launch import _setup_desktop, authorize_game, execute
 from box.config.models import AppConfig
 from box.config.repository import ConfigRepository
 from box.engines.registry import EngineRegistry
-from box.errors import GameValidationError, RuntimeError
+from box.errors import GameValidationError, LaunchError, RuntimeError
+from box.launch.sandbox import Sandbox
 from box.models import EngineName, GameInfo, RuntimeInfo, RuntimeSpec
 from box.paths import AppPaths
 from box.runtime.easyrpg import EasyRPGRuntime
@@ -242,8 +244,9 @@ def test_execute_does_not_register_a_game_when_no_runtime_is_available(
     assert repository.load().allowed_game_roots == ()
 
 
+@pytest.mark.parametrize("allow_network", [False, True])
 def test_execute_launches_rpg_rt_projects_with_easyrpg_fullscreen(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, allow_network: bool
 ) -> None:
     game_root = tmp_path / "game"
     game_root.mkdir()
@@ -281,10 +284,90 @@ def test_execute_launches_rpg_rt_projects_with_easyrpg_fullscreen(
     monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
     monkeypatch.setattr("box.cli.launch.run_process", run)
 
-    assert execute(paths, repository, game_root, None, False) == 0
-    assert calls[0][0][:2] == [str(executable), "--project-path"]
-    assert calls[0][0][3] == "--fullscreen"
-    assert calls[0][1] == Path(calls[0][0][2])
+    def desktop(_: Sandbox) -> None:
+        pass
+
+    def probe(_: Sandbox) -> str:
+        return "wayland"
+
+    def devices(_: Sandbox) -> None:
+        pass
+
+    def audio(_: Sandbox) -> None:
+        pass
+
+    monkeypatch.setattr(Sandbox, "desktop", desktop)
+    monkeypatch.setattr(Sandbox, "display_probe", probe)
+    monkeypatch.setattr(Sandbox, "devices", devices)
+    monkeypatch.setattr(Sandbox, "audio", audio)
+    monkeypatch.delenv("DISPLAY", raising=False)
+
+    assert execute(paths, repository, game_root, None, False, allow_network=allow_network) == 0
+    command = calls[0][0]
+    assert command[0] == "/usr/bin/bwrap"
+    assert command[-6:] == [
+        "/runtime/easyrpg-player",
+        "--project-path",
+        "/game",
+        "--fullscreen",
+        "--save-path",
+        "/game/save",
+    ]
+    assert ("--unshare-net" not in command) == allow_network
+    assert calls[0][1] is None
+
+
+@pytest.mark.parametrize("allow_network", [False, True])
+def test_execute_passes_network_policy_to_nwjs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, allow_network: bool
+) -> None:
+    root = tmp_path / "game"
+    root.mkdir()
+    (root / "index.html").write_text("fixture")
+    (root / "package.json").write_text('{"name": "fixture"}')
+    game = GameInfo(EngineName.RPG_MAKER_MZ, root, root / "index.html", root / "package.json")
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    binary = runtime_root / "nw"
+    binary.write_text("fixture")
+    runtime = RuntimeInfo(RuntimeSpec("v0.90.0", "x64"), runtime_root, binary)
+    paths = AppPaths(tmp_path / "config", tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(root)
+
+    def detect(_: Path, __: EngineRegistry) -> GameInfo:
+        return game
+
+    def select(*_: object) -> RuntimeInfo:
+        return runtime
+
+    def desktop(_: Sandbox) -> None:
+        pass
+
+    def probe(_: Sandbox) -> str:
+        return "wayland"
+
+    def devices(_: Sandbox) -> None:
+        pass
+
+    def audio(_: Sandbox) -> None:
+        pass
+
+    def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
+        assert command[0] == "/usr/bin/bwrap"
+        assert "/runtime/nw" in command
+        assert ("--unshare-net" not in command) == allow_network
+        assert pass_fds
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect)
+    monkeypatch.setattr("box.cli.launch.select_runtime", select)
+    monkeypatch.setattr(Sandbox, "desktop", desktop)
+    monkeypatch.setattr(Sandbox, "display_probe", probe)
+    monkeypatch.setattr(Sandbox, "devices", devices)
+    monkeypatch.setattr(Sandbox, "audio", audio)
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+    assert execute(paths, repository, root, None, False, allow_network=allow_network) == 0
 
 
 def test_execute_rejects_nwjs_options_for_rpg_rt_projects(
@@ -351,3 +434,596 @@ def test_execute_rejects_relocation_during_authorization(
 
     with pytest.raises(GameValidationError, match="changed since detection"):
         execute(paths, repository, game_root, None, False)
+
+
+class _FakeDisplaySandbox(Sandbox):
+    """Minimal display double for _setup_desktop tests."""
+
+    def __init__(self, probe: str) -> None:
+        super().__init__()
+        self._probe = probe
+        self.calls: list[str] = []
+
+    def display_probe(self) -> str:
+        return self._probe
+
+    def desktop(self) -> None:
+        self.calls.append("desktop")
+
+    def x11(self) -> None:
+        self.calls.append("x11")
+
+
+def test_setup_desktop_wayland_never_prompts() -> None:
+    def forbidden(prompt: str) -> str:
+        raise AssertionError("wayland must not prompt")
+
+    sandbox = _FakeDisplaySandbox("wayland")
+
+    assert _setup_desktop(sandbox, forbidden) == "wayland"
+    assert sandbox.calls == ["desktop"]
+
+
+def test_setup_desktop_wayland_without_reader() -> None:
+    sandbox = _FakeDisplaySandbox("wayland")
+
+    assert _setup_desktop(sandbox, None) == "wayland"
+    assert sandbox.calls == ["desktop"]
+
+
+@pytest.mark.parametrize("answer", ["y", "Y", "yes", " YES "])
+def test_setup_desktop_x11_accepts_confirmation(
+    answer: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DISPLAY", ":0")
+    sandbox = _FakeDisplaySandbox("x11")
+
+    def confirm(prompt: str) -> str:
+        return answer
+
+    assert _setup_desktop(sandbox, confirm) == "x11"
+    assert sandbox.calls == ["x11"]
+    captured = capsys.readouterr()
+    assert "Continue with X11?" not in captured.out
+    assert ":0" in captured.err
+    assert "keylog" in captured.err.lower() or "capture" in captured.err.lower()
+
+
+@pytest.mark.parametrize("answer", ["n", "no", "", "maybe"])
+def test_setup_desktop_x11_declines_without_consent(answer: str) -> None:
+    sandbox = _FakeDisplaySandbox("x11")
+
+    def decline(prompt: str) -> str:
+        return answer
+
+    with pytest.raises(GameValidationError):
+        _setup_desktop(sandbox, decline)
+    assert sandbox.calls == []
+
+
+def test_setup_desktop_x11_rejects_end_of_input() -> None:
+    def missing(prompt: str) -> str:
+        raise EOFError
+
+    sandbox = _FakeDisplaySandbox("x11")
+
+    with pytest.raises(GameValidationError):
+        _setup_desktop(sandbox, missing)
+    assert sandbox.calls == []
+
+
+def test_setup_desktop_x11_requires_interactive_consent() -> None:
+    sandbox = _FakeDisplaySandbox("x11")
+
+    with pytest.raises(GameValidationError, match="consent"):
+        _setup_desktop(sandbox, None)
+    assert sandbox.calls == []
+
+
+def test_setup_desktop_x11_sanitizes_display(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DISPLAY", ":0\x1b[31m\n")
+    sandbox = _FakeDisplaySandbox("x11")
+
+    def confirm(prompt: str) -> str:
+        return "yes"
+
+    assert _setup_desktop(sandbox, confirm) == "x11"
+    captured = capsys.readouterr()
+    assert "\x1b" not in captured.err
+    assert "\n" not in captured.err.strip().splitlines()[0] or "\\x" in captured.err
+    assert "keylog" in captured.err.lower() or "capture" in captured.err.lower()
+
+
+@pytest.mark.parametrize("answer", ["y", "yes"])
+def test_setup_desktop_extra_x11_prompts_on_wayland(
+    answer: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DISPLAY", ":0")
+    sandbox = _FakeDisplaySandbox("wayland")
+
+    def confirm(prompt: str) -> str:
+        return answer
+
+    assert _setup_desktop(sandbox, confirm, extra_x11=True) == "wayland"
+    assert sandbox.calls == ["desktop", "x11"]
+
+
+@pytest.mark.parametrize("answer", ["n", "no", ""])
+def test_setup_desktop_extra_x11_decline_aborts(
+    answer: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DISPLAY", ":0")
+    sandbox = _FakeDisplaySandbox("wayland")
+
+    def decline(prompt: str) -> str:
+        return answer
+
+    with pytest.raises(GameValidationError):
+        _setup_desktop(sandbox, decline, extra_x11=True)
+    assert sandbox.calls == ["desktop"]
+
+
+def test_setup_desktop_extra_x11_requires_interactive_consent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DISPLAY", ":0")
+    sandbox = _FakeDisplaySandbox("wayland")
+
+    with pytest.raises(GameValidationError, match="consent"):
+        _setup_desktop(sandbox, None, extra_x11=True)
+    assert sandbox.calls == ["desktop"]
+
+
+def test_setup_desktop_extra_x11_skipped_without_display(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DISPLAY", raising=False)
+    sandbox = _FakeDisplaySandbox("wayland")
+
+    def forbidden(prompt: str) -> str:
+        raise AssertionError("no X11 available, must not prompt")
+
+    assert _setup_desktop(sandbox, forbidden, extra_x11=True) == "wayland"
+    assert sandbox.calls == ["desktop"]
+
+
+def test_setup_desktop_ignores_x11_without_extra_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DISPLAY", ":0")
+    sandbox = _FakeDisplaySandbox("wayland")
+
+    def forbidden(prompt: str) -> str:
+        raise AssertionError("extra_x11 not requested, must not prompt")
+
+    assert _setup_desktop(sandbox, forbidden) == "wayland"
+    assert sandbox.calls == ["desktop"]
+
+
+def test_setup_desktop_without_display_preserves_desktop_error() -> None:
+    class _FailingSandbox(_FakeDisplaySandbox):
+        def desktop(self) -> None:
+            self.calls.append("desktop")
+            raise LaunchError("a local Wayland socket is required")
+
+    sandbox = _FailingSandbox("none")
+
+    def confirm(prompt: str) -> str:
+        return "yes"
+
+    with pytest.raises(LaunchError):
+        _setup_desktop(sandbox, confirm)
+    assert sandbox.calls == ["desktop"]
+
+
+def _prepare_easyrpg_game(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[AppPaths, ConfigRepository, GameInfo]:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    executable = runtime_root / "easyrpg-player"
+    executable.write_text("#!/bin/sh\n", encoding="utf-8")
+    executable.chmod(0o700)
+    game = GameInfo(EngineName.RPG_MAKER_2000_2003, game_root)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+
+    def detect_game(game_path: Path, registry: EngineRegistry) -> GameInfo:
+        return game
+
+    def latest(catalog: object) -> EasyRPGRuntime:
+        return EasyRPGRuntime("0.8.1.1", runtime_root)
+
+    def authorize(
+        authorized_game: GameInfo,
+        config: AppConfig,
+        authorized_repository: ConfigRepository,
+        read: Callable[[str], str] | None = None,
+    ) -> AppConfig:
+        return repository.load()
+
+    def probe(sandbox: Sandbox) -> str:
+        return "wayland"
+
+    def desktop(sandbox: Sandbox) -> None:
+        pass
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
+    monkeypatch.setattr("box.cli.launch.EasyRPGCatalog.latest", latest)
+    monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
+    monkeypatch.setattr(Sandbox, "display_probe", probe)
+    monkeypatch.setattr(Sandbox, "desktop", desktop)
+    # Hermetic display: the extra-X11 consent reads the real DISPLAY.
+    monkeypatch.delenv("DISPLAY", raising=False)
+    return paths, repository, game
+
+
+@pytest.mark.parametrize("allow_game_writes", [False, True])
+def test_execute_forwards_sandbox_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, allow_game_writes: bool
+) -> None:
+    paths, repository, game = _prepare_easyrpg_game(tmp_path, monkeypatch)
+    seen: dict[str, bool] = {}
+    real_init = Sandbox.__init__
+
+    def spy(self: Sandbox, *, allow_network: bool = False, allow_game_writes: bool = False) -> None:
+        seen["allow_network"] = allow_network
+        seen["allow_game_writes"] = allow_game_writes
+        real_init(self, allow_network=allow_network, allow_game_writes=allow_game_writes)
+
+    def devices(sandbox: Sandbox) -> None:
+        pass
+
+    def audio(sandbox: Sandbox) -> None:
+        pass
+
+    def run(
+        command: list[str],
+        cwd: Path | None = None,
+        pass_fds: tuple[int, ...] = (),
+    ) -> int:
+        return 0
+
+    monkeypatch.setattr(Sandbox, "__init__", spy)
+    monkeypatch.setattr(Sandbox, "devices", devices)
+    monkeypatch.setattr(Sandbox, "audio", audio)
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+
+    assert (
+        execute(
+            paths,
+            repository,
+            game.root,
+            None,
+            False,
+            allow_network=True,
+            allow_game_writes=allow_game_writes,
+        )
+        == 0
+    )
+    assert seen == {"allow_network": True, "allow_game_writes": allow_game_writes}
+
+
+@pytest.mark.parametrize("allow_game_writes", [False, True])
+def test_execute_easyrpg_game_writable_bind(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, allow_game_writes: bool
+) -> None:
+    paths, repository, game = _prepare_easyrpg_game(tmp_path, monkeypatch)
+    binds: list[tuple[str, bool]] = []
+    writable_calls: list[int] = []
+
+    def fake_bind(
+        self: Sandbox, descriptor: int, destination: str, *, writable: bool = False
+    ) -> None:
+        binds.append((destination, writable))
+
+    def fake_writable(self: Sandbox, descriptor: int) -> None:
+        writable_calls.append(descriptor)
+        self._fds.append(descriptor)
+
+    def devices(sandbox: Sandbox) -> None:
+        pass
+
+    def audio(sandbox: Sandbox) -> None:
+        pass
+
+    seen_fds: list[tuple[int, ...]] = []
+
+    def run(
+        command: list[str],
+        cwd: Path | None = None,
+        pass_fds: tuple[int, ...] = (),
+    ) -> int:
+        seen_fds.append(pass_fds)
+        return 0
+
+    monkeypatch.setattr(Sandbox, "bind", fake_bind)
+    monkeypatch.setattr(Sandbox, "game_writable", fake_writable)
+    monkeypatch.setattr(Sandbox, "devices", devices)
+    monkeypatch.setattr(Sandbox, "audio", audio)
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+
+    assert (
+        execute(paths, repository, game.root, None, False, allow_game_writes=allow_game_writes) == 0
+    )
+    assert ("/game/save", True) in binds
+    if allow_game_writes:
+        assert len(writable_calls) == 1
+        assert writable_calls[0] in seen_fds[0]
+        assert ("/game", False) not in binds
+        assert ("/game", True) not in binds
+    else:
+        assert writable_calls == []
+        assert ("/game", False) in binds
+
+
+def test_execute_nwjs_forwards_game_writes_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "game"
+    root.mkdir()
+    (root / "index.html").write_text("fixture")
+    (root / "package.json").write_text('{"name": "fixture"}')
+    game = GameInfo(EngineName.RPG_MAKER_MZ, root, root / "index.html", root / "package.json")
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    binary = runtime_root / "nw"
+    binary.write_text("fixture")
+    runtime = RuntimeInfo(RuntimeSpec("v0.90.0", "x64"), runtime_root, binary)
+    paths = AppPaths(tmp_path / "config", tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(root)
+    seen: dict[str, bool] = {}
+    real_init = Sandbox.__init__
+
+    def spy(self: Sandbox, *, allow_network: bool = False, allow_game_writes: bool = False) -> None:
+        seen["allow_network"] = allow_network
+        seen["allow_game_writes"] = allow_game_writes
+        real_init(self, allow_network=allow_network, allow_game_writes=allow_game_writes)
+
+    def detect(game_path: Path, registry: EngineRegistry) -> GameInfo:
+        return game
+
+    def select(catalog: object, architecture: str, version: str | None, sdk: bool) -> RuntimeInfo:
+        return runtime
+
+    def probe(sandbox: Sandbox) -> str:
+        return "wayland"
+
+    def desktop(sandbox: Sandbox) -> None:
+        pass
+
+    def devices(sandbox: Sandbox) -> None:
+        pass
+
+    def audio(sandbox: Sandbox) -> None:
+        pass
+
+    def run(
+        command: list[str],
+        cwd: Path | None = None,
+        pass_fds: tuple[int, ...] = (),
+    ) -> int:
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect)
+    monkeypatch.setattr("box.cli.launch.select_runtime", select)
+    monkeypatch.setattr(Sandbox, "__init__", spy)
+    monkeypatch.setattr(Sandbox, "display_probe", probe)
+    monkeypatch.setattr(Sandbox, "desktop", desktop)
+    monkeypatch.setattr(Sandbox, "devices", devices)
+    monkeypatch.setattr(Sandbox, "audio", audio)
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+
+    assert execute(paths, repository, root, None, False, allow_game_writes=True) == 0
+    assert seen == {"allow_network": False, "allow_game_writes": True}
+
+
+@pytest.mark.parametrize("engine", ["easyrpg", "nwjs"])
+def test_execute_calls_devices_and_audio_in_both_branches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, engine: str
+) -> None:
+    calls: list[str] = []
+
+    def probe(sandbox: Sandbox) -> str:
+        return "wayland"
+
+    def desktop(sandbox: Sandbox) -> None:
+        pass
+
+    def devices(sandbox: Sandbox) -> None:
+        calls.append("devices")
+
+    def audio(sandbox: Sandbox) -> None:
+        calls.append("audio")
+
+    def run(
+        command: list[str],
+        cwd: Path | None = None,
+        pass_fds: tuple[int, ...] = (),
+    ) -> int:
+        return 0
+
+    monkeypatch.setattr(Sandbox, "display_probe", probe)
+    monkeypatch.setattr(Sandbox, "desktop", desktop)
+    monkeypatch.setattr(Sandbox, "devices", devices)
+    monkeypatch.setattr(Sandbox, "audio", audio)
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+    if engine == "easyrpg":
+        paths, repository, game = _prepare_easyrpg_game(tmp_path, monkeypatch)
+        assert execute(paths, repository, game.root, None, False) == 0
+    else:
+        root = tmp_path / "game"
+        root.mkdir()
+        (root / "index.html").write_text("fixture")
+        (root / "package.json").write_text('{"name": "fixture"}')
+        game = GameInfo(EngineName.RPG_MAKER_MZ, root, root / "index.html", root / "package.json")
+        runtime_root = tmp_path / "runtime"
+        runtime_root.mkdir()
+        binary = runtime_root / "nw"
+        binary.write_text("fixture")
+        runtime = RuntimeInfo(RuntimeSpec("v0.90.0", "x64"), runtime_root, binary)
+        paths = AppPaths(tmp_path / "config", tmp_path / "cache")
+        repository = ConfigRepository(paths)
+        repository.add_allowed_root(root)
+
+        def detect(game_path: Path, registry: EngineRegistry) -> GameInfo:
+            return game
+
+        def select(
+            catalog: object, architecture: str, version: str | None, sdk: bool
+        ) -> RuntimeInfo:
+            return runtime
+
+        monkeypatch.setattr("box.cli.launch.detect_game", detect)
+        monkeypatch.setattr("box.cli.launch.select_runtime", select)
+        assert execute(paths, repository, root, None, False) == 0
+    assert calls == ["devices", "audio"]
+
+
+def test_execute_nwjs_uses_x11_ozone_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "game"
+    root.mkdir()
+    (root / "index.html").write_text("fixture")
+    (root / "package.json").write_text('{"name": "fixture"}')
+    game = GameInfo(EngineName.RPG_MAKER_MZ, root, root / "index.html", root / "package.json")
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    binary = runtime_root / "nw"
+    binary.write_text("fixture")
+    runtime = RuntimeInfo(RuntimeSpec("v0.90.0", "x64"), runtime_root, binary)
+    paths = AppPaths(tmp_path / "config", tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(root)
+    commands: list[list[str]] = []
+    monkeypatch.setenv("DISPLAY", ":0")
+
+    def detect(game_path: Path, registry: EngineRegistry) -> GameInfo:
+        return game
+
+    def select(catalog: object, architecture: str, version: str | None, sdk: bool) -> RuntimeInfo:
+        return runtime
+
+    def probe(sandbox: Sandbox) -> str:
+        return "x11"
+
+    def desktop(sandbox: Sandbox) -> None:
+        pytest.fail("wayland must not be used")
+
+    def use_x11(sandbox: Sandbox) -> None:
+        pass
+
+    def devices(sandbox: Sandbox) -> None:
+        pass
+
+    def audio(sandbox: Sandbox) -> None:
+        pass
+
+    def stdin_is_tty() -> bool:
+        return True
+
+    def confirm(prompt: str) -> str:
+        return "yes"
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect)
+    monkeypatch.setattr("box.cli.launch.select_runtime", select)
+    monkeypatch.setattr(Sandbox, "display_probe", probe)
+    monkeypatch.setattr(Sandbox, "desktop", desktop)
+    monkeypatch.setattr(Sandbox, "x11", use_x11)
+    monkeypatch.setattr(Sandbox, "devices", devices)
+    monkeypatch.setattr(Sandbox, "audio", audio)
+    monkeypatch.setattr("sys.stdin.isatty", stdin_is_tty)
+    monkeypatch.setattr("builtins.input", confirm)
+
+    def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
+        commands.append(command)
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+
+    assert execute(paths, repository, root, None, False) == 0
+    assert any("--ozone-platform=x11" in command for command in commands)
+    assert not any("--ozone-platform=wayland" in command for command in commands)
+
+
+@pytest.mark.parametrize("answer", ["yes", "no"])
+def test_execute_easyrpg_extra_x11_consent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, answer: str
+) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    executable = runtime_root / "easyrpg-player"
+    executable.write_text("#!/bin/sh\n", encoding="utf-8")
+    executable.chmod(0o700)
+    game = GameInfo(EngineName.RPG_MAKER_2000_2003, game_root)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    x11_calls: list[None] = []
+    monkeypatch.setenv("DISPLAY", ":0")
+
+    def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
+        return game
+
+    def latest(_: object) -> EasyRPGRuntime:
+        return EasyRPGRuntime("0.8.1.1", runtime_root)
+
+    def authorize(
+        _: GameInfo,
+        __: AppConfig,
+        ___: ConfigRepository,
+        ____: Callable[[str], str] | None = None,
+    ) -> AppConfig:
+        return repository.load()
+
+    def probe(_: Sandbox) -> str:
+        return "wayland"
+
+    def desktop(_: Sandbox) -> None:
+        pass
+
+    def use_x11(_: Sandbox) -> None:
+        x11_calls.append(None)
+
+    def devices(_: Sandbox) -> None:
+        pass
+
+    def audio(_: Sandbox) -> None:
+        pass
+
+    def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
+    monkeypatch.setattr("box.cli.launch.EasyRPGCatalog.latest", latest)
+    monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
+    monkeypatch.setattr(Sandbox, "display_probe", probe)
+    monkeypatch.setattr(Sandbox, "desktop", desktop)
+    monkeypatch.setattr(Sandbox, "x11", use_x11)
+    monkeypatch.setattr(Sandbox, "devices", devices)
+    monkeypatch.setattr(Sandbox, "audio", audio)
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+
+    def stdin_is_tty() -> bool:
+        return True
+
+    def confirm(prompt: str) -> str:
+        return answer
+
+    monkeypatch.setattr("sys.stdin.isatty", stdin_is_tty)
+    monkeypatch.setattr("builtins.input", confirm)
+
+    if answer == "yes":
+        assert execute(paths, repository, game_root, None, False) == 0
+        assert len(x11_calls) == 1
+    else:
+        with pytest.raises(GameValidationError):
+            execute(paths, repository, game_root, None, False)
+        assert x11_calls == []

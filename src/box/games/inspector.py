@@ -53,7 +53,9 @@ def _rpg_rt_title(descriptor: int) -> str | None:
 
 def _read_json(descriptor: int, path: Path) -> dict[str, object]:
     try:
-        raw = json.loads(read_game_file(descriptor, path).decode("utf-8"))
+        # utf-8-sig tolerates the BOM some editors prepend; it is identical
+        # to utf-8 otherwise and byte limits still apply before decoding.
+        raw = json.loads(read_game_file(descriptor, path).decode("utf-8-sig"))
     except (UnicodeError, json.JSONDecodeError, RecursionError) as exc:
         raise GameValidationError(
             _("invalid game manifest {path}: {error}").format(path=path, error=exc)

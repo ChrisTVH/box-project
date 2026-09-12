@@ -7,9 +7,10 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-08 13:15-0400\n"
+"POT-Creation-Date: 2026-09-12 01:33-0400\n"
 "PO-Revision-Date: 2026-09-08 00:00+0000\n"
-"Last-Translator: Christopher Herasme <5632734-christvh@users.noreply.gitlab.com>\n"
+"Last-Translator: Christopher Herasme <5632734-"
+"christvh@users.noreply.gitlab.com>\n"
 "Language-Team: Spanish\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
@@ -17,49 +18,51 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: install.py:198
-msgid "error: pip install failed"
-msgstr "error: falló la instalación con pip"
+#: install.py:497
+msgid "error: refusing to run as root"
+msgstr "error: se rechaza ejecutar como root"
 
-#: install.py:203
+#: install.py:511
 #, python-brace-format
 msgid "warning: completion source missing: {source}"
 msgstr "advertencia: falta el origen del autocompletado: {source}"
 
-#: install.py:211
+#: install.py:519
 #, python-brace-format
-msgid "error: cannot create directory {directory}: {error}"
-msgstr "error: no se puede crear el directorio {directory}: {error}"
+msgid "error: cannot install completion {target}: {error}"
+msgstr "error: no se pudo instalar el autocompletado en {target}: {error}"
 
-#: install.py:220
-#, python-brace-format
-msgid "error: failed to install completion to {target}"
-msgstr "error: no se pudo instalar el autocompletado en {target}"
-
-#: install.py:225
+#: install.py:526
 #, python-brace-format
 msgid "installed completion {target}"
 msgstr "autocompletado instalado en {target}"
 
-#: install.py:239
+#: install.py:540
+msgid ""
+"error: uninstall requires a verified user-site package and a non-root user"
+msgstr ""
+"error: la desinstalación requiere un paquete verificado de user-site y un "
+"usuario no root"
+
+#: install.py:546
 msgid "error: pip uninstall failed"
 msgstr "error: falló la desinstalación con pip"
 
-#: install.py:244
+#: install.py:553
 #, python-brace-format
-msgid "error: failed to remove completion {target}"
-msgstr "error: no se pudo eliminar el autocompletado {target}"
+msgid "error: failed to remove completion {target}: {error}"
+msgstr "error: no se pudo eliminar el autocompletado {target}: {error}"
 
-#: install.py:249
+#: install.py:560
 #, python-brace-format
 msgid "removed completion {target}"
 msgstr "se eliminó el autocompletado {target}"
 
-#: install.py:264 install.py:342 install.py:388 install.py:394 install.py:400
+#: install.py:575 install.py:666 install.py:718 install.py:724 install.py:730
 msgid "Aborted."
 msgstr "Se canceló."
 
-#: install.py:272
+#: install.py:584
 msgid ""
 "Install box-rpg on the system.\n"
 "\n"
@@ -85,50 +88,54 @@ msgstr ""
 "omitir la solicitud. Pasa --uninstall para eliminar el paquete y sus\n"
 "autocompletados."
 
-#: install.py:285
+#: install.py:597
 msgid "actually install (default is a dry run)"
 msgstr "instala realmente (de forma predeterminada, se hace una simulación)"
 
-#: install.py:290
+#: install.py:602
 msgid "uninstall the package and its completions"
 msgstr "desinstala el paquete y sus autocompletados"
 
-#: install.py:295
+#: install.py:607
 msgid "skip the confirmation prompts"
 msgstr "omite las solicitudes de confirmación"
 
-#: install.py:300
+#: install.py:617
+msgid "reinstall the package even when the same version is installed"
+msgstr "reinstala el paquete incluso cuando ya está instalada la misma versión"
+
+#: install.py:624
 msgid "error: --install and --uninstall are mutually exclusive"
 msgstr "error: --install y --uninstall son mutuamente excluyentes"
 
-#: install.py:304
+#: install.py:628
 msgid "error: this script requires Linux"
 msgstr "error: este script requiere Linux"
 
-#: install.py:306
+#: install.py:630
 msgid "OK: Linux system detected."
 msgstr "OK: se detectó un sistema Linux."
 
-#: install.py:310
+#: install.py:634
 #, python-brace-format
 msgid "error: Python 3.14+ required, found {major}.{minor}"
 msgstr ""
 "error: se requiere Python 3.14 o posterior; se encontró {major}.{minor}"
 
-#: install.py:317
+#: install.py:641
 #, python-brace-format
 msgid "OK: Python {major}.{minor} found."
 msgstr "OK: se encontró Python {major}.{minor}."
 
-#: install.py:323
+#: install.py:647
 msgid "error: pip is required for the system Python"
 msgstr "error: se requiere pip para el Python del sistema"
 
-#: install.py:325
+#: install.py:649
 msgid "OK: pip found for the system Python."
 msgstr "OK: se encontró pip para el Python del sistema."
 
-#: install.py:329
+#: install.py:653
 #, python-brace-format
 msgid ""
 "\n"
@@ -137,21 +144,21 @@ msgstr ""
 "\n"
 "Instalado: {installed}"
 
-#: install.py:330
+#: install.py:654
 #, python-brace-format
 msgid "Repo:      {repo}"
 msgstr "Repositorio:      {repo}"
 
-#: install.py:334
+#: install.py:658
 #, python-brace-format
 msgid "error: {package} is not installed"
 msgstr "error: {package} no está instalado"
 
-#: install.py:337
+#: install.py:661
 msgid "Uninstall commands that would be run:"
 msgstr "Comandos de desinstalación que se ejecutarían:"
 
-#: install.py:339
+#: install.py:663
 msgid ""
 "\n"
 "Proceed with uninstall? [y/N] "
@@ -159,11 +166,11 @@ msgstr ""
 "\n"
 "¿Continuar con la desinstalación? [y/N] "
 
-#: install.py:348
+#: install.py:672
 msgid "Install commands that would be run:"
 msgstr "Comandos de instalación que se ejecutarían:"
 
-#: install.py:354
+#: install.py:678
 #, python-brace-format
 msgid ""
 "\n"
@@ -173,7 +180,7 @@ msgstr ""
 "Hay una actualización disponible (instalado: {installed}, repositorio: "
 "{repo})."
 
-#: install.py:360
+#: install.py:684
 #, python-brace-format
 msgid ""
 "\n"
@@ -183,7 +190,16 @@ msgstr ""
 "La versión instalada ({installed}) es más reciente que la del repositorio "
 "({repo})."
 
-#: install.py:366
+#: install.py:690
+#, python-brace-format
+msgid ""
+"\n"
+"Reinstalling the same version ({installed}) as requested."
+msgstr ""
+"\n"
+"Reinstalando la misma versión ({installed}) según lo solicitado."
+
+#: install.py:696
 #, python-brace-format
 msgid ""
 "\n"
@@ -192,7 +208,7 @@ msgstr ""
 "\n"
 "Ya está instalada la misma versión ({installed})."
 
-#: install.py:372
+#: install.py:702
 msgid ""
 "\n"
 "Run with --install to actually install."
@@ -200,11 +216,11 @@ msgstr ""
 "\n"
 "Ejecuta con --install para instalar realmente."
 
-#: install.py:374
+#: install.py:704
 msgid "To remove it instead, run with --uninstall."
 msgstr "Para eliminarlo, ejecuta con --uninstall."
 
-#: install.py:380
+#: install.py:710
 #, python-brace-format
 msgid ""
 "\n"
@@ -215,7 +231,7 @@ msgstr ""
 "{package} ya está instalado. [r] Reinstalar/actualizar, [u] Desinstalar, [c] "
 "Cancelar [r/u/c] "
 
-#: install.py:385
+#: install.py:715
 msgid ""
 "\n"
 "Confirm uninstall? [y/N] "
@@ -223,7 +239,7 @@ msgstr ""
 "\n"
 "¿Confirmar la desinstalación? [y/N] "
 
-#: install.py:397
+#: install.py:727
 msgid ""
 "\n"
 "Proceed with installation? [y/N] "
@@ -231,33 +247,109 @@ msgstr ""
 "\n"
 "¿Continuar con la instalación? [y/N] "
 
-#: src/box/cli/inspect.py:14
-msgid "engine"
-msgstr "motor"
+#: src/box/cli/cleanup.py:56 src/box/cli/cleanup.py:116
+#: src/box/cli/cleanup.py:177
+#, python-brace-format
+msgid "unknown cleanup category: {category}"
+msgstr "categoría de limpieza desconocida: {category}"
 
-#: src/box/cli/inspect.py:15
-msgid "root"
-msgstr "raíz"
+#: src/box/cli/cleanup.py:138
+#, python-brace-format
+msgid "{interactive} cannot be combined with another cleanup mode"
+msgstr "{interactive} no se puede combinar con otro modo de limpieza"
 
-#: src/box/cli/inspect.py:16
-msgid "entrypoint"
-msgstr "punto de entrada"
+#: src/box/cli/cleanup.py:144
+#, python-brace-format
+msgid "cleanup {interactive} requires an interactive terminal"
+msgstr "la limpieza {interactive} requiere una terminal interactiva"
 
-#: src/box/cli/inspect.py:16
-msgid "(not applicable)"
-msgstr "(no aplicable)"
+#: src/box/cli/cleanup.py:157
+#, python-brace-format
+msgid "cleanup requires an action; run '{command}'"
+msgstr "la limpieza requiere una acción; ejecuta '{command}'"
 
-#: src/box/cli/inspect.py:17
-msgid "title"
-msgstr "título"
+#: src/box/cli/cleanup.py:162
+#, python-brace-format
+msgid "unknown cleanup command: {command}"
+msgstr "comando de limpieza desconocido: {command}"
 
-#: src/box/cli/inspect.py:17
-msgid "(unknown)"
-msgstr "(desconocido)"
+#: src/box/cli/cleanup.py:180
+#, python-brace-format
+msgid "cleanup remove requires exactly one of {selector} or {all_option}"
+msgstr "cleanup remove requiere exactamente uno de {selector} o {all_option}"
 
-#: src/box/cli/inspect.py:18
-msgid "plugins"
-msgstr "complementos"
+#: src/box/cli/cleanup.py:189
+#, python-brace-format
+msgid "no {category} item matches selector: {selector}"
+msgstr "ningún elemento de {category} coincide con el selector: {selector}"
+
+#: src/box/cli/cleanup.py:222
+#, python-brace-format
+msgid "cleanup requires {yes} without an interactive terminal"
+msgstr "la limpieza requiere {yes} sin una terminal interactiva"
+
+#: src/box/cli/cleanup.py:225 src/box/cli/cleanup.py:296
+#, python-brace-format
+msgid "Type {confirmation} to confirm"
+msgstr "Escribe {confirmation} para confirmar"
+
+#: src/box/cli/cleanup.py:230 src/box/cli/cleanup.py:250
+#: src/box/cli/cleanup.py:301 src/box/cli/cleanup.py:362
+msgid "Cleanup cancelled."
+msgstr "Limpieza cancelada."
+
+#: src/box/cli/cleanup.py:243
+msgid "Cleanup:"
+msgstr "Limpieza:"
+
+#: src/box/cli/cleanup.py:246
+msgid "  a. Remove all listed managed data"
+msgstr "  a. Eliminar todos los datos gestionados de la lista"
+
+#: src/box/cli/cleanup.py:248
+msgid "Select 1-4, [a]ll, or [q]uit: "
+msgstr "Selecciona 1-4, [a] todos o [q] salir: "
+
+#: src/box/cli/cleanup.py:261 src/box/cli/menu.py:69 src/box/cli/runtime.py:92
+#: src/box/cli/runtime.py:96 src/box/cli/runtime.py:207
+msgid "Invalid selection."
+msgstr "Selección no válida."
+
+#: src/box/cli/cleanup.py:318
+#, python-brace-format
+msgid "Could not remove {category} {selector}: {error}"
+msgstr "No se pudo eliminar {category} {selector}: {error}"
+
+#: src/box/cli/cleanup.py:330
+#, python-brace-format
+msgid "Removed {removed} item; {failed} failed."
+msgid_plural "Removed {removed} items; {failed} failed."
+msgstr[0] "Se eliminó {removed} elemento; fallos: {failed}."
+msgstr[1] "Se eliminaron {removed} elementos; fallos: {failed}."
+
+#: src/box/cli/cleanup.py:351
+msgid "Cleanup scope:"
+msgstr "Alcance de la limpieza:"
+
+#: src/box/cli/cleanup.py:375 src/box/cli/runtime.py:149
+msgid "standard"
+msgstr "estándar"
+
+#: src/box/cli/cleanup.py:381
+msgid "Authorized game roots"
+msgstr "Raíces de juego autorizadas"
+
+#: src/box/cli/cleanup.py:382
+msgid "Managed runtimes"
+msgstr "Entornos de ejecución gestionados"
+
+#: src/box/cli/cleanup.py:383
+msgid "Download archives"
+msgstr "Archivos de descarga"
+
+#: src/box/cli/cleanup.py:384
+msgid "Game profiles"
+msgstr "Perfiles del juego"
 
 #: src/box/cli/config.py:14
 msgid "(none)"
@@ -267,6 +359,65 @@ msgstr "(ninguno)"
 #, python-brace-format
 msgid "supported keys: {allowed_root}, {preferred_runtime}"
 msgstr "claves compatibles: {allowed_root}, {preferred_runtime}"
+
+#: src/box/cli/diagnose.py:36
+#, python-brace-format
+msgid "{runtime} and {sdk} are only available for NW.js games"
+msgstr "{runtime} y {sdk} solo están disponibles para juegos de NW.js"
+
+#: src/box/cli/inspect.py:15
+msgid "engine"
+msgstr "motor"
+
+#: src/box/cli/inspect.py:16
+msgid "root"
+msgstr "raíz"
+
+#: src/box/cli/inspect.py:18
+msgid "entrypoint"
+msgstr "punto de entrada"
+
+#: src/box/cli/inspect.py:18
+msgid "(not applicable)"
+msgstr "(no aplicable)"
+
+#: src/box/cli/inspect.py:20
+msgid "title"
+msgstr "título"
+
+#: src/box/cli/inspect.py:20
+msgid "(unknown)"
+msgstr "(desconocido)"
+
+#: src/box/cli/inspect.py:21
+msgid "plugins"
+msgstr "complementos"
+
+#: src/box/cli/menu.py:32
+msgid "(no entries)"
+msgstr "(sin entradas)"
+
+#: src/box/cli/menu.py:40
+#, python-brace-format
+msgid "{title} (page {page}/{total_pages}):"
+msgstr "{title} (página {page}/{total_pages}):"
+
+#: src/box/cli/menu.py:46
+msgid "Select 1-5, [n]ext, [p]revious"
+msgstr "Selecciona 1-5, [n] siguiente, [p] anterior"
+
+#: src/box/cli/menu.py:48
+msgid ", [a]ll"
+msgstr ", [a] todos"
+
+#: src/box/cli/menu.py:49
+msgid ", or [q]uit: "
+msgstr ", o [q] salir: "
+
+#: src/box/cli/menu.py:53 src/box/cli/runtime.py:81 src/box/cli/runtime.py:110
+#: src/box/cli/runtime.py:196 src/box/cli/runtime.py:217
+msgid "Selection cancelled."
+msgstr "Selección cancelada."
 
 #: src/box/cli/runtime.py:29
 msgid "no NW.js runtimes installed"
@@ -280,16 +431,6 @@ msgstr "se instaló {version} ({flavor}) en {path}"
 #: src/box/cli/runtime.py:79 src/box/cli/runtime.py:194
 msgid "Select 1-5, [n]ext, [p]revious, or [q]uit: "
 msgstr "Selecciona 1-5, [n] siguiente, [p] anterior o [q] salir: "
-
-#: src/box/cli/runtime.py:81 src/box/cli/runtime.py:110
-#: src/box/cli/runtime.py:196 src/box/cli/runtime.py:217 src/box/cli/menu.py:53
-msgid "Selection cancelled."
-msgstr "Selección cancelada."
-
-#: src/box/cli/runtime.py:92 src/box/cli/runtime.py:96
-#: src/box/cli/runtime.py:207 src/box/cli/menu.py:69 src/box/cli/cleanup.py:261
-msgid "Invalid selection."
-msgstr "Selección no válida."
 
 #: src/box/cli/runtime.py:102
 #, python-brace-format
@@ -314,10 +455,6 @@ msgstr "  (no hay versiones estables en esta página)"
 #, python-brace-format
 msgid "Install with: {command}"
 msgstr "Instala con: {command}"
-
-#: src/box/cli/runtime.py:149 src/box/cli/cleanup.py:375
-msgid "standard"
-msgstr "estándar"
 
 #: src/box/cli/runtime.py:155
 #, python-brace-format
@@ -352,7 +489,30 @@ msgstr "Versiones disponibles de EasyRPG Player (página {page}, x64):"
 msgid "  (no versions on this page)"
 msgstr "  (no hay versiones en esta página)"
 
+#: src/box/cli/launch.py:42
+msgid "explicit consent is required for X11; run interactively to continue"
+msgstr ""
+"se requiere consentimiento explícito para X11; ejecuta de forma interactiva "
+"para continuar"
+
 #: src/box/cli/launch.py:47
+#, python-brace-format
+msgid ""
+"warning: X11 display {display} is insecure; X11 clients can capture input "
+"and screen contents (keylogging)."
+msgstr ""
+"advertencia: la pantalla X11 {display} no es segura; los clientes de X11 "
+"pueden capturar la entrada y el contenido de la pantalla (keylogging)."
+
+#: src/box/cli/launch.py:53
+msgid "Continue with X11? [y/N] "
+msgstr "¿Continuar con X11? [y/N] "
+
+#: src/box/cli/launch.py:55 src/box/cli/launch.py:57
+msgid "X11 launch was not confirmed"
+msgstr "el inicio con X11 no fue confirmado"
+
+#: src/box/cli/launch.py:85
 #, python-brace-format
 msgid ""
 "{runtime}, {sdk}, and {copy_root_file} are only available for NW.js games"
@@ -360,19 +520,31 @@ msgstr ""
 "{runtime}, {sdk} y {copy_root_file} solo están disponibles para juegos de "
 "NW.js"
 
-#: src/box/cli/launch.py:94
+#: src/box/cli/launch.py:183
 #, python-brace-format
 msgid "Add {path} to allowed game roots? [y/N] "
 msgstr "¿Agregar {path} a las raíces de juego permitidas? [y/N] "
 
-#: src/box/cli/launch.py:99 src/box/cli/launch.py:101
+#: src/box/cli/launch.py:191 src/box/cli/launch.py:193
 msgid "game root was not authorized"
 msgstr "la raíz del juego no fue autorizada"
 
-#: src/box/cli/diagnose.py:36
+#: src/box/cli/main.py:38
+msgid ""
+"error: no supported RPG Maker game was found here; run box-rpg from the game "
+"directory."
+msgstr ""
+"error: no se encontró aquí ningún juego de RPG Maker compatible; ejecuta box-"
+"rpg desde el directorio del juego."
+
+#: src/box/cli/main.py:56
+msgid "error"
+msgstr "error"
+
+#: src/box/cli/main.py:120
 #, python-brace-format
-msgid "{runtime} and {sdk} are only available for NW.js games"
-msgstr "{runtime} y {sdk} solo están disponibles para juegos de NW.js"
+msgid "unsupported command: {command}"
+msgstr "comando no compatible: {command}"
 
 #: src/box/cli/parser.py:15
 msgid "Launch RPG Maker games with managed NW.js or EasyRPG Player runtimes."
@@ -445,7 +617,7 @@ msgid "override the detected NW.js architecture"
 msgstr "anula la arquitectura de NW.js detectada"
 
 #: src/box/cli/parser.py:69 src/box/cli/parser.py:77 src/box/cli/parser.py:99
-#: src/box/cli/parser.py:120
+#: src/box/cli/parser.py:130
 msgid "use the NW.js SDK build"
 msgstr "usa la compilación SDK de NW.js"
 
@@ -485,161 +657,71 @@ msgstr "elimina un entorno de ejecución gestionado de EasyRPG Player"
 msgid "launch an allowed game in an isolated session"
 msgstr "inicia un juego permitido en una sesión aislada"
 
-#: src/box/cli/parser.py:105
+#: src/box/cli/parser.py:103
+msgid ""
+"allow host network access for this launch only (including local services)"
+msgstr ""
+"permite el acceso a la red del servidor solo para este inicio (incluidos los "
+"servicios locales)"
+
+#: src/box/cli/parser.py:108
+msgid "allow game directory writes for this launch only"
+msgstr "permite la escritura en el directorio del juego solo para este inicio"
+
+#: src/box/cli/parser.py:115
 msgid "copy a direct game-root file into the isolated NW.js session"
 msgstr ""
 "copia un archivo ubicado directamente en la raíz del juego en la sesión "
 "aislada de NW.js"
 
-#: src/box/cli/parser.py:108
+#: src/box/cli/parser.py:118
 msgid "show or update launcher configuration"
 msgstr "muestra o actualiza la configuración del iniciador"
 
-#: src/box/cli/parser.py:110
+#: src/box/cli/parser.py:120
 msgid "show current configuration"
 msgstr "muestra la configuración actual"
 
-#: src/box/cli/parser.py:112
+#: src/box/cli/parser.py:122
 msgid "set an allowed game root or preferred runtime"
 msgstr ""
 "establece una raíz de juego permitida o un entorno de ejecución preferido"
 
-#: src/box/cli/parser.py:117
+#: src/box/cli/parser.py:127
 msgid "print a local diagnostic report"
 msgstr "imprime un informe de diagnóstico local"
 
-#: src/box/cli/main.py:37
-msgid ""
-"error: no supported RPG Maker game was found here; run box-rpg from the game "
-"directory."
-msgstr ""
-"error: no se encontró aquí ningún juego de RPG Maker compatible; ejecuta box-"
-"rpg desde el directorio del juego."
+#: src/box/config/reader.py:36
+msgid "configuration has unsafe type, ownership or permissions"
+msgstr "la configuración tiene tipo, propiedad o permisos no seguros"
 
-#: src/box/cli/main.py:53
-msgid "error"
-msgstr "error"
+#: src/box/config/reader.py:40 src/box/config/reader.py:43
+msgid "configuration exceeds byte limit"
+msgstr "la configuración supera el límite de bytes"
 
-#: src/box/cli/main.py:115
+#: src/box/config/reader.py:49
 #, python-brace-format
-msgid "unsupported command: {command}"
-msgstr "comando no compatible: {command}"
+msgid "cannot read configuration {path}: {error}"
+msgstr "no se puede leer la configuración {path}: {error}"
 
-#: src/box/cli/menu.py:32
-msgid "(no entries)"
-msgstr "(sin entradas)"
-
-#: src/box/cli/menu.py:40
+#: src/box/config/repository.py:38
 #, python-brace-format
-msgid "{title} (page {page}/{total_pages}):"
-msgstr "{title} (página {page}/{total_pages}):"
+msgid "cannot resolve allowed game root {root}: {error}"
+msgstr "no se puede resolver la raíz de juego permitida {root}: {error}"
 
-#: src/box/cli/menu.py:46
-msgid "Select 1-5, [n]ext, [p]revious"
-msgstr "Selecciona 1-5, [n] siguiente, [p] anterior"
-
-#: src/box/cli/menu.py:48
-msgid ", [a]ll"
-msgstr ", [a] todos"
-
-#: src/box/cli/menu.py:49
-msgid ", or [q]uit: "
-msgstr ", o [q] salir: "
-
-#: src/box/cli/cleanup.py:56 src/box/cli/cleanup.py:116
-#: src/box/cli/cleanup.py:177
+#: src/box/config/repository.py:42
 #, python-brace-format
-msgid "unknown cleanup category: {category}"
-msgstr "categoría de limpieza desconocida: {category}"
+msgid "allowed game root is not a directory: {root}"
+msgstr "la raíz de juego permitida no es un directorio: {root}"
 
-#: src/box/cli/cleanup.py:138
+#: src/box/config/repository.py:59
+msgid "confirmed game root must be canonical and absolute"
+msgstr "la raíz del juego confirmada debe ser canónica y absoluta"
+
+#: src/box/config/repository.py:78
 #, python-brace-format
-msgid "{interactive} cannot be combined with another cleanup mode"
-msgstr "{interactive} no se puede combinar con otro modo de limpieza"
-
-#: src/box/cli/cleanup.py:144
-#, python-brace-format
-msgid "cleanup {interactive} requires an interactive terminal"
-msgstr "la limpieza {interactive} requiere una terminal interactiva"
-
-#: src/box/cli/cleanup.py:157
-#, python-brace-format
-msgid "cleanup requires an action; run '{command}'"
-msgstr "la limpieza requiere una acción; ejecuta '{command}'"
-
-#: src/box/cli/cleanup.py:162
-#, python-brace-format
-msgid "unknown cleanup command: {command}"
-msgstr "comando de limpieza desconocido: {command}"
-
-#: src/box/cli/cleanup.py:180
-#, python-brace-format
-msgid "cleanup remove requires exactly one of {selector} or {all_option}"
-msgstr "cleanup remove requiere exactamente uno de {selector} o {all_option}"
-
-#: src/box/cli/cleanup.py:189
-#, python-brace-format
-msgid "no {category} item matches selector: {selector}"
-msgstr "ningún elemento de {category} coincide con el selector: {selector}"
-
-#: src/box/cli/cleanup.py:222
-#, python-brace-format
-msgid "cleanup requires {yes} without an interactive terminal"
-msgstr "la limpieza requiere {yes} sin una terminal interactiva"
-
-#: src/box/cli/cleanup.py:225 src/box/cli/cleanup.py:296
-#, python-brace-format
-msgid "Type {confirmation} to confirm"
-msgstr "Escribe {confirmation} para confirmar"
-
-#: src/box/cli/cleanup.py:230 src/box/cli/cleanup.py:250
-#: src/box/cli/cleanup.py:301 src/box/cli/cleanup.py:362
-msgid "Cleanup cancelled."
-msgstr "Limpieza cancelada."
-
-#: src/box/cli/cleanup.py:243
-msgid "Cleanup:"
-msgstr "Limpieza:"
-
-#: src/box/cli/cleanup.py:246
-msgid "  a. Remove all listed managed data"
-msgstr "  a. Eliminar todos los datos gestionados de la lista"
-
-#: src/box/cli/cleanup.py:248
-msgid "Select 1-4, [a]ll, or [q]uit: "
-msgstr "Selecciona 1-4, [a] todos o [q] salir: "
-
-#: src/box/cli/cleanup.py:318
-#, python-brace-format
-msgid "Could not remove {category} {selector}: {error}"
-msgstr "No se pudo eliminar {category} {selector}: {error}"
-
-#: src/box/cli/cleanup.py:330
-#, python-brace-format
-msgid "Removed {removed} item; {failed} failed."
-msgid_plural "Removed {removed} items; {failed} failed."
-msgstr[0] "Se eliminó {removed} elemento; fallos: {failed}."
-msgstr[1] "Se eliminaron {removed} elementos; fallos: {failed}."
-
-#: src/box/cli/cleanup.py:351
-msgid "Cleanup scope:"
-msgstr "Alcance de la limpieza:"
-
-#: src/box/cli/cleanup.py:381
-msgid "Authorized game roots"
-msgstr "Raíces de juego autorizadas"
-
-#: src/box/cli/cleanup.py:382
-msgid "Managed runtimes"
-msgstr "Entornos de ejecución gestionados"
-
-#: src/box/cli/cleanup.py:383
-msgid "Download archives"
-msgstr "Archivos de descarga"
-
-#: src/box/cli/cleanup.py:384
-msgid "Game profiles"
-msgstr "Perfiles del juego"
+msgid "cannot inspect configured game root {root}: {error}"
+msgstr "no se puede inspeccionar la raíz de juego configurada {root}: {error}"
 
 #: src/box/config/validator.py:23
 msgid "unsupported configuration schema version: {version!r}"
@@ -665,42 +747,22 @@ msgstr "{key} debe ser una cadena o debe omitirse"
 msgid "{key} must be a boolean"
 msgstr "{key} debe ser un valor booleano"
 
-#: src/box/config/reader.py:24
-#, python-brace-format
-msgid "cannot read configuration {path}: {error}"
-msgstr "no se puede leer la configuración {path}: {error}"
-
-#: src/box/config/repository.py:37
-#, python-brace-format
-msgid "cannot resolve allowed game root {root}: {error}"
-msgstr "no se puede resolver la raíz de juego permitida {root}: {error}"
-
-#: src/box/config/repository.py:41
-#, python-brace-format
-msgid "allowed game root is not a directory: {root}"
-msgstr "la raíz de juego permitida no es un directorio: {root}"
-
-#: src/box/config/repository.py:61
-#, python-brace-format
-msgid "cannot inspect configured game root {root}: {error}"
-msgstr "no se puede inspeccionar la raíz de juego configurada {root}: {error}"
-
-#: src/box/games/detector.py:19
+#: src/box/games/detector.py:27
 #, python-brace-format
 msgid "cannot resolve game path {path}: {error}"
 msgstr "no se puede resolver la ruta del juego {path}: {error}"
 
-#: src/box/games/detector.py:22
+#: src/box/games/detector.py:30
 #, python-brace-format
 msgid "game path is not a directory: {path}"
 msgstr "la ruta del juego no es un directorio: {path}"
 
-#: src/box/games/detector.py:33
+#: src/box/games/detector.py:54
 #, python-brace-format
 msgid "cannot inspect game path {path}: {error}"
 msgstr "no se puede inspeccionar la ruta del juego {path}: {error}"
 
-#: src/box/games/detector.py:37
+#: src/box/games/detector.py:58
 msgid ""
 "unsupported game: expected an RPG Maker MV/MZ export or RPG Maker 2000/2003 "
 "project"
@@ -708,45 +770,214 @@ msgstr ""
 "juego no compatible: se esperaba una exportación de RPG Maker MV/MZ o un "
 "proyecto de RPG Maker 2000/2003"
 
-#: src/box/games/detector.py:46
+#: src/box/games/detector.py:74
 #, python-brace-format
 msgid "no {key} configured; add one with config set"
 msgstr "no hay ningún {key} configurado; agrega uno con config set"
 
-#: src/box/games/detector.py:52
+#: src/box/games/detector.py:80
 #, python-brace-format
 msgid "configured game root cannot be resolved: {error}"
 msgstr "no se puede resolver la raíz de juego configurada: {error}"
 
-#: src/box/games/detector.py:56
+#: src/box/games/detector.py:84
 #, python-brace-format
 msgid "game path is outside configured roots: {path}"
 msgstr "la ruta del juego está fuera de las raíces configuradas: {path}"
 
-#: src/box/games/detector.py:67
-#, python-brace-format
-msgid "configured game root contains a symlink: {path}"
-msgstr "la raíz de juego configurada contiene un enlace simbólico: {path}"
+#: src/box/games/detector.py:91
+msgid "configured game root must be absolute without traversal"
+msgstr "la raíz de juego configurada debe ser absoluta y sin recorrido"
 
-#: src/box/games/inspector.py:32
+#: src/box/games/detector.py:96
+#, python-brace-format
+msgid "configured game root is missing or contains a symlink: {path}"
+msgstr ""
+"la raíz de juego configurada no existe o contiene un enlace simbólico: {path}"
+
+#: src/box/games/detector.py:100
+msgid "configured game root moved during authorization"
+msgstr "la raíz de juego configurada se movió durante la autorización"
+
+#: src/box/games/files.py:40 src/box/games/files.py:42
+msgid "game root changed since detection"
+msgstr "la raíz del juego cambió desde la detección"
+
+#: src/box/games/files.py:44
+msgid "game root moved since detection"
+msgstr "la raíz del juego se movió desde la detección"
+
+#: src/box/games/files.py:48 src/box/games/files.py:57
+msgid "game root is missing or contains a symlink"
+msgstr "la raíz del juego no existe o contiene un enlace simbólico"
+
+#: src/box/games/files.py:69
+#, python-brace-format
+msgid "invalid relative game file path: {path}"
+msgstr "ruta relativa del archivo del juego no válida: {path}"
+
+#: src/box/games/files.py:83
+#, python-brace-format
+msgid "game file is not a regular file: {path}"
+msgstr "el archivo del juego no es un archivo regular: {path}"
+
+#: src/box/games/files.py:104 src/box/games/files.py:110
+#, python-brace-format
+msgid "game file exceeds byte limit: {path}"
+msgstr "el archivo del juego supera el límite de bytes: {path}"
+
+#: src/box/games/files.py:117
+#, python-brace-format
+msgid "cannot safely read game file {path}: {error}"
+msgstr "no se puede leer de forma segura el archivo del juego {path}: {error}"
+
+#: src/box/games/inspector.py:34
 msgid "web game inspection requires a manifest and entrypoint"
 msgstr ""
 "la inspección de un juego web requiere un manifiesto y un punto de entrada"
 
-#: src/box/games/inspector.py:56
+#: src/box/games/inspector.py:59
 #, python-brace-format
 msgid "invalid game manifest {path}: {error}"
 msgstr "manifiesto del juego no válido {path}: {error}"
 
-#: src/box/games/inspector.py:60
+#: src/box/games/inspector.py:63
 #, python-brace-format
 msgid "game manifest is not a {format} object: {path}"
 msgstr "el manifiesto del juego no es un objeto {format}: {path}"
 
-#: src/box/games/inspector.py:70
+#: src/box/runtime/archive.py:25
 #, python-brace-format
-msgid "cannot read plugin registry {path}: {error}"
-msgstr "no se puede leer el registro de complementos {path}: {error}"
+msgid "cannot extract NW.js archive {archive}: {error}"
+msgstr "no se puede extraer el archivo de NW.js {archive}: {error}"
+
+#: src/box/runtime/archive.py:31 src/box/runtime/archive.py:49
+#: src/box/runtime/archive.py:58 src/box/runtime/archive.py:68
+msgid "NW.js archive must contain exactly one top-level directory"
+msgstr ""
+"el archivo de NW.js debe contener exactamente un directorio de nivel superior"
+
+#: src/box/runtime/archive.py:46
+#, python-brace-format
+msgid "cannot extract NW.js archive: {error}"
+msgstr "no se puede extraer el archivo de NW.js: {error}"
+
+#: src/box/runtime/archive.py:55
+#, python-brace-format
+msgid "cannot validate extracted NW.js runtime: {error}"
+msgstr "no se puede validar el entorno de ejecución de NW.js extraído: {error}"
+
+#: src/box/runtime/available.py:50
+msgid "runtime version page must be at least 1"
+msgstr "la página de versiones del entorno de ejecución debe ser al menos 1"
+
+#: src/box/runtime/available.py:64
+#, python-brace-format
+msgid "cannot list NW.js versions: {error}"
+msgstr "no se pueden mostrar las versiones de NW.js: {error}"
+
+#: src/box/runtime/available.py:66
+msgid "NW.js version index is too large"
+msgstr "el índice de versiones de NW.js es demasiado grande"
+
+#: src/box/runtime/catalog.py:101 src/box/runtime/catalog.py:136
+#, python-brace-format
+msgid "managed runtime directory is missing or unsafe: {path}"
+msgstr ""
+"el directorio de entorno de ejecución gestionado no existe o no es seguro: "
+"{path}"
+
+#: src/box/runtime/catalog.py:118 src/box/runtime/catalog.py:124
+#, python-brace-format
+msgid "invalid managed runtime specification: {specification}"
+msgstr ""
+"especificación de entorno de ejecución gestionado no válida: {specification}"
+
+#: src/box/runtime/catalog.py:131
+#, python-brace-format
+msgid "refusing to manage unexpected runtime path: {path}"
+msgstr ""
+"se rechaza gestionar una ruta de entorno de ejecución inesperada: {path}"
+
+#: src/box/runtime/catalog.py:172
+#, python-brace-format
+msgid "cannot securely open managed runtime directory: {error}"
+msgstr ""
+"no se puede abrir de forma segura el directorio de entorno de ejecución "
+"gestionado: {error}"
+
+#: src/box/runtime/downloads.py:46 src/box/runtime/downloads.py:55
+#, python-brace-format
+msgid "refusing unsafe NW.js download archive: {archive}"
+msgstr "se rechaza un archivo de descarga de NW.js no seguro: {archive}"
+
+#: src/box/runtime/downloads.py:85
+#, python-brace-format
+msgid "cannot securely open managed downloads: {error}"
+msgstr "no se pueden abrir de forma segura las descargas gestionadas: {error}"
+
+#: src/box/runtime/easyrpg.py:85
+msgid "invalid EasyRPG Player version: {value!r}"
+msgstr "versión de EasyRPG Player no válida: {value!r}"
+
+#: src/box/runtime/easyrpg.py:120
+#, python-brace-format
+msgid "cannot list EasyRPG Player versions: {error}"
+msgstr "no se pueden mostrar las versiones de EasyRPG Player: {error}"
+
+#: src/box/runtime/easyrpg.py:123
+msgid "EasyRPG Player version index is too large"
+msgstr "el índice de versiones de EasyRPG Player es demasiado grande"
+
+#: src/box/runtime/easyrpg.py:188 src/box/runtime/easyrpg.py:380
+#, python-brace-format
+msgid "EasyRPG Player runtime is not installed: {version}"
+msgstr "el entorno de ejecución de EasyRPG Player no está instalado: {version}"
+
+#: src/box/runtime/easyrpg.py:198
+msgid ""
+"no EasyRPG Player runtime is installed; run 'box-rpg runtime easyrpg "
+"available --interactive'"
+msgstr ""
+"no hay ningún entorno de ejecución de EasyRPG Player instalado; ejecuta 'box-"
+"rpg runtime easyrpg available --interactive'"
+
+#: src/box/runtime/easyrpg.py:215
+#, python-brace-format
+msgid "refusing to manage unexpected EasyRPG runtime path: {path}"
+msgstr ""
+"se rechaza gestionar una ruta de entorno de ejecución de EasyRPG inesperada: "
+"{path}"
+
+#: src/box/runtime/easyrpg.py:222 src/box/runtime/easyrpg.py:233
+#, python-brace-format
+msgid "managed EasyRPG runtime directory is missing or unsafe: {path}"
+msgstr ""
+"el directorio de entorno de ejecución de EasyRPG gestionado no existe o no "
+"es seguro: {path}"
+
+#: src/box/runtime/easyrpg.py:274 src/box/runtime/easyrpg.py:283
+#, python-brace-format
+msgid "refusing unsafe EasyRPG download archive: {archive}"
+msgstr "se rechaza un archivo de descarga de EasyRPG no seguro: {archive}"
+
+#: src/box/runtime/easyrpg.py:294
+msgid "EasyRPG Player managed downloads currently support x64 only"
+msgstr ""
+"las descargas gestionadas de EasyRPG Player actualmente solo admiten x64"
+
+#: src/box/runtime/easyrpg.py:325
+msgid "EasyRPG archive does not contain an executable easyrpg-player"
+msgstr "el archivo de EasyRPG no contiene un ejecutable easyrpg-player"
+
+#: src/box/runtime/easyrpg.py:352
+msgid "EasyRPG Player version page must be at least 1"
+msgstr "la página de versiones de EasyRPG Player debe ser al menos 1"
+
+#: src/box/runtime/easyrpg.py:402
+#, python-brace-format
+msgid "cannot stage EasyRPG Player archive {archive}: {error}"
+msgstr "no se puede preparar el archivo de EasyRPG Player {archive}: {error}"
 
 #: src/box/runtime/platform.py:30
 #, python-brace-format
@@ -759,6 +990,14 @@ msgid ""
 msgstr ""
 "arquitectura de NW.js no compatible {architecture!r}; se esperaba una de: "
 "{supported}"
+
+#: src/box/runtime/selector.py:28
+msgid ""
+"no matching NW.js runtime is installed; run 'box-rpg runtime nwjs available "
+"--interactive'"
+msgstr ""
+"no hay ningún entorno de ejecución de NW.js coincidente instalado; ejecuta "
+"'box-rpg runtime nwjs available --interactive'"
 
 #: src/box/runtime/validator.py:20
 msgid "invalid NW.js version: {value!r}"
@@ -774,263 +1013,48 @@ msgstr ""
 msgid "invalid NW.js runtime; executable is missing: nw"
 msgstr "entorno de ejecución de NW.js no válido; falta el ejecutable: nw"
 
-#: src/box/runtime/archive.py:21
+#: src/box/runtime/authenticity.py:41
 #, python-brace-format
-msgid "cannot extract NW.js archive {archive}: {error}"
-msgstr "no se puede extraer el archivo de NW.js {archive}: {error}"
-
-#: src/box/runtime/archive.py:27 src/box/runtime/archive.py:45
-#: src/box/runtime/archive.py:54
-msgid "NW.js archive must contain exactly one top-level directory"
+msgid ""
+"Warning: NW.js {url} is NOT VERIFIED: official signature returned HTTP 404; "
+"relying on HTTPS only."
 msgstr ""
-"el archivo de NW.js debe contener exactamente un directorio de nivel superior"
+"Advertencia: NW.js {url} NO ESTÁ VERIFICADO: la firma oficial devolvió HTTP "
+"404; se usa solo HTTPS."
 
-#: src/box/runtime/archive.py:42
-#, python-brace-format
-msgid "cannot extract NW.js archive: {error}"
-msgstr "no se puede extraer el archivo de NW.js: {error}"
-
-#: src/box/runtime/archive.py:51
-#, python-brace-format
-msgid "cannot validate extracted NW.js runtime: {error}"
-msgstr "no se puede validar el entorno de ejecución de NW.js extraído: {error}"
-
-#: src/box/runtime/downloader.py:108
+#: src/box/runtime/downloader.py:115
 #, python-brace-format
 msgid "cannot securely install NW.js runtime: {error}"
 msgstr ""
 "no se puede instalar de forma segura el entorno de ejecución de NW.js: "
 "{error}"
 
-#: src/box/runtime/downloader.py:160
+#: src/box/runtime/downloader.py:189
 #, python-brace-format
 msgid "cannot download NW.js from {url}: {error}"
 msgstr "no se puede descargar NW.js desde {url}: {error}"
 
-#: src/box/runtime/downloader.py:164 src/box/runtime/downloader.py:172
+#: src/box/runtime/downloader.py:193 src/box/runtime/downloader.py:201
 #, python-brace-format
 msgid "cannot download NW.js from {url} after {attempt} attempts: {error}"
 msgstr ""
 "no se puede descargar NW.js desde {url} después de {attempt} intentos: "
 "{error}"
 
-#: src/box/runtime/downloader.py:202
-msgid "NW.js download returned an invalid resume range"
-msgstr "la descarga de NW.js devolvió un rango de reanudación no válido"
-
-#: src/box/runtime/downloader.py:208
+#: src/box/runtime/downloader.py:237
 #, python-brace-format
 msgid "NW.js download returned unexpected HTTP status {status}"
 msgstr "la descarga de NW.js devolvió el estado HTTP inesperado {status}"
 
-#: src/box/runtime/downloader.py:267
+#: src/box/runtime/downloader.py:303
 #, python-brace-format
 msgid "Downloading NW.js: [{bar}] {percentage:3d}%"
 msgstr "Descargando NW.js: [{bar}] {percentage:3d}%"
 
-#: src/box/runtime/downloader.py:281 src/box/runtime/downloader.py:307
+#: src/box/runtime/downloader.py:317
 #, python-brace-format
 msgid "refusing unsafe download path: {name}"
 msgstr "se rechaza una ruta de descarga no segura: {name}"
-
-#: src/box/runtime/downloader.py:374
-msgid "archive redirected outside an official HTTPS mirror or host"
-msgstr "el archivo fue redirigido fuera de un espejo o servidor HTTPS oficial"
-
-#: src/box/runtime/catalog.py:97 src/box/runtime/catalog.py:131
-#, python-brace-format
-msgid "managed runtime directory is missing or unsafe: {path}"
-msgstr ""
-"el directorio de entorno de ejecución gestionado no existe o no es seguro: "
-"{path}"
-
-#: src/box/runtime/catalog.py:113 src/box/runtime/catalog.py:119
-#, python-brace-format
-msgid "invalid managed runtime specification: {specification}"
-msgstr ""
-"especificación de entorno de ejecución gestionado no válida: {specification}"
-
-#: src/box/runtime/catalog.py:126
-#, python-brace-format
-msgid "refusing to manage unexpected runtime path: {path}"
-msgstr ""
-"se rechaza gestionar una ruta de entorno de ejecución inesperada: {path}"
-
-#: src/box/runtime/catalog.py:167
-#, python-brace-format
-msgid "cannot securely open managed runtime directory: {error}"
-msgstr ""
-"no se puede abrir de forma segura el directorio de entorno de ejecución "
-"gestionado: {error}"
-
-#: src/box/runtime/selector.py:28
-msgid ""
-"no matching NW.js runtime is installed; run 'box-rpg runtime nwjs available "
-"--interactive'"
-msgstr ""
-"no hay ningún entorno de ejecución de NW.js coincidente instalado; ejecuta "
-"'box-rpg runtime nwjs available --interactive'"
-
-#: src/box/runtime/available.py:50
-msgid "runtime version page must be at least 1"
-msgstr "la página de versiones del entorno de ejecución debe ser al menos 1"
-
-#: src/box/runtime/available.py:64
-#, python-brace-format
-msgid "cannot list NW.js versions: {error}"
-msgstr "no se pueden mostrar las versiones de NW.js: {error}"
-
-#: src/box/runtime/available.py:66
-msgid "NW.js version index is too large"
-msgstr "el índice de versiones de NW.js es demasiado grande"
-
-#: src/box/runtime/available.py:115
-msgid "NW.js version lookup redirected outside the official host"
-msgstr ""
-"la búsqueda de versiones de NW.js fue redirigida fuera del servidor oficial"
-
-#: src/box/runtime/downloads.py:44 src/box/runtime/downloads.py:51
-#, python-brace-format
-msgid "refusing unsafe NW.js download archive: {archive}"
-msgstr "se rechaza un archivo de descarga de NW.js no seguro: {archive}"
-
-#: src/box/runtime/downloads.py:80
-#, python-brace-format
-msgid "cannot securely open managed downloads: {error}"
-msgstr "no se pueden abrir de forma segura las descargas gestionadas: {error}"
-
-#: src/box/runtime/easyrpg.py:81
-msgid "invalid EasyRPG Player version: {value!r}"
-msgstr "versión de EasyRPG Player no válida: {value!r}"
-
-#: src/box/runtime/easyrpg.py:113
-msgid "EasyRPG Player version lookup redirected outside the official host"
-msgstr ""
-"la búsqueda de versiones de EasyRPG Player fue redirigida fuera del servidor "
-"oficial"
-
-#: src/box/runtime/easyrpg.py:118
-#, python-brace-format
-msgid "cannot list EasyRPG Player versions: {error}"
-msgstr "no se pueden mostrar las versiones de EasyRPG Player: {error}"
-
-#: src/box/runtime/easyrpg.py:121
-msgid "EasyRPG Player version index is too large"
-msgstr "el índice de versiones de EasyRPG Player es demasiado grande"
-
-#: src/box/runtime/easyrpg.py:186 src/box/runtime/easyrpg.py:368
-#, python-brace-format
-msgid "EasyRPG Player runtime is not installed: {version}"
-msgstr "el entorno de ejecución de EasyRPG Player no está instalado: {version}"
-
-#: src/box/runtime/easyrpg.py:196
-msgid ""
-"no EasyRPG Player runtime is installed; run 'box-rpg runtime easyrpg "
-"available --interactive'"
-msgstr ""
-"no hay ningún entorno de ejecución de EasyRPG Player instalado; ejecuta 'box-"
-"rpg runtime easyrpg available --interactive'"
-
-#: src/box/runtime/easyrpg.py:213
-#, python-brace-format
-msgid "refusing to manage unexpected EasyRPG runtime path: {path}"
-msgstr ""
-"se rechaza gestionar una ruta de entorno de ejecución de EasyRPG inesperada: "
-"{path}"
-
-#: src/box/runtime/easyrpg.py:220 src/box/runtime/easyrpg.py:229
-#, python-brace-format
-msgid "managed EasyRPG runtime directory is missing or unsafe: {path}"
-msgstr ""
-"el directorio de entorno de ejecución de EasyRPG gestionado no existe o no "
-"es seguro: {path}"
-
-#: src/box/runtime/easyrpg.py:269 src/box/runtime/easyrpg.py:276
-#, python-brace-format
-msgid "refusing unsafe EasyRPG download archive: {archive}"
-msgstr "se rechaza un archivo de descarga de EasyRPG no seguro: {archive}"
-
-#: src/box/runtime/easyrpg.py:286
-msgid "EasyRPG Player managed downloads currently support x64 only"
-msgstr ""
-"las descargas gestionadas de EasyRPG Player actualmente solo admiten x64"
-
-#: src/box/runtime/easyrpg.py:314
-msgid "EasyRPG archive does not contain an executable easyrpg-player"
-msgstr "el archivo de EasyRPG no contiene un ejecutable easyrpg-player"
-
-#: src/box/runtime/easyrpg.py:340
-msgid "EasyRPG Player version page must be at least 1"
-msgstr "la página de versiones de EasyRPG Player debe ser al menos 1"
-
-#: src/box/runtime/easyrpg.py:397
-#, python-brace-format
-msgid "cannot stage EasyRPG Player archive {archive}: {error}"
-msgstr "no se puede preparar el archivo de EasyRPG Player {archive}: {error}"
-
-#: src/box/launch/links.py:21
-#, python-brace-format
-msgid "game root is missing or unsafe: {root}"
-msgstr "la raíz del juego no existe o no es segura: {root}"
-
-#: src/box/launch/links.py:30
-msgid "cannot resolve the open game directory"
-msgstr "no se puede resolver el directorio abierto del juego"
-
-#: src/box/launch/links.py:32
-msgid "game root disappeared before launch"
-msgstr "la raíz del juego desapareció antes del inicio"
-
-#: src/box/launch/links.py:47
-#, python-brace-format
-msgid "cannot link game into session: {error}"
-msgstr "no se puede enlazar el juego a la sesión: {error}"
-
-#: src/box/launch/links.py:61
-msgid "invalid game-root filename: {filename!r}"
-msgstr "nombre de archivo de raíz de juego no válido: {filename!r}"
-
-#: src/box/launch/links.py:76 src/box/launch/links.py:81
-#, python-brace-format
-msgid "game-root file is missing or unsafe: {filename}"
-msgstr "el archivo de la raíz del juego no existe o no es seguro: {filename}"
-
-#: src/box/launch/links.py:92 src/box/launch/links.py:104
-#: src/box/launch/links.py:112
-#, python-brace-format
-msgid "cannot copy game-root file into session: {error}"
-msgstr ""
-"no se puede copiar el archivo de la raíz del juego a la sesión: {error}"
-
-#: src/box/launch/manifest.py:26
-msgid "a NW.js launch session requires a web game manifest and entrypoint"
-msgstr ""
-"una sesión de inicio de NW.js requiere un manifiesto del juego web y un "
-"punto de entrada"
-
-#: src/box/launch/manifest.py:52 src/box/launch/manifest.py:59
-#, python-brace-format
-msgid "cannot write session manifest: {error}"
-msgstr "no se puede escribir el manifiesto de sesión: {error}"
-
-#: src/box/launch/manifest.py:62
-#, python-brace-format
-msgid "cannot create session manifest: {error}"
-msgstr "no se puede crear el manifiesto de sesión: {error}"
-
-#: src/box/launch/manifest.py:85
-msgid "game manifest must be in the game root"
-msgstr "el manifiesto del juego debe estar en la raíz del juego"
-
-#: src/box/launch/manifest.py:91
-#, python-brace-format
-msgid "cannot read game manifest {manifest}: {error}"
-msgstr "no se puede leer el manifiesto del juego {manifest}: {error}"
-
-#: src/box/launch/manifest.py:97
-#, python-brace-format
-msgid "game manifest is not a JSON object: {manifest}"
-msgstr "el manifiesto del juego no es un objeto JSON: {manifest}"
 
 #: src/box/launch/cleanup.py:31 src/box/launch/cleanup.py:35
 #, python-brace-format
@@ -1047,30 +1071,40 @@ msgstr "la ruta de sesión cambió antes de la limpieza: {path}"
 msgid "cannot remove launch session {path}: {error}"
 msgstr "no se puede eliminar la sesión de inicio {path}: {error}"
 
-#: src/box/launch/process.py:17
-#, python-brace-format
-msgid "cannot start game runtime: {error}"
-msgstr "no se puede iniciar el entorno de ejecución del juego: {error}"
+#: src/box/launch/manifest.py:105
+msgid "a NW.js launch session requires a web game manifest and entrypoint"
+msgstr ""
+"una sesión de inicio de NW.js requiere un manifiesto del juego web y un "
+"punto de entrada"
 
-#: src/box/launch/session.py:137
+#: src/box/launch/manifest.py:132 src/box/launch/manifest.py:139
 #, python-brace-format
-msgid "cannot create launch session: {error}"
-msgstr "no se puede crear la sesión de inicio: {error}"
+msgid "cannot write session manifest: {error}"
+msgstr "no se puede escribir el manifiesto de sesión: {error}"
 
-#: src/box/launch/session.py:191 src/box/launch/profiles.py:33
+#: src/box/launch/manifest.py:142
+#, python-brace-format
+msgid "cannot create session manifest: {error}"
+msgstr "no se puede crear el manifiesto de sesión: {error}"
+
+#: src/box/launch/manifest.py:165
+msgid "game manifest must be in the game root"
+msgstr "el manifiesto del juego debe estar en la raíz del juego"
+
+#: src/box/launch/manifest.py:170
+#, python-brace-format
+msgid "cannot read game manifest {manifest}: {error}"
+msgstr "no se puede leer el manifiesto del juego {manifest}: {error}"
+
+#: src/box/launch/manifest.py:176
+#, python-brace-format
+msgid "game manifest is not a JSON object: {manifest}"
+msgstr "el manifiesto del juego no es un objeto JSON: {manifest}"
+
+#: src/box/launch/profiles.py:33 src/box/launch/session.py:192
 #, python-brace-format
 msgid "cannot identify game root {root}: {error}"
 msgstr "no se puede identificar la raíz del juego {root}: {error}"
-
-#: src/box/launch/session.py:204
-#, python-brace-format
-msgid "cannot create launch session directory: {error}"
-msgstr "no se puede crear el directorio de sesión de inicio: {error}"
-
-#: src/box/launch/session.py:209 src/box/launch/session.py:214
-msgid "launch session directory has unsafe ownership or permissions"
-msgstr ""
-"el directorio de sesión de inicio tiene propiedad o permisos no seguros"
 
 #: src/box/launch/profiles.py:58 src/box/launch/profiles.py:86
 #, python-brace-format
@@ -1097,118 +1131,64 @@ msgstr "se rechaza gestionar una ruta inesperada del perfil del juego: {path}"
 msgid "cannot securely open managed profiles: {error}"
 msgstr "no se pueden abrir de forma segura los perfiles gestionados: {error}"
 
-#: src/box/paths.py:31
+#: src/box/launch/links.py:22
 #, python-brace-format
-msgid "{home} is required to resolve {xdg} paths"
-msgstr "se requiere {home} para resolver las rutas de {xdg}"
+msgid "game root is missing or unsafe: {root}"
+msgstr "la raíz del juego no existe o no es segura: {root}"
 
-#: src/box/paths.py:98
-msgid "runtime"
-msgstr "entorno de ejecución"
+#: src/box/launch/links.py:31
+msgid "cannot resolve the open game directory"
+msgstr "no se puede resolver el directorio abierto del juego"
 
-#: src/box/paths.py:102
-msgid "download"
-msgstr "descarga"
+#: src/box/launch/links.py:33
+msgid "game root disappeared before launch"
+msgstr "la raíz del juego desapareció antes del inicio"
 
-#: src/box/paths.py:106
+#: src/box/launch/links.py:48
 #, python-brace-format
-msgid "refusing to manage nested download path: {path}"
-msgstr "se rechaza gestionar una ruta de descarga anidada: {path}"
+msgid "cannot link game into session: {error}"
+msgstr "no se puede enlazar el juego a la sesión: {error}"
 
-#: src/box/paths.py:113
-msgid "EasyRPG download"
-msgstr "descarga de EasyRPG"
+#: src/box/launch/links.py:62
+msgid "invalid game-root filename: {filename!r}"
+msgstr "nombre de archivo de raíz de juego no válido: {filename!r}"
 
-#: src/box/paths.py:117
+#: src/box/launch/links.py:77 src/box/launch/links.py:83
 #, python-brace-format
-msgid "refusing to manage nested {runtime} download path: {path}"
-msgstr "se rechaza gestionar una ruta de descarga anidada de {runtime}: {path}"
+msgid "game-root file is missing or unsafe: {filename}"
+msgstr "el archivo de la raíz del juego no existe o no es seguro: {filename}"
 
-#: src/box/paths.py:131 src/box/paths.py:153
+#: src/box/launch/links.py:87 src/box/launch/links.py:109
 #, python-brace-format
-msgid "invalid managed cache component: {component}"
-msgstr "componente de caché gestionada no válido: {component}"
+msgid "game-root file exceeds byte limit: {filename}"
+msgstr "el archivo de la raíz del juego supera el límite de bytes: {filename}"
 
-#: src/box/paths.py:167
-msgid "session"
-msgstr "sesión"
-
-#: src/box/paths.py:171
-msgid "game profile"
-msgstr "perfil del juego"
-
-#: src/box/paths.py:174
+#: src/box/launch/links.py:98 src/box/launch/links.py:119
+#: src/box/launch/links.py:127
 #, python-brace-format
-msgid "refusing to manage nested game profile path: {path}"
-msgstr "se rechaza gestionar una ruta anidada del perfil del juego: {path}"
-
-#: src/box/paths.py:180
-msgid "EasyRPG runtime"
-msgstr "entorno de ejecución de EasyRPG"
-
-#: src/box/paths.py:191 src/box/paths.py:228
-#, python-brace-format
-msgid "refusing to manage {label} outside cache: {path}"
-msgstr "se rechaza gestionar {label} fuera de la caché: {path}"
-
-#: src/box/paths.py:195
-#, python-brace-format
-msgid "refusing to manage cache root as a {label}: {path}"
-msgstr "se rechaza gestionar la raíz de la caché como {label}: {path}"
-
-#: src/box/paths.py:202 src/box/paths.py:303 src/box/paths.py:328
-#, python-brace-format
-msgid "managed directory must not be a symlink: {path}"
-msgstr "el directorio gestionado no debe ser un enlace simbólico: {path}"
-
-#: src/box/paths.py:212
-#, python-brace-format
-msgid "managed {label} path contains a symlink: {path}"
-msgstr "la ruta de {label} gestionada contiene un enlace simbólico: {path}"
-
-#: src/box/paths.py:221
-#, python-brace-format
-msgid "managed {label} directory has unsafe ownership or permissions: {path}"
+msgid "cannot copy game-root file into session: {error}"
 msgstr ""
-"el directorio de {label} gestionado tiene propiedad o permisos no seguros: "
-"{path}"
+"no se puede copiar el archivo de la raíz del juego a la sesión: {error}"
 
-#: src/box/paths.py:232
+#: src/box/launch/process.py:33
 #, python-brace-format
-msgid "managed {label} path contains upper-case components: {path}"
+msgid "cannot start game runtime: {error}"
+msgstr "no se puede iniciar el entorno de ejecución del juego: {error}"
+
+#: src/box/launch/session.py:137
+#, python-brace-format
+msgid "cannot create launch session: {error}"
+msgstr "no se puede crear la sesión de inicio: {error}"
+
+#: src/box/launch/session.py:205
+#, python-brace-format
+msgid "cannot create launch session directory: {error}"
+msgstr "no se puede crear el directorio de sesión de inicio: {error}"
+
+#: src/box/launch/session.py:210 src/box/launch/session.py:215
+msgid "launch session directory has unsafe ownership or permissions"
 msgstr ""
-"la ruta de {label} gestionada contiene componentes en mayúsculas: {path}"
-
-#: src/box/paths.py:261
-#, python-brace-format
-msgid "managed directory is unsafe: {name}"
-msgstr "el directorio gestionado no es seguro: {name}"
-
-#: src/box/paths.py:271
-#, python-brace-format
-msgid "cannot safely open managed directory: {name}"
-msgstr "no se puede abrir de forma segura el directorio gestionado: {name}"
-
-#: src/box/paths.py:277 src/box/paths.py:283
-#, python-brace-format
-msgid "managed directory has unsafe ownership or permissions: {name}"
-msgstr "el directorio gestionado tiene propiedad o permisos no seguros: {name}"
-
-#: src/box/paths.py:319
-#, python-brace-format
-msgid "managed directory is not owned by the current user: {path}"
-msgstr "el directorio gestionado no pertenece al usuario actual: {path}"
-
-#: src/box/paths.py:323
-#, python-brace-format
-msgid "managed directory has unsafe permissions: {path}"
-msgstr "el directorio gestionado tiene permisos no seguros: {path}"
-
-#: src/box/paths.py:331
-#, python-brace-format
-msgid "cannot safely create managed directory {path}: {error}"
-msgstr ""
-"no se puede crear de forma segura el directorio gestionado {path}: {error}"
+"el directorio de sesión de inicio tiene propiedad o permisos no seguros"
 
 #: src/box/utils/i18n.py:55
 #, python-format
@@ -1334,6 +1314,151 @@ msgstr "%(prog)s: error: %(message)s\n"
 #, python-format
 msgid "%(prog)s: warning: %(message)s\n"
 msgstr "%(prog)s: advertencia: %(message)s\n"
+
+#: src/box/paths.py:31
+#, python-brace-format
+msgid "{home} is required to resolve {xdg} paths"
+msgstr "se requiere {home} para resolver las rutas de {xdg}"
+
+#: src/box/paths.py:35
+msgid "HOME must be an absolute path"
+msgstr "HOME debe ser una ruta absoluta"
+
+#: src/box/paths.py:104
+msgid "runtime"
+msgstr "entorno de ejecución"
+
+#: src/box/paths.py:108
+msgid "download"
+msgstr "descarga"
+
+#: src/box/paths.py:112
+#, python-brace-format
+msgid "refusing to manage nested download path: {path}"
+msgstr "se rechaza gestionar una ruta de descarga anidada: {path}"
+
+#: src/box/paths.py:119
+msgid "EasyRPG download"
+msgstr "descarga de EasyRPG"
+
+#: src/box/paths.py:123
+#, python-brace-format
+msgid "refusing to manage nested {runtime} download path: {path}"
+msgstr "se rechaza gestionar una ruta de descarga anidada de {runtime}: {path}"
+
+#: src/box/paths.py:137 src/box/paths.py:159
+#, python-brace-format
+msgid "invalid managed cache component: {component}"
+msgstr "componente de caché gestionada no válido: {component}"
+
+#: src/box/paths.py:173
+msgid "session"
+msgstr "sesión"
+
+#: src/box/paths.py:177
+msgid "game profile"
+msgstr "perfil del juego"
+
+#: src/box/paths.py:180
+#, python-brace-format
+msgid "refusing to manage nested game profile path: {path}"
+msgstr "se rechaza gestionar una ruta anidada del perfil del juego: {path}"
+
+#: src/box/paths.py:186
+msgid "EasyRPG runtime"
+msgstr "entorno de ejecución de EasyRPG"
+
+#: src/box/paths.py:197 src/box/paths.py:234
+#, python-brace-format
+msgid "refusing to manage {label} outside cache: {path}"
+msgstr "se rechaza gestionar {label} fuera de la caché: {path}"
+
+#: src/box/paths.py:201
+#, python-brace-format
+msgid "refusing to manage cache root as a {label}: {path}"
+msgstr "se rechaza gestionar la raíz de la caché como {label}: {path}"
+
+#: src/box/paths.py:208 src/box/paths.py:309 src/box/paths.py:334
+#, python-brace-format
+msgid "managed directory must not be a symlink: {path}"
+msgstr "el directorio gestionado no debe ser un enlace simbólico: {path}"
+
+#: src/box/paths.py:218
+#, python-brace-format
+msgid "managed {label} path contains a symlink: {path}"
+msgstr "la ruta de {label} gestionada contiene un enlace simbólico: {path}"
+
+#: src/box/paths.py:227
+#, python-brace-format
+msgid "managed {label} directory has unsafe ownership or permissions: {path}"
+msgstr ""
+"el directorio de {label} gestionado tiene propiedad o permisos no seguros: "
+"{path}"
+
+#: src/box/paths.py:238
+#, python-brace-format
+msgid "managed {label} path contains upper-case components: {path}"
+msgstr ""
+"la ruta de {label} gestionada contiene componentes en mayúsculas: {path}"
+
+#: src/box/paths.py:267
+#, python-brace-format
+msgid "managed directory is unsafe: {name}"
+msgstr "el directorio gestionado no es seguro: {name}"
+
+#: src/box/paths.py:277
+#, python-brace-format
+msgid "cannot safely open managed directory: {name}"
+msgstr "no se puede abrir de forma segura el directorio gestionado: {name}"
+
+#: src/box/paths.py:283 src/box/paths.py:289
+#, python-brace-format
+msgid "managed directory has unsafe ownership or permissions: {name}"
+msgstr "el directorio gestionado tiene propiedad o permisos no seguros: {name}"
+
+#: src/box/paths.py:325
+#, python-brace-format
+msgid "managed directory is not owned by the current user: {path}"
+msgstr "el directorio gestionado no pertenece al usuario actual: {path}"
+
+#: src/box/paths.py:329
+#, python-brace-format
+msgid "managed directory has unsafe permissions: {path}"
+msgstr "el directorio gestionado tiene permisos no seguros: {path}"
+
+#: src/box/paths.py:337
+#, python-brace-format
+msgid "cannot safely create managed directory {path}: {error}"
+msgstr ""
+"no se puede crear de forma segura el directorio gestionado {path}: {error}"
+
+#~ msgid "error: pip install failed"
+#~ msgstr "error: falló la instalación con pip"
+
+#, python-brace-format
+#~ msgid "error: cannot create directory {directory}: {error}"
+#~ msgstr "error: no se puede crear el directorio {directory}: {error}"
+
+#, python-brace-format
+#~ msgid "cannot read plugin registry {path}: {error}"
+#~ msgstr "no se puede leer el registro de complementos {path}: {error}"
+
+#~ msgid "NW.js download returned an invalid resume range"
+#~ msgstr "la descarga de NW.js devolvió un rango de reanudación no válido"
+
+#~ msgid "archive redirected outside an official HTTPS mirror or host"
+#~ msgstr ""
+#~ "el archivo fue redirigido fuera de un espejo o servidor HTTPS oficial"
+
+#~ msgid "NW.js version lookup redirected outside the official host"
+#~ msgstr ""
+#~ "la búsqueda de versiones de NW.js fue redirigida fuera del servidor "
+#~ "oficial"
+
+#~ msgid "EasyRPG Player version lookup redirected outside the official host"
+#~ msgstr ""
+#~ "la búsqueda de versiones de EasyRPG Player fue redirigida fuera del "
+#~ "servidor oficial"
 
 #~ msgid "Install box-rpg on the system and manage its user-level files."
 #~ msgstr "Instala box-rpg en el sistema y gestiona sus archivos de usuario."

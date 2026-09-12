@@ -1,3 +1,6 @@
 # Translation tasks
 
-- [ ] `<language>` (`<locale>`) — translate and validate `path/to/catalog.po`; preserve placeholders, markup, shortcuts, and glossary terms.
+- [x] Spanish (`es`) — translate and validate `src/box/locale/es/LC_MESSAGES/box.po`; preserve placeholders, markup, shortcuts, and glossary terms.
+  - [x] Translation phase (translator-es): fill the 14 new empty `msgstr` entries (installer, X11 launch, sandbox/game validation, config, runtime authenticity); neutral Spanish, glossary terms intact. — Done: 14 entries translated; `host` → `servidor`, `user-site`/`root`/`X11`/`keylogging`/`HTTP`/`HTTPS` kept in English.
+  - [x] Review phase (spell-checker-es): review the filled entries for grammar, style, placeholders, and format; mark the parent entry `[x]` only after `msgattrib --untranslated` is clean and `tests/test_i18n.py` passes. — Done: 14 new confirmed (0 changed), 12 fuzzy resolved (12 corrected, 0 kept); `grep '#, fuzzy'` clean, .mo/tests skipped per scope.
+  - force-reinstall strings translated, reviewed: 2 entries (`reinstall the package...` + `Reinstalling the same version ({installed})...`) confirmed neutral Spanish, `{installed}` intact, no fuzzy, consistent with neighboring entry; validation by file read only, no .mo/tests per scope.

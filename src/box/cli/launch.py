@@ -15,8 +15,9 @@ from box.errors import GameValidationError
 from box.games.detector import detect_game, ensure_allowed_root
 from box.games.files import open_game_directory, validate_game_descriptor
 from box.launch.command import build_command
-from box.launch.links import descriptor_path, open_game_root
+from box.launch.links import open_game_root
 from box.launch.process import run_process
+from box.launch.sandbox import Sandbox, validate_tree
 from box.launch.session import create_session
 from box.models import EngineName, GameInfo
 from box.paths import AppPaths
@@ -29,6 +30,51 @@ from box.utils.i18n import _
 from box.utils.terminal import safe_terminal_text
 
 
+def _confirm_x11(sandbox: Sandbox, read: Callable[[str], str] | None) -> None:
+    """Warn, require an explicit yes, and expose the X11 socket."""
+    if read is None:
+        raise GameValidationError(
+            _("explicit consent is required for X11; run interactively to continue")
+        )
+    display = safe_terminal_text(os.environ.get("DISPLAY", ""))
+    print(
+        _(
+            "warning: X11 display {display} is insecure; "
+            "X11 clients can capture input and screen contents (keylogging)."
+        ).format(display=display),
+        file=sys.stderr,
+    )
+    try:
+        answer = read(_("Continue with X11? [y/N] ")).strip().lower()
+    except EOFError as exc:
+        raise GameValidationError(_("X11 launch was not confirmed")) from exc
+    if answer not in {"y", "yes"}:
+        raise GameValidationError(_("X11 launch was not confirmed"))
+    sandbox.x11()
+
+
+def _setup_desktop(
+    sandbox: Sandbox, read: Callable[[str], str] | None, *, extra_x11: bool = False
+) -> str:
+    """Select the display backend, requiring explicit consent for X11.
+
+    Runtimes without Wayland support (such as the EasyRPG static build) pass
+    extra_x11 so the local X11 socket can additionally be exposed after the
+    same confirmation; declining aborts the launch either way.
+    """
+    probe = sandbox.display_probe()
+    if probe == "wayland":
+        sandbox.desktop()
+        if extra_x11 and os.environ.get("DISPLAY"):
+            _confirm_x11(sandbox, read)
+        return "wayland"
+    if probe == "x11":
+        _confirm_x11(sandbox, read)
+        return "x11"
+    sandbox.desktop()
+    return "wayland"
+
+
 def execute(
     paths: AppPaths,
     repository: ConfigRepository,
@@ -36,6 +82,9 @@ def execute(
     version: str | None,
     sdk: bool,
     copy_root_files: tuple[str, ...] = (),
+    *,
+    allow_network: bool = False,
+    allow_game_writes: bool = False,
 ) -> int:
     """Launch an allowed game through an isolated session."""
     game = detect_game(game_path, default_registry())
@@ -53,16 +102,36 @@ def execute(
             runtime = EasyRPGCatalog(paths).latest()
             authorize_game(game, config, repository, read)
             validate_game_descriptor(game, game_descriptor)
-            game_reference = descriptor_path(game_descriptor)
-            return run_process(
-                [
-                    str(easyrpg_executable(runtime)),
-                    "--project-path",
-                    str(game_reference),
-                    "--fullscreen",
-                ],
-                cwd=game_reference,
-            )
+            with Sandbox(
+                allow_network=allow_network, allow_game_writes=allow_game_writes
+            ) as sandbox:
+                executable = sandbox.runtime(easyrpg_executable(runtime))
+                _setup_desktop(sandbox, read, extra_x11=True)
+                sandbox.devices()
+                sandbox.audio()
+                sandbox.persistence(paths, game)
+                saves = sandbox.game_saves(game, game_descriptor)
+                validate_tree(game_descriptor)
+                if allow_game_writes:
+                    sandbox.game_writable(os.dup(game_descriptor))
+                else:
+                    sandbox.bind(sandbox.keep(os.dup(game_descriptor)), "/game")
+                sandbox.bind(saves, "/game/save", writable=True)
+                validate_game_descriptor(game, game_descriptor)
+                return run_process(
+                    sandbox.command(
+                        [
+                            executable,
+                            "--project-path",
+                            "/game",
+                            "--fullscreen",
+                            "--save-path",
+                            "/game/save",
+                        ],
+                        cwd="/game",
+                    ),
+                    pass_fds=sandbox.pass_fds,
+                )
         runtime = select_runtime(
             RuntimeCatalog(paths),
             current_architecture(),
@@ -75,10 +144,24 @@ def execute(
             paths, game, copy_root_files, game_descriptor=game_descriptor
         ) as session:
             validate_game_descriptor(game, game_descriptor)
-            return run_process(
-                build_command(runtime, session.reference, session.profile_root),
-                cwd=session.reference,
-            )
+            with Sandbox(
+                allow_network=allow_network, allow_game_writes=allow_game_writes
+            ) as sandbox:
+                executable = sandbox.runtime(runtime.executable)
+                display = _setup_desktop(sandbox, read)
+                sandbox.devices()
+                sandbox.audio()
+                sandbox.persistence(paths, game)
+                saves = sandbox.game_saves(game, game_descriptor)
+                sandbox.nw_game(game, game_descriptor, saves)
+                sandbox.bind(sandbox.keep(os.dup(session.session_descriptor)), "/session")
+                sandbox.bind(saves, "/session/save", writable=True)
+                command = build_command(runtime, Path("/session"), Path("/profile"), display)
+                command[0] = executable
+                validate_game_descriptor(game, game_descriptor)
+                return run_process(
+                    sandbox.command(command, cwd="/session"), pass_fds=sandbox.pass_fds
+                )
 
 
 def authorize_game(

@@ -30,6 +30,8 @@ complete -c box-rpg -n '__fish_seen_subcommand_from cleanup; and __fish_seen_sub
 complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l runtime -d 'Use an NW.js version'
 complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l sdk -d 'Use an NW.js SDK build'
 complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l copy-root-file -d 'Copy a direct game-root file into the isolated session' -r
+complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-network -d 'Allow host network access for this launch only'
+complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-game-writes -d 'Allow game directory writes for this launch only'
 complete -c box-rpg -n '__fish_seen_subcommand_from diagnose' -l runtime -d 'Use an NW.js version'
 complete -c box-rpg -n '__fish_seen_subcommand_from diagnose' -l sdk -d 'Use an NW.js SDK build'
 complete -c box-rpg -n '__fish_seen_subcommand_from cleanup inspect runtime launch config diagnose' -l help -d 'Show help'

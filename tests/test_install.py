@@ -1,6 +1,12 @@
+import base64
+import csv
+import hashlib
+import io
 import os
 import subprocess
+import sys
 from pathlib import Path
+from zipfile import ZipFile
 
 import install
 import pytest
@@ -82,6 +88,42 @@ def test_interactive_actions_abort_cleanly_on_end_of_input(
     assert "Aborted." in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("forced", [False, True])
+def test_pip_install_args_force_reinstall_only_when_requested(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, forced: bool
+) -> None:
+    monkeypatch.setattr(install, "force_reinstall", forced)
+    monkeypatch.setattr(install, "allow_system_packages", False)
+
+    args = install._pip_install_args(tmp_path / "box_rpg-1.0.0-py3-none-any.whl")
+
+    assert ("--force-reinstall" in args) == forced
+
+
+@pytest.mark.parametrize("flag", [[], ["--force-reinstall"]])
+def test_install_same_version_message_reflects_force_flag(
+    flag: list[str], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(install, "force_reinstall", False)
+    monkeypatch.setattr(install.sys, "argv", ["install.py", "--install", "--yes", *flag])
+    monkeypatch.setattr(install, "is_linux", lambda: True)
+    monkeypatch.setattr(install, "_check_python_version", lambda: True)
+    monkeypatch.setattr(install, "has_pip", lambda: True)
+    monkeypatch.setattr(install, "installed_version", lambda: "1.0.0")
+    monkeypatch.setattr(install, "repo_version", lambda: "1.0.0")
+    calls: list[None] = []
+    monkeypatch.setattr(install, "run_install", lambda: calls.append(None) or True)
+
+    assert install.main() == 0
+    assert install.force_reinstall == bool(flag)
+    assert len(calls) == 1
+    output = capsys.readouterr().out
+    if flag:
+        assert "Reinstalling the same version (1.0.0) as requested." in output
+    else:
+        assert "The same version (1.0.0) is already installed." in output
+
+
 def test_help_uses_the_configured_translation(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -123,6 +165,153 @@ def test_completion_round_trip(completion: tuple[Path, Path]) -> None:
     install.update_completion(source, target, uninstall=True)
     assert not target.exists()
     install.update_completion(source, target, uninstall=True)
+
+
+@pytest.mark.parametrize("failed_step", [0, 1, 2, 3, None])
+def test_install_uses_private_locked_build_and_stops_on_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failed_step: int | None,
+) -> None:
+    monkeypatch.setattr(install.os, "geteuid", lambda: 1000)
+    monkeypatch.setattr(install, "allow_system_packages", False)
+    monkeypatch.setattr(install, "system_python", lambda: "/base/python")
+    source = tmp_path / "completion"
+    source.write_bytes(b"completion")
+    target = tmp_path / "target"
+    monkeypatch.setattr(install, "COMPLETION_TARGETS", [(source, target)])
+    completed: list[Path] = []
+    staged: list[Path] = []
+
+    def complete(source: Path, target: Path) -> None:
+        completed.append(target)
+
+    def stage(destination: Path) -> None:
+        staged.append(destination)
+
+    monkeypatch.setattr(install, "update_completion", complete)
+    monkeypatch.setattr(install, "copy_build_source", stage)
+    commands: list[list[str]] = []
+
+    def record(args: list[str]) -> int:
+        step = len(commands)
+        commands.append(args)
+        assert staged[0].parent.is_dir()
+        assert staged[0].parent.stat().st_mode & 0o777 == 0o700
+        if step == failed_step:
+            return 1
+        if step == 2:
+            wheels = staged[0].parent / "wheels"
+            wheels.mkdir()
+            (wheels / "box_rpg-1-py3-none-any.whl").write_bytes(b"mock wheel")
+        return 0
+
+    monkeypatch.setattr(install, "run", record)
+    assert install.run_install() is (failed_step is None)
+    assert len(commands) == (4 if failed_step is None else failed_step + 1)
+    assert not staged[0].parent.exists()
+    assert completed == ([target] if failed_step is None else [])
+    if len(commands) > 1:
+        assert {"--require-hashes", "--only-binary=:all:", "--force-reinstall"} <= set(commands[1])
+        assert commands[1][0] != "/base/python"
+        assert "--no-deps" not in commands[1]
+    if len(commands) > 2:
+        assert {"--no-build-isolation", "--no-deps", "--no-index"} <= set(commands[2])
+    if len(commands) > 3:
+        assert commands[3][0] == "/base/python"
+        assert {"--user", "--no-deps", "--no-index"} <= set(commands[3])
+        assert str(install.REPO_ROOT) not in commands[3]
+    assert all("--break-system-packages" not in command for command in commands)
+
+
+@pytest.mark.parametrize("wheel_names", [[], ["box_rpg-1.whl", "box_rpg-2.whl"]])
+def test_build_rejects_missing_or_ambiguous_wheels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, wheel_names: list[str]
+) -> None:
+    def stage(destination: Path) -> None:
+        pass
+
+    def run(args: list[str]) -> int:
+        return 0
+
+    monkeypatch.setattr(install, "copy_build_source", stage)
+    monkeypatch.setattr(install, "run", run)
+    (tmp_path / "wheels").mkdir()
+    for name in wheel_names:
+        (tmp_path / "wheels" / name).touch()
+    with pytest.raises(RuntimeError, match="exactly one"):
+        install.build_wheel(tmp_path)
+
+
+def test_build_source_excludes_previous_artifacts(tmp_path: Path) -> None:
+    destination = tmp_path / "source"
+    install.copy_build_source(destination)
+    assert (destination / "res/requirements/build.txt").is_file()
+    assert (destination / "src/box/__init__.py").is_file()
+    assert not list(destination.rglob("*.egg-info"))
+    assert not list(destination.rglob("__pycache__"))
+    assert not (destination / ".venv").exists()
+    assert not (destination / "build").exists()
+
+
+def test_run_disables_external_pip_and_python_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIP_EXTRA_INDEX_URL", "https://untrusted.invalid")
+    monkeypatch.setenv("PIP_TARGET", "/outside")
+    monkeypatch.setenv("PYTHONPATH", "/outside")
+    monkeypatch.setenv("VIRTUAL_ENV", "/outside")
+    monkeypatch.setenv("LD_PRELOAD", "/outside/evil.so")
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/outside")
+    monkeypatch.setenv("DYLD_INSERT_LIBRARIES", "/outside/evil.dylib")
+    monkeypatch.setenv("PATH", "/outside")
+
+    def record(
+        args: list[str], *, check: bool, env: dict[str, str]
+    ) -> subprocess.CompletedProcess[str]:
+        assert not check
+        assert env["PIP_CONFIG_FILE"] == os.devnull
+        assert env["PATH"] == "/usr/bin:/bin"
+        assert (
+            not {
+                "PIP_EXTRA_INDEX_URL",
+                "PIP_TARGET",
+                "PYTHONPATH",
+                "VIRTUAL_ENV",
+                "LD_PRELOAD",
+                "LD_LIBRARY_PATH",
+                "DYLD_INSERT_LIBRARIES",
+            }
+            & env.keys()
+        )
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(install.subprocess, "run", record)
+    assert install.run(["mock"]) == 0
+
+
+def test_install_cleans_up_and_stops_on_build_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(install.os, "geteuid", lambda: 1000)
+    workspaces: list[Path] = []
+
+    def fail(workspace: Path) -> Path:
+        workspaces.append(workspace)
+        raise OSError("missing build input")
+
+    def forbidden(args: list[str]) -> int:
+        pytest.fail("pip must not execute after build failure")
+
+    def forbidden_completion(source: Path, target: Path) -> None:
+        pytest.fail("completions must not change after build failure")
+
+    monkeypatch.setattr(install, "build_wheel", fail)
+    monkeypatch.setattr(install, "run", forbidden)
+    monkeypatch.setattr(install, "update_completion", forbidden_completion)
+    assert not install.run_install()
+    assert len(workspaces) == 1
+    assert not workspaces[0].exists()
 
 
 @pytest.mark.parametrize("uninstall", [False, True])
@@ -238,7 +427,8 @@ def test_base_interpreter_distribution_location(
     monkeypatch.setattr(install.Path, "home", lambda: Path("/home/test"))
 
     def probe(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        assert args[:2] == [install.system_python(), "-c"]
+        assert args[:3] == [install.system_python(), "-I", "-c"]
+        assert args[-1] == "--verify-user-distribution"
         return subprocess.CompletedProcess(args, 0, stdout=locations)
 
     monkeypatch.setattr(install.subprocess, "run", probe)
@@ -246,11 +436,12 @@ def test_base_interpreter_distribution_location(
 
 
 def test_pep668_requires_separate_consent(monkeypatch: pytest.MonkeyPatch) -> None:
+    wheel = Path("/private/box_rpg-1-py3-none-any.whl")
     monkeypatch.setattr(install, "allow_system_packages", False)
-    assert "--break-system-packages" not in install._pip_install_args()
+    assert "--break-system-packages" not in install._pip_install_args(wheel)
     assert "--break-system-packages" not in install._pip_uninstall_args()
     monkeypatch.setattr(install, "allow_system_packages", True)
-    assert "--break-system-packages" in install._pip_install_args()
+    assert "--break-system-packages" in install._pip_install_args(wheel)
     assert "--break-system-packages" in install._pip_uninstall_args()
 
 
@@ -305,3 +496,257 @@ def test_verified_uninstall_uses_pip_and_safe_completion_removal(
     assert install.run_uninstall()
     assert commands == [install._pip_uninstall_args()]
     assert not target.exists()
+
+
+# Pinned pre-change completions from d28845f, before --allow-network was added.
+# Derive them from the current files with an exact, hash-checked reversal so the
+# migration tests never silently skip when the Git object is unavailable. Any
+# future completion change must update this reversal and its reviewed hashes.
+_HISTORICAL_COMPLETION_REVERSALS: dict[str, tuple[bytes, bytes]] = {
+    "box-rpg.bash": (
+        b"--copy-root-file --allow-network --allow-game-writes --help",
+        b"--copy-root-file --help",
+    ),
+    "box-rpg.fish": (
+        b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-network"
+        b" -d 'Allow host network access for this launch only'\n"
+        b"complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-game-writes"
+        b" -d 'Allow game directory writes for this launch only'\n",
+        b"",
+    ),
+    "_box-rpg": (
+        b" '--allow-network[allow host network access for this launch only]'"
+        b" '--allow-game-writes[allow game directory writes for this launch only]'",
+        b"",
+    ),
+}
+
+
+@pytest.fixture(params=["box-rpg.bash", "box-rpg.fish", "_box-rpg"])
+def previous_completion(
+    request: pytest.FixtureRequest, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Path, Path, bytes]:
+    name = str(request.param)
+    current = (install.REPO_ROOT / "res/completions" / name).read_bytes()
+    new, old = _HISTORICAL_COMPLETION_REVERSALS[name]
+    previous = current.replace(new, old)
+    assert previous != current
+    assert hashlib.sha256(previous).hexdigest() in install.PREVIOUS_COMPLETION_HASHES[name]
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(install.Path, "home", lambda: home)
+    source = tmp_path / name
+    source.write_bytes((install.REPO_ROOT / "res/completions" / name).read_bytes())
+    assert source.read_bytes() != previous
+    target = home / name
+    target.write_bytes(previous)
+    return source, target, previous
+
+
+@pytest.mark.parametrize("uninstall", [False, True])
+def test_previous_official_completion_upgrade_and_uninstall(
+    previous_completion: tuple[Path, Path, bytes], uninstall: bool
+) -> None:
+    source, target, _previous = previous_completion
+    install.update_completion(source, target, uninstall=uninstall)
+    if uninstall:
+        assert not target.exists()
+    else:
+        assert target.read_bytes() == source.read_bytes()
+        install.update_completion(source, target, uninstall=True)
+        assert not target.exists()
+
+
+@pytest.mark.parametrize("uninstall", [False, True])
+def test_customized_previous_completion_is_preserved(
+    previous_completion: tuple[Path, Path, bytes], uninstall: bool
+) -> None:
+    source, target, previous = previous_completion
+    customized = previous + b"\n# Local customization\n"
+    target.write_bytes(customized)
+    with pytest.raises(PermissionError):
+        install.update_completion(source, target, uninstall=uninstall)
+    assert target.read_bytes() == customized
+
+
+def test_previous_completion_upgrade_preserves_raced_replacement(
+    previous_completion: tuple[Path, Path, bytes], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source, target, _previous = previous_completion
+    original = os.rename
+
+    def raced_rename(src: str, dst: str, **kwargs: object) -> None:
+        target.write_bytes(b"foreign replacement")
+        original(src, dst, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(install.os, "rename", raced_rename)
+    with pytest.raises(PermissionError):
+        install.update_completion(source, target)
+    assert target.read_bytes() == b"foreign replacement"
+
+
+def test_previous_completion_upgrade_never_overwrites_raced_publication(
+    previous_completion: tuple[Path, Path, bytes], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source, target, _previous = previous_completion
+    original = os.link
+
+    def raced_link(src: str, dst: str, **kwargs: object) -> None:
+        target.write_bytes(b"foreign publication")
+        original(src, dst, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(install.os, "link", raced_link)
+    with pytest.raises(FileExistsError):
+        install.update_completion(source, target)
+    assert target.read_bytes() == b"foreign publication"
+
+
+@pytest.mark.parametrize("uninstall", [False, True])
+def test_previous_official_completion_symlink_is_never_followed(
+    previous_completion: tuple[Path, Path, bytes], tmp_path: Path, uninstall: bool
+) -> None:
+    source, target, previous = previous_completion
+    outside = tmp_path / "outside-completion"
+    target.rename(outside)
+    target.symlink_to(outside)
+    with pytest.raises(OSError):
+        install.update_completion(source, target, uninstall=uninstall)
+    assert outside.read_bytes() == previous
+    assert target.is_symlink()
+
+
+def test_installed_version_does_not_expose_user_modules(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    info = tmp_path / "box_rpg-1.0.0.dist-info"
+    info.mkdir()
+    (info / "METADATA").write_text("Metadata-Version: 2.4\nName: box-rpg\nVersion: 1.0.0\n")
+    monkeypatch.setattr(install.site, "getusersitepackages", lambda: str(tmp_path))
+    original_path = sys.path[:]
+    assert install.installed_version() == "1.0.0"
+    assert sys.path == original_path
+
+
+def make_install_wheel(directory: Path, version: str, module: str) -> Path:
+    """Create a valid local wheel with RECORD hashes; never download/build code."""
+    info = f"box_rpg-{version}.dist-info"
+    files = {
+        "box/__init__.py": f'__version__ = "{version}"\n'.encode(),
+        "box/cli.py": b"def main():\n    return 0\n",
+        f"box/{module}.py": b"VALUE = 1\n",
+        f"{info}/METADATA": f"Metadata-Version: 2.4\nName: box-rpg\nVersion: {version}\n".encode(),
+        f"{info}/WHEEL": b"Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n",
+        f"{info}/entry_points.txt": b"[console_scripts]\nbox-rpg = box.cli:main\n",
+    }
+    record = io.StringIO()
+    writer = csv.writer(record)
+    for name, content in files.items():
+        digest = base64.urlsafe_b64encode(hashlib.sha256(content).digest()).rstrip(b"=").decode()
+        writer.writerow((name, f"sha256={digest}", len(content)))
+    writer.writerow((f"{info}/RECORD", "", ""))
+    files[f"{info}/RECORD"] = record.getvalue().encode()
+    wheel = directory / f"box_rpg-{version}-py3-none-any.whl"
+    with ZipFile(wheel, "w") as archive:
+        for name, content in files.items():
+            archive.writestr(name, content)
+    return wheel
+
+
+def test_real_user_wheel_upgrade_and_uninstall_are_metadata_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Exercise real pip only against a disposable HOME, never the actual user."""
+    if not install.has_pip():
+        pytest.skip("The base interpreter needs pip for the isolated user-install test")
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("PYTHONUSERBASE", str(home / ".local"))
+    # Explicit consent applies only to this temporary --user destination.
+    monkeypatch.setattr(install, "allow_system_packages", True)
+    user_site = (
+        home / f".local/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages"
+    )
+    user_site.mkdir(parents=True)
+    marker = home / "executed-user-code"
+    payload = f"from pathlib import Path; Path({str(marker)!r}).touch(); raise RuntimeError('untrusted')\n"
+    (user_site / "danger.pth").write_text(
+        f"import pathlib; pathlib.Path({str(marker)!r}).touch()\n"
+    )
+    for name in ("pip", "fractions", "box_user_tripwire", "sitecustomize"):
+        (user_site / f"{name}.py").write_text(payload)
+    probe = install.USER_PIP_BOOTSTRAP.replace(
+        "raise SystemExit(main(['--isolated', *sys.argv[1:]]))",
+        "import fractions, importlib.util\n"
+        "importlib.invalidate_caches()\n"
+        "assert importlib.util.find_spec('box_user_tripwire') is None\n"
+        "assert not Path(fractions.__file__).is_relative_to(user_site)\n",
+    )
+    assert install.run([install.system_python(), "-I", "-c", probe, "probe"]) == 0
+    first = make_install_wheel(tmp_path, "1.0.0", "obsolete")
+    second = make_install_wheel(tmp_path, "2.0.0", "replacement")
+    assert install.run(install._pip_install_args(first)) == 0
+    assert (user_site / "box/obsolete.py").is_file()
+    assert install.run(install._pip_install_args(second)) == 0
+    assert not (user_site / "box/obsolete.py").exists()
+    assert (user_site / "box/replacement.py").is_file()
+    assert [path.name for path in user_site.glob("box_rpg-*.dist-info")] == [
+        "box_rpg-2.0.0.dist-info"
+    ]
+    assert (home / ".local/bin/box-rpg").is_file()
+    assert install._user_distribution_verified()
+    assert install.run(install._pip_uninstall_args()) == 0
+    assert not list(user_site.glob("box_rpg-*.dist-info"))
+    assert not (user_site / "box").exists()
+    assert not (home / ".local/bin/box-rpg").exists()
+    assert not marker.exists()
+
+
+def test_user_pip_rejects_symlinked_user_site(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if not install.has_pip():
+        pytest.skip("The base interpreter needs pip for the isolated bootstrap test")
+    home = tmp_path / "home"
+    outside = tmp_path / "outside"
+    home.mkdir()
+    outside.mkdir()
+    (home / ".local").symlink_to(outside, target_is_directory=True)
+    monkeypatch.setenv("HOME", str(home))
+    assert install.run([*install._user_pip_args(), "--version"]) != 0
+    assert not list(outside.iterdir())
+
+
+def test_user_pip_accepts_symlinked_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    if not install.has_pip():
+        pytest.skip("The base interpreter needs pip for the isolated bootstrap test")
+    real = tmp_path / "real-home"
+    real.mkdir()
+    home = tmp_path / "home"
+    home.symlink_to(real, target_is_directory=True)
+    monkeypatch.setenv("HOME", str(home))
+    assert install.run([*install._user_pip_args(), "--version"]) == 0
+
+
+def test_user_pip_rejects_group_writable_home_ancestor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    local = home / ".local"
+    local.mkdir(parents=True)
+    local.chmod(0o775)
+    monkeypatch.setenv("HOME", str(home))
+    assert install.run([*install._user_pip_args(), "--version"]) != 0
+
+
+def test_has_pip_uses_the_sanitized_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, dict[str, str]] = {}
+
+    def record(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        seen["env"] = kwargs["env"]  # type: ignore[assignment]
+        return subprocess.CompletedProcess([], 0)
+
+    monkeypatch.setattr(install.subprocess, "run", record)
+
+    assert install.has_pip()
+    assert seen["env"] == install._command_environment()

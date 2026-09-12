@@ -16,7 +16,7 @@ import pytest
 from box.cli import inspect, main
 from box.diagnostics import versions
 from box.errors import LaunchError
-from box.games.inspector import Inspection
+from box.games.inspector import Inspection, inspect_game
 from box.launch import manifest
 from box.launch.process import run_process, runtime_environment
 from box.models import EngineName, GameInfo
@@ -139,6 +139,26 @@ def test_manifest_forwards_only_typed_presentation(tmp_path: Path) -> None:
     }
 
 
+def test_manifest_with_utf8_bom_is_accepted(tmp_path: Path) -> None:
+    package = tmp_path / "package.json"
+    package.write_bytes(b'\xef\xbb\xbf{"name": "BOM Game"}')
+    game = GameInfo(EngineName.RPG_MAKER_MV, tmp_path, tmp_path / "index.html", package)
+    descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        assert manifest._read_game_manifest(game, descriptor) == {"name": "BOM Game"}
+    finally:
+        os.close(descriptor)
+
+
+def test_inspect_accepts_manifest_with_utf8_bom(tmp_path: Path) -> None:
+    root = tmp_path / "game"
+    (root / "www" / "js").mkdir(parents=True)
+    (root / "www" / "index.html").write_text("<html></html>")
+    (root / "www" / "js" / "plugins.js").write_text("var $plugins = [];")
+    (root / "package.json").write_bytes(b'\xef\xbb\xbf{"name": "BOM Game"}')
+    assert inspect_game(root).title == "BOM Game"
+
+
 @pytest.mark.parametrize("content", [b"x" * (1024 * 1024 + 1), b"\xff", b"[", b"[" * 2000])
 def test_bad_manifest_is_a_launch_error(tmp_path: Path, content: bytes) -> None:
     package = tmp_path / "package.json"
@@ -185,7 +205,7 @@ def test_manifest_rejects_symlinked_root_parent(tmp_path: Path) -> None:
     assert not (session / "package.json").exists()
 
 
-def test_environment_preserves_desktop_but_removes_injection() -> None:
+def test_environment_uses_constants_without_host_settings() -> None:
     source = {
         "PATH": "/bin",
         "HOME": "/home/player",
@@ -198,23 +218,20 @@ def test_environment_preserves_desktop_but_removes_injection() -> None:
         "GCONV_PATH": "/evil",
         "DYLD_INSERT_LIBRARIES": "evil",
     }
-    assert runtime_environment(source) == {
-        "PATH": "/bin",
-        "HOME": "/home/player",
-        "DISPLAY": ":1",
-        "LANG": "en_US.UTF-8",
-    }
+    environment = runtime_environment(source)
+    assert environment["HOME"] == "/home/sandbox"
+    assert environment["PATH"] == "/usr/bin:/bin"
+    assert "DISPLAY" not in environment
+    assert all(key not in environment for key in source if key not in {"HOME", "PATH", "LANG"})
     assert source["LD_PRELOAD"] == "evil.so"
 
 
 def test_launch_uses_filtered_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NODE_OPTIONS", "--require=evil")
-    assert (
+    with pytest.raises(LaunchError, match="without Bubblewrap"):
         run_process(
             [sys.executable, "-c", "import os; assert 'NODE_OPTIONS' not in os.environ"], tmp_path
         )
-        == 0
-    )
 
 
 @pytest.mark.parametrize(
@@ -237,7 +254,7 @@ def test_binary_probe_limits_and_environment(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: str, expected: str
 ) -> None:
     binary = tmp_path / "runtime"
-    binary.write_text(f"#!{sys.executable}\n{code}\n")
+    binary.write_text(f"#!/usr/bin/python3\n{code}\n")
     binary.chmod(0o700)
     monkeypatch.setenv("NODE_OPTIONS", "--require=evil")
     monkeypatch.setattr(versions, "_VERSION_TIMEOUT", 0.5)

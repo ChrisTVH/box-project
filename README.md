@@ -14,6 +14,11 @@ default; use `--yes` to skip confirmation:
 ./install.py --install --yes
 ```
 
+Add `--force-reinstall` to reinstall even when the installed version matches
+the checkout (plain `pip install` would otherwise report the requirement as
+satisfied and change nothing). On externally managed Pythons add the separate
+`--break-system-packages` consent for user-site installation.
+
 To uninstall box-rpg and its shell completions:
 
 ```sh
@@ -27,14 +32,19 @@ Overriding an externally managed Python environment requires separate consent;
 uninstallation requires a package in the base interpreter's user-site.
 Use `box-rpg --help` after installation.
 
+Launching games requires `/usr/bin/bwrap` (Bubblewrap), enabled user namespaces,
+and a local Wayland session. There is no unsandboxed fallback. On X11 the
+launcher warns and asks for explicit confirmation before exposing only the local
+X display socket; without a terminal it refuses. NW.js
+signature verification additionally requires `/usr/bin/gpg`. The installer does
+not install these system tools. See the manual for current sandbox limitations.
+
 ## Development
 
-Create the local virtual environment and install development dependencies:
-
-```sh
-python3.14 -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"
-```
+Follow [locked development and builds](docs/development.md) to create `.venv`
+and install the pinned bootstrap, build, and development requirements with hashes.
+The installer builds in a private temporary environment using the same build lock;
+plain `pip install .` does not provide that guarantee.
 
 Preview conservative cleanup of eligible ignored bytecode and empty root-level
 artifact directories:
@@ -75,7 +85,7 @@ box-rpg runtime easyrpg available [--page PAGE]
 box-rpg runtime easyrpg available --interactive [--page PAGE]
 box-rpg runtime easyrpg install VERSION
 box-rpg runtime easyrpg remove VERSION
-box-rpg launch [GAME_PATH] [--runtime VERSION] [--sdk] [--copy-root-file FILE]
+box-rpg launch [GAME_PATH] [--runtime VERSION] [--sdk] [--copy-root-file FILE] [--allow-network] [--allow-game-writes]
 box-rpg config show
 box-rpg config set KEY VALUE
 box-rpg diagnose GAME_PATH [--runtime VERSION] [--sdk]
@@ -108,12 +118,21 @@ is supplied. Runtime downloads use a 60-second network timeout and restart from
 zero after temporary failures instead of combining partial representations.
 Interactive terminals display a progress bar. Downloads and extraction enforce
 resource limits; concurrent operations on the same runtime fail with a busy error.
-Launches select Wayland only when the session exposes both
-`XDG_SESSION_TYPE=wayland` and `WAYLAND_DISPLAY`; otherwise they use X11.
+Launches require an owned Wayland socket selected by `WAYLAND_DISPLAY` under
+`XDG_RUNTIME_DIR`. Networking is disabled unless `launch --allow-network` is
+explicitly supplied for that run. This grants host network access, including
+local services, but never grants write access to game assets. Games that update
+themselves need `launch --allow-game-writes` for that run; it mounts the game
+directory writable, so use it only with games you trust. GPU (`/dev/dri`) and
+the user PipeWire and PulseAudio sockets are exposed after validation; all widen the
+sandbox and are documented in the manual.
 
 RPG Maker 2000/2003 projects require `RPG_RT.ini`, `RPG_RT.ldb`, and `RPG_RT.lmt`.
 They launch with the managed x64 EasyRPG Player using `--project-path` and `--fullscreen`.
 Use `box-rpg runtime easyrpg available --interactive` to choose and install a version.
+EasyRPG saves to `<game>/save/` via `--save-path`. Copy existing `Save01.lsd`,
+`Save02.lsd`, etc. from the game root into that directory to continue old saves;
+the launcher does not move them automatically.
 
 Some NW.js exports need auxiliary files from the game root. The supported
 workaround is to copy a direct regular file into the isolated launch session. For
@@ -123,10 +142,11 @@ for multiple direct files and rejects paths containing directories, symlinks, or
 session-owned names.
 
 Each NW.js game has a persistent private Chromium/NW.js profile at
-`$XDG_CACHE_HOME/box-rpg/profiles/<opaque-game-id>` (or
-`~/.cache/box-rpg/profiles/<opaque-game-id>`). It stores browser preferences,
-web storage, and cache. RPG Maker saves in `www/save` remain in the game
-directory. Use `box-rpg cleanup remove profiles SELECTOR` to remove one profile
+`$XDG_CACHE_HOME/box-rpg/profiles/<opaque-game-id>/sandbox` (or the corresponding
+path under `~/.cache`). It stores browser preferences,
+web storage, and cache. RPG Maker saves stay in `save/` beside the entrypoint
+(usually `<game>/www/save/` or `<game>/save/`) inside the game directory.
+Use `box-rpg cleanup remove profiles SELECTOR` to remove one profile
 or `box-rpg cleanup remove profiles --all` to remove every profile.
 
 See [the manual](docs/manual.md) and
@@ -146,7 +166,10 @@ Add a library root explicitly to authorize more than one game below it.
 Managed runtime paths use lower-case components. Games are resolved before they
 are launched, including symlinks, and must remain below an allowed root.
 
-NW.js executes game JavaScript with the permissions available to your user.
-Only launch games and install runtime downloads from sources you trust.
-An isolated session separates launcher files and profiles; it is not a process
-sandbox. See [security and compatibility limits](docs/manual.md#security-and-compatibility-limits).
+Games and runtime version probes execute inside a mandatory Bubblewrap sandbox.
+The game and runtime are read-only; only game saves, the selected profile, and
+private temporary storage are writable. This reduces access, not all risks.
+NW.js archives are checked against upstream signed checksums when available;
+a missing signature produces an explicit warning, never a claim of verification.
+EasyRPG continues to rely on official HTTPS distribution. See
+[security and compatibility limits](docs/manual.md#security-and-compatibility-limits).

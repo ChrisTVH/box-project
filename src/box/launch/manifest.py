@@ -164,7 +164,9 @@ def _read_game_manifest(game: GameInfo, game_descriptor: int) -> dict[str, objec
         if len(relative.parts) != 1:
             raise ValueError(_("game manifest must be in the game root"))
         data = read_regular_metadata(relative, _MANIFEST_LIMIT, root_descriptor=game_descriptor)
-        value = json.loads(data.decode("utf-8"))
+        # utf-8-sig tolerates the BOM some editors prepend; it is identical
+        # to utf-8 otherwise and byte limits still apply before decoding.
+        value = json.loads(data.decode("utf-8-sig"))
     except (OSError, ValueError, RecursionError) as exc:
         raise LaunchError(
             _("cannot read game manifest {manifest}: {error}").format(

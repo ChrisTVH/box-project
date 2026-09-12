@@ -31,3 +31,31 @@ def test_build_command_sets_the_detected_ozone_platform(monkeypatch: pytest.Monk
         "--disk-cache-dir=/profile/disk-cache",
         "/session",
     ]
+
+
+def test_build_command_defaults_to_wayland() -> None:
+    runtime = RuntimeInfo(
+        RuntimeSpec("v0.115.0", "x64"),
+        Path("/runtime"),
+        Path("/runtime/nw"),
+    )
+
+    assert build_command(runtime, Path("/session"), Path("/profile"))[1] == (
+        "--ozone-platform=wayland"
+    )
+
+
+def test_build_command_uses_explicit_display() -> None:
+    runtime = RuntimeInfo(
+        RuntimeSpec("v0.115.0", "x64"),
+        Path("/runtime"),
+        Path("/runtime/nw"),
+    )
+
+    assert build_command(runtime, Path("/session"), Path("/profile"), "x11") == [
+        "/runtime/nw",
+        "--ozone-platform=x11",
+        "--user-data-dir=/profile/user-data",
+        "--disk-cache-dir=/profile/disk-cache",
+        "/session",
+    ]

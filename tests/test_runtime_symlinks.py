@@ -154,6 +154,11 @@ def test_install_rejects_links_to_catalog_neighbors_before_publication(
     _archive(source, {"link": "../victim"})
     monkeypatch.setattr(easyrpg, "current_architecture", lambda: "x64")
 
+    def verified(source: int, url: str) -> None:
+        return None
+
+    monkeypatch.setattr(downloader, "verify_archive", verified)
+
     with pytest.raises(RuntimeError, match="final runtime root"):
         if engine == "nwjs":
             downloader.install_runtime(paths, "0.90.0", "x64")

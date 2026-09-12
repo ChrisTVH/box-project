@@ -14,6 +14,7 @@ from pathlib import Path
 
 from box.launch.manifest import read_regular_metadata
 from box.launch.process import runtime_environment
+from box.launch.sandbox import Sandbox
 from box.models import GameInfo, RuntimeInfo
 from box.runtime.easyrpg import EasyRPGRuntime
 from box.runtime.easyrpg import executable as easyrpg_executable
@@ -72,9 +73,18 @@ def _binary_version(executable: Path, fallback: str) -> str:
     This limits diagnostic capture, not the runtime's own memory or capabilities.
     """
     fallback = safe_terminal_text(fallback)
+    with Sandbox() as sandbox:
+        command = sandbox.command([sandbox.runtime(executable), "--version"])
+        return _sandboxed_version(command, sandbox.pass_fds, fallback)
+
+
+def _sandboxed_version(command: list[str], pass_fds: tuple[int, ...], fallback: str) -> str:
+    """Bound sandbox output and lifetime without ever retrying on the host."""
     try:
         process = subprocess.Popen(
-            [str(executable), "--version"],
+            command,
+            pass_fds=pass_fds,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=runtime_environment(),
@@ -108,6 +118,8 @@ def _binary_version(executable: Path, fallback: str) -> str:
         stdout, stderr = (
             bytes(output).decode("utf-8", errors="replace").strip() for output in outputs.values()
         )
+        if process.returncode != 0:
+            return fallback
         return safe_terminal_text(stdout or stderr) or fallback
     except OSError, subprocess.TimeoutExpired:
         return fallback

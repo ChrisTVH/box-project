@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=77"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "box-rpg"
-version = "26.9.15"
+version = "26.9.16"
 description = "A safe launcher for RPG Maker MV/MZ exports and RPG Maker 2000/2003 projects with EasyRPG Player"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -31,6 +31,12 @@ dev = [
     "ruff>=0.9",
 ]
 
+[dependency-groups]
+build = [
+    "pip==26.2.1",
+    "setuptools==84.0.0",
+]
+
 [tool.setuptools]
 package-dir = { "" = "src" }
 
@@ -38,7 +44,7 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-box = ["locale/**/*.mo"]
+box = ["locale/**/*.mo", "runtime/keys/*.asc", "runtime/keys/README.md"]
 
 [tool.setuptools.data-files]
 "share/box-rpg/config" = ["res/config/box-rpg.toml.example"]
@@ -47,7 +53,7 @@ box = ["locale/**/*.mo"]
     "res/completions/box-rpg.fish",
     "res/completions/_box-rpg",
 ]
-"share/doc/box-rpg" = ["README.md", "docs/manual.md", "docs/translations.md"]
+"share/doc/box-rpg" = ["README.md", "docs/manual.md", "docs/translations.md", "docs/development.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

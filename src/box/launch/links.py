@@ -43,7 +43,7 @@ def link_game(
     """Create the only game reference used by a launch session."""
     link = session_root / "game"
     try:
-        os.symlink(descriptor_path(game_descriptor), "game", dir_fd=session_descriptor)
+        os.symlink("/game", "game", dir_fd=session_descriptor)
     except OSError as exc:
         raise LaunchError(_("cannot link game into session: {error}").format(error=exc)) from exc
     return link

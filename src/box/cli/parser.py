@@ -98,6 +98,16 @@ def build_parser() -> argparse.ArgumentParser:
     launch.add_argument("--runtime", dest="runtime_version")
     launch.add_argument("--sdk", action="store_true", help=_("use the NW.js SDK build"))
     launch.add_argument(
+        "--allow-network",
+        action="store_true",
+        help=_("allow host network access for this launch only (including local services)"),
+    )
+    launch.add_argument(
+        "--allow-game-writes",
+        action="store_true",
+        help=_("allow game directory writes for this launch only"),
+    )
+    launch.add_argument(
         "--copy-root-file",
         action="append",
         default=[],
