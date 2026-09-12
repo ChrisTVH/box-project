@@ -22,6 +22,8 @@ box-rpg launch /path/to/game
 
 Use `box-rpg inspect /path/to/game` to check detection without launching it.
 
+NW.js games always start fullscreen; there is no windowed mode.
+
 Bubblewrap at `/usr/bin/bwrap`, enabled user namespaces, and a local Wayland
 socket are required. The launcher refuses unsandboxed execution. Runtime
 version probes also use the sandbox, without desktop

@@ -10,7 +10,11 @@ from box.models import RuntimeInfo
 def build_command(
     runtime: RuntimeInfo, session_root: Path, profile_root: Path, display: str = "wayland"
 ) -> list[str]:
-    """Return the command that opens a session directory with NW.js."""
+    """Return the command that opens a session directory with NW.js.
+
+    Fullscreen comes from the generated session manifest, which NW.js honors;
+    Chromium switches do not override the manifest window.
+    """
     return [
         str(runtime.executable),
         f"--ozone-platform={display}",

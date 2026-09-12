@@ -135,7 +135,7 @@ def test_manifest_forwards_only_typed_presentation(tmp_path: Path) -> None:
     assert payload == {
         "name": "Real\nTitle",
         "main": "game/index.html",
-        "window": {"width": 816, "height": 624, "fullscreen": False, "title": "Real\nTitle"},
+        "window": {"width": 816, "height": 624, "fullscreen": True, "title": "Real\nTitle"},
     }
 
 
@@ -157,6 +157,21 @@ def test_inspect_accepts_manifest_with_utf8_bom(tmp_path: Path) -> None:
     (root / "www" / "js" / "plugins.js").write_text("var $plugins = [];")
     (root / "package.json").write_bytes(b'\xef\xbb\xbf{"name": "BOM Game"}')
     assert inspect_game(root).title == "BOM Game"
+
+
+def test_session_manifest_forces_fullscreen(tmp_path: Path) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    session = tmp_path / "session"
+    session.mkdir()
+    (game_root / "package.json").write_text(json.dumps({"name": "Plain", "window": {"width": 640}}))
+    game = GameInfo(
+        EngineName.RPG_MAKER_MV, game_root, game_root / "index.html", game_root / "package.json"
+    )
+    payload = cast(
+        dict[str, object], json.loads(manifest.write_manifest(session, game).read_text())
+    )
+    assert payload["window"] == {"width": 640, "fullscreen": True}
 
 
 @pytest.mark.parametrize("content", [b"x" * (1024 * 1024 + 1), b"\xff", b"[", b"[" * 2000])
