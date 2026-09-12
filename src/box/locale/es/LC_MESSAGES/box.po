@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-12 01:33-0400\n"
+"POT-Creation-Date: 2026-09-12 02:47-0400\n"
 "PO-Revision-Date: 2026-09-08 00:00+0000\n"
 "Last-Translator: Christopher Herasme <5632734-"
 "christvh@users.noreply.gitlab.com>\n"
@@ -18,51 +18,51 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: install.py:497
+#: install.py:564
 msgid "error: refusing to run as root"
 msgstr "error: se rechaza ejecutar como root"
 
-#: install.py:511
+#: install.py:579
 #, python-brace-format
 msgid "warning: completion source missing: {source}"
 msgstr "advertencia: falta el origen del autocompletado: {source}"
 
-#: install.py:519
+#: install.py:587
 #, python-brace-format
 msgid "error: cannot install completion {target}: {error}"
 msgstr "error: no se pudo instalar el autocompletado en {target}: {error}"
 
-#: install.py:526
+#: install.py:595
 #, python-brace-format
-msgid "installed completion {target}"
-msgstr "autocompletado instalado en {target}"
+msgid "installed {count} shell completions"
+msgstr "se instalaron {count} autocompletados del shell"
 
-#: install.py:540
+#: install.py:609
 msgid ""
 "error: uninstall requires a verified user-site package and a non-root user"
 msgstr ""
 "error: la desinstalación requiere un paquete verificado de user-site y un "
 "usuario no root"
 
-#: install.py:546
+#: install.py:615
 msgid "error: pip uninstall failed"
 msgstr "error: falló la desinstalación con pip"
 
-#: install.py:553
+#: install.py:623
 #, python-brace-format
 msgid "error: failed to remove completion {target}: {error}"
 msgstr "error: no se pudo eliminar el autocompletado {target}: {error}"
 
-#: install.py:560
+#: install.py:631
 #, python-brace-format
-msgid "removed completion {target}"
-msgstr "se eliminó el autocompletado {target}"
+msgid "removed {count} shell completions"
+msgstr "se eliminaron {count} autocompletados del shell"
 
-#: install.py:575 install.py:666 install.py:718 install.py:724 install.py:730
+#: install.py:646 install.py:742 install.py:842 install.py:848 install.py:854
 msgid "Aborted."
 msgstr "Se canceló."
 
-#: install.py:584
+#: install.py:655
 msgid ""
 "Install box-rpg on the system.\n"
 "\n"
@@ -88,77 +88,81 @@ msgstr ""
 "omitir la solicitud. Pasa --uninstall para eliminar el paquete y sus\n"
 "autocompletados."
 
-#: install.py:597
+#: install.py:668
 msgid "actually install (default is a dry run)"
 msgstr "instala realmente (de forma predeterminada, se hace una simulación)"
 
-#: install.py:602
+#: install.py:673
 msgid "uninstall the package and its completions"
 msgstr "desinstala el paquete y sus autocompletados"
 
-#: install.py:607
+#: install.py:678
 msgid "skip the confirmation prompts"
 msgstr "omite las solicitudes de confirmación"
 
-#: install.py:617
+#: install.py:688
 msgid "reinstall the package even when the same version is installed"
 msgstr "reinstala el paquete incluso cuando ya está instalada la misma versión"
 
-#: install.py:624
+#: install.py:693
+msgid "show the exact commands that would run"
+msgstr "muestra los comandos exactos que se ejecutarían"
+
+#: install.py:700
 msgid "error: --install and --uninstall are mutually exclusive"
 msgstr "error: --install y --uninstall son mutuamente excluyentes"
 
-#: install.py:628
+#: install.py:704
 msgid "error: this script requires Linux"
 msgstr "error: este script requiere Linux"
 
-#: install.py:630
+#: install.py:706
 msgid "OK: Linux system detected."
 msgstr "OK: se detectó un sistema Linux."
 
-#: install.py:634
+#: install.py:710
 #, python-brace-format
 msgid "error: Python 3.14+ required, found {major}.{minor}"
 msgstr ""
 "error: se requiere Python 3.14 o posterior; se encontró {major}.{minor}"
 
-#: install.py:641
+#: install.py:717
 #, python-brace-format
 msgid "OK: Python {major}.{minor} found."
 msgstr "OK: se encontró Python {major}.{minor}."
 
-#: install.py:647
+#: install.py:723
 msgid "error: pip is required for the system Python"
 msgstr "error: se requiere pip para el Python del sistema"
 
-#: install.py:649
+#: install.py:725
 msgid "OK: pip found for the system Python."
 msgstr "OK: se encontró pip para el Python del sistema."
 
-#: install.py:653
+#: install.py:729
 #, python-brace-format
 msgid ""
 "\n"
 "Installed: {installed}"
 msgstr ""
 "\n"
-"Instalado: {installed}"
+"Instalado:   {installed}"
 
-#: install.py:654
+#: install.py:730
 #, python-brace-format
 msgid "Repo:      {repo}"
-msgstr "Repositorio:      {repo}"
+msgstr "Repositorio: {repo}"
 
-#: install.py:658
+#: install.py:734
 #, python-brace-format
 msgid "error: {package} is not installed"
 msgstr "error: {package} no está instalado"
 
-#: install.py:661
+#: install.py:737
 msgid "Uninstall commands that would be run:"
 msgstr "Comandos de desinstalación que se ejecutarían:"
 
-#: install.py:663
+#: install.py:739
 msgid ""
 "\n"
 "Proceed with uninstall? [y/N] "
@@ -166,11 +170,68 @@ msgstr ""
 "\n"
 "¿Continuar con la desinstalación? [y/N] "
 
-#: install.py:672
+#: install.py:750
+#, python-brace-format
+msgid "error: Bubblewrap ({bwrap}) is required to launch games"
+msgstr "error: se requiere Bubblewrap ({bwrap}) para iniciar juegos"
+
+#: install.py:756
+#, python-brace-format
+msgid "error: Bubblewrap ({bwrap}) is installed but does not run"
+msgstr "error: Bubblewrap ({bwrap}) está instalado pero no se ejecuta"
+
+#: install.py:763
+msgid ""
+"error: user namespaces are blocked, so the game sandbox cannot start (check: "
+"sysctl kernel.unprivileged_userns_clone)"
+msgstr ""
+"error: los espacios de nombres de usuario están bloqueados, por lo que el "
+"entorno aislado del juego no puede iniciarse (comprueba: sysctl "
+"kernel.unprivileged_userns_clone)"
+
+#: install.py:769
+msgid "OK: Bubblewrap is ready to launch games."
+msgstr "OK: Bubblewrap está listo para iniciar juegos."
+
+#: install.py:773
+#, python-brace-format
+msgid "error: GnuPG ({gpg}) is required to install verified runtimes"
+msgstr ""
+"error: se requiere GnuPG ({gpg}) para instalar entornos de ejecución "
+"verificados"
+
+#: install.py:779
+#, python-brace-format
+msgid "error: GnuPG ({gpg}) is installed but does not run"
+msgstr "error: GnuPG ({gpg}) está instalado pero no se ejecuta"
+
+#: install.py:783
+msgid "OK: GnuPG found."
+msgstr "OK: se encontró GnuPG."
+
+#: install.py:787
 msgid "Install commands that would be run:"
 msgstr "Comandos de instalación que se ejecutarían:"
 
-#: install.py:678
+#: install.py:789
+msgid "Install plan:"
+msgstr "Plan de instalación:"
+
+#: install.py:791
+#, python-brace-format
+msgid "  - Build {package} {repo} in a private directory."
+msgstr "  - Compila {package} {repo} en un directorio privado."
+
+#: install.py:795
+msgid "  - Install it for your user."
+msgstr "  - Se instala solo para tu usuario."
+
+#: install.py:796
+#, python-brace-format
+msgid "  - Install {count} shell completions."
+msgstr "  - Instala {count} autocompletados del shell."
+
+#: install.py:802
 #, python-brace-format
 msgid ""
 "\n"
@@ -180,7 +241,7 @@ msgstr ""
 "Hay una actualización disponible (instalado: {installed}, repositorio: "
 "{repo})."
 
-#: install.py:684
+#: install.py:808
 #, python-brace-format
 msgid ""
 "\n"
@@ -190,7 +251,7 @@ msgstr ""
 "La versión instalada ({installed}) es más reciente que la del repositorio "
 "({repo})."
 
-#: install.py:690
+#: install.py:814
 #, python-brace-format
 msgid ""
 "\n"
@@ -199,7 +260,7 @@ msgstr ""
 "\n"
 "Reinstalando la misma versión ({installed}) según lo solicitado."
 
-#: install.py:696
+#: install.py:820
 #, python-brace-format
 msgid ""
 "\n"
@@ -208,7 +269,7 @@ msgstr ""
 "\n"
 "Ya está instalada la misma versión ({installed})."
 
-#: install.py:702
+#: install.py:826
 msgid ""
 "\n"
 "Run with --install to actually install."
@@ -216,11 +277,11 @@ msgstr ""
 "\n"
 "Ejecuta con --install para instalar realmente."
 
-#: install.py:704
+#: install.py:828
 msgid "To remove it instead, run with --uninstall."
 msgstr "Para eliminarlo, ejecuta con --uninstall."
 
-#: install.py:710
+#: install.py:834
 #, python-brace-format
 msgid ""
 "\n"
@@ -231,7 +292,7 @@ msgstr ""
 "{package} ya está instalado. [r] Reinstalar/actualizar, [u] Desinstalar, [c] "
 "Cancelar [r/u/c] "
 
-#: install.py:715
+#: install.py:839
 msgid ""
 "\n"
 "Confirm uninstall? [y/N] "
@@ -239,13 +300,20 @@ msgstr ""
 "\n"
 "¿Confirmar la desinstalación? [y/N] "
 
-#: install.py:727
+#: install.py:851
 msgid ""
 "\n"
 "Proceed with installation? [y/N] "
 msgstr ""
 "\n"
 "¿Continuar con la instalación? [y/N] "
+
+#: install.py:862
+#, python-brace-format
+msgid "warning: {bindir} is not on PATH; add it to run {prog} from anywhere"
+msgstr ""
+"advertencia: {bindir} no está en PATH; agrégalo para ejecutar {prog} desde "
+"cualquier lugar"
 
 #: src/box/cli/cleanup.py:56 src/box/cli/cleanup.py:116
 #: src/box/cli/cleanup.py:177
@@ -489,13 +557,13 @@ msgstr "Versiones disponibles de EasyRPG Player (página {page}, x64):"
 msgid "  (no versions on this page)"
 msgstr "  (no hay versiones en esta página)"
 
-#: src/box/cli/launch.py:42
+#: src/box/cli/launch.py:37
 msgid "explicit consent is required for X11; run interactively to continue"
 msgstr ""
 "se requiere consentimiento explícito para X11; ejecuta de forma interactiva "
 "para continuar"
 
-#: src/box/cli/launch.py:47
+#: src/box/cli/launch.py:42
 #, python-brace-format
 msgid ""
 "warning: X11 display {display} is insecure; X11 clients can capture input "
@@ -504,15 +572,15 @@ msgstr ""
 "advertencia: la pantalla X11 {display} no es segura; los clientes de X11 "
 "pueden capturar la entrada y el contenido de la pantalla (keylogging)."
 
-#: src/box/cli/launch.py:53
+#: src/box/cli/launch.py:48
 msgid "Continue with X11? [y/N] "
 msgstr "¿Continuar con X11? [y/N] "
 
-#: src/box/cli/launch.py:55 src/box/cli/launch.py:57
+#: src/box/cli/launch.py:50 src/box/cli/launch.py:52
 msgid "X11 launch was not confirmed"
 msgstr "el inicio con X11 no fue confirmado"
 
-#: src/box/cli/launch.py:85
+#: src/box/cli/launch.py:99
 #, python-brace-format
 msgid ""
 "{runtime}, {sdk}, and {copy_root_file} are only available for NW.js games"
@@ -520,12 +588,12 @@ msgstr ""
 "{runtime}, {sdk} y {copy_root_file} solo están disponibles para juegos de "
 "NW.js"
 
-#: src/box/cli/launch.py:183
+#: src/box/cli/launch.py:197
 #, python-brace-format
 msgid "Add {path} to allowed game roots? [y/N] "
 msgstr "¿Agregar {path} a las raíces de juego permitidas? [y/N] "
 
-#: src/box/cli/launch.py:191 src/box/cli/launch.py:193
+#: src/box/cli/launch.py:205 src/box/cli/launch.py:207
 msgid "game root was not authorized"
 msgstr "la raíz del juego no fue autorizada"
 
@@ -836,12 +904,12 @@ msgid "web game inspection requires a manifest and entrypoint"
 msgstr ""
 "la inspección de un juego web requiere un manifiesto y un punto de entrada"
 
-#: src/box/games/inspector.py:59
+#: src/box/games/inspector.py:61
 #, python-brace-format
 msgid "invalid game manifest {path}: {error}"
 msgstr "manifiesto del juego no válido {path}: {error}"
 
-#: src/box/games/inspector.py:63
+#: src/box/games/inspector.py:65
 #, python-brace-format
 msgid "game manifest is not a {format} object: {path}"
 msgstr "el manifiesto del juego no es un objeto {format}: {path}"
@@ -1091,12 +1159,12 @@ msgstr "no se puede crear el manifiesto de sesión: {error}"
 msgid "game manifest must be in the game root"
 msgstr "el manifiesto del juego debe estar en la raíz del juego"
 
-#: src/box/launch/manifest.py:170
+#: src/box/launch/manifest.py:172
 #, python-brace-format
 msgid "cannot read game manifest {manifest}: {error}"
 msgstr "no se puede leer el manifiesto del juego {manifest}: {error}"
 
-#: src/box/launch/manifest.py:176
+#: src/box/launch/manifest.py:178
 #, python-brace-format
 msgid "game manifest is not a JSON object: {manifest}"
 msgstr "el manifiesto del juego no es un objeto JSON: {manifest}"
@@ -1431,6 +1499,10 @@ msgstr "el directorio gestionado tiene permisos no seguros: {path}"
 msgid "cannot safely create managed directory {path}: {error}"
 msgstr ""
 "no se puede crear de forma segura el directorio gestionado {path}: {error}"
+
+#, python-brace-format
+#~ msgid "installed completion {target}"
+#~ msgstr "autocompletado instalado en {target}"
 
 #~ msgid "error: pip install failed"
 #~ msgstr "error: falló la instalación con pip"

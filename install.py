@@ -33,6 +33,8 @@ from typing import cast
 REPO_ROOT = Path(__file__).resolve().parent
 PACKAGE = "box-rpg"
 INIT_PY = REPO_ROOT / "src/box/__init__.py"
+BWRAP = Path("/usr/bin/bwrap")
+GPG = Path("/usr/bin/gpg")
 
 # Official completions from d28845f2a6aa7053a117b0d2ee71dae214b45f38.
 # Add only reviewed release artifacts here when completions change.
@@ -240,6 +242,62 @@ def has_pip() -> bool:
     return result.returncode == 0
 
 
+def _tool_runs(command: list[str]) -> bool:
+    """Return whether a helper tool executes successfully."""
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=_command_environment(),
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
+
+
+def bwrap_problem() -> str | None:
+    """Return None when Bubblewrap can launch games, else a short reason."""
+    if not (BWRAP.is_file() and os.access(BWRAP, os.X_OK)):
+        return "missing"
+    if not _tool_runs([str(BWRAP), "--version"]):
+        return "broken"
+    # Reproduce the namespaces every launch needs; library binds are required
+    # or the probe binary cannot even start (misleading exec failure).
+    if not _tool_runs(
+        [
+            str(BWRAP),
+            "--unshare-user",
+            "--unshare-pid",
+            "--unshare-ipc",
+            "--unshare-uts",
+            "--ro-bind",
+            "/usr",
+            "/usr",
+            "--ro-bind",
+            "/lib",
+            "/lib",
+            "--ro-bind",
+            "/lib64",
+            "/lib64",
+            "--",
+            "/usr/bin/true",
+        ]
+    ):
+        return "userns"
+    return None
+
+
+def gpg_problem() -> str | None:
+    """Return None when GnuPG can verify runtimes, else a short reason."""
+    if not (GPG.is_file() and os.access(GPG, os.X_OK)):
+        return "missing"
+    if not _tool_runs([str(GPG), "--version"]):
+        return "broken"
+    return None
+
+
 allow_system_packages = False
 force_reinstall = False
 
@@ -394,11 +452,20 @@ def _pip_install_args(wheel: Path) -> list[str]:
         "--no-index",
         str(wheel),
         "--no-input",
+        "--no-warn-script-location",
         "--disable-pip-version-check",
     ]
     if force_reinstall:
         args.append("--force-reinstall")
     return [*args, *_break_system_packages_args()]
+
+
+def user_bin_without_path() -> Path | None:
+    """Return the user script directory when it is missing from PATH."""
+    user_bin = Path(site.getusersitepackages()).parents[2] / "bin"
+    if str(user_bin) not in os.environ.get("PATH", "").split(os.pathsep):
+        return user_bin
+    return None
 
 
 def copy_build_source(destination: Path) -> None:
@@ -505,6 +572,7 @@ def run_install() -> bool:
     except (OSError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return False
+    done = 0
     for source, target in COMPLETION_TARGETS:
         if not source.exists():
             print(
@@ -523,7 +591,8 @@ def run_install() -> bool:
             )
             ok = False
             continue
-        print(_("installed completion {target}").format(target=target))
+        done += 1
+    print(_("installed {count} shell completions").format(count=done))
     return ok
 
 
@@ -545,6 +614,7 @@ def run_uninstall() -> bool:
     if run(_pip_uninstall_args()) != 0:
         print(_("error: pip uninstall failed"), file=sys.stderr)
         ok = False
+    done = 0
     for source, target in COMPLETION_TARGETS:
         try:
             update_completion(source, target, uninstall=True)
@@ -557,7 +627,8 @@ def run_uninstall() -> bool:
             )
             ok = False
         else:
-            print(_("removed completion {target}").format(target=target))
+            done += 1
+    print(_("removed {count} shell completions").format(count=done))
     return ok
 
 
@@ -616,6 +687,11 @@ prompt. Pass --uninstall to remove the package and its completions."""
         action="store_true",
         help=_("reinstall the package even when the same version is installed"),
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help=_("show the exact commands that would run"),
+    )
     args = parser.parse_args()
     allow_system_packages = args.break_system_packages
     force_reinstall = args.force_reinstall
@@ -668,8 +744,56 @@ prompt. Pass --uninstall to remove the package and its completions."""
         ok = run_uninstall()
         return 0 if ok else 1
 
+    problem = bwrap_problem()
+    if problem == "missing":
+        print(
+            _("error: Bubblewrap ({bwrap}) is required to launch games").format(bwrap=BWRAP),
+            file=sys.stderr,
+        )
+        return 1
+    if problem == "broken":
+        print(
+            _("error: Bubblewrap ({bwrap}) is installed but does not run").format(bwrap=BWRAP),
+            file=sys.stderr,
+        )
+        return 1
+    if problem == "userns":
+        print(
+            _(
+                "error: user namespaces are blocked, so the game sandbox cannot start "
+                "(check: sysctl kernel.unprivileged_userns_clone)"
+            ),
+            file=sys.stderr,
+        )
+        return 1
+    print(_("OK: Bubblewrap is ready to launch games."))
+    gpg_issue = gpg_problem()
+    if gpg_issue == "missing":
+        print(
+            _("error: GnuPG ({gpg}) is required to install verified runtimes").format(gpg=GPG),
+            file=sys.stderr,
+        )
+        return 1
+    if gpg_issue == "broken":
+        print(
+            _("error: GnuPG ({gpg}) is installed but does not run").format(gpg=GPG),
+            file=sys.stderr,
+        )
+        return 1
+    print(_("OK: GnuPG found."))
+
     cmds = install_commands()
-    print_commands(_("Install commands that would be run:"), cmds)
+    if args.verbose:
+        print_commands(_("Install commands that would be run:"), cmds)
+    else:
+        print(_("Install plan:"))
+        print(
+            _("  - Build {package} {repo} in a private directory.").format(
+                package=PACKAGE, repo=repo
+            )
+        )
+        print(_("  - Install it for your user."))
+        print(_("  - Install {count} shell completions.").format(count=len(COMPLETION_TARGETS)))
 
     if installed is not None:
         cmp = compare_versions(repo, installed)
@@ -731,6 +855,14 @@ prompt. Pass --uninstall to remove the package and its completions."""
             return 0
 
     ok = run_install()
+    if ok:
+        missing = user_bin_without_path()
+        if missing is not None:
+            print(
+                _("warning: {bindir} is not on PATH; add it to run {prog} from anywhere").format(
+                    bindir=missing, prog=PACKAGE
+                )
+            )
     return 0 if ok else 1
 
 

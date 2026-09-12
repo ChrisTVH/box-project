@@ -77,6 +77,8 @@ def test_interactive_actions_abort_cleanly_on_end_of_input(
     monkeypatch.setattr(install, "is_linux", lambda: True)
     monkeypatch.setattr(install, "_check_python_version", lambda: True)
     monkeypatch.setattr(install, "has_pip", lambda: True)
+    monkeypatch.setattr(install, "bwrap_problem", lambda: None)
+    monkeypatch.setattr(install, "gpg_problem", lambda: None)
     monkeypatch.setattr(install, "installed_version", lambda: installed)
     monkeypatch.setattr(install, "install_commands", no_commands)
     monkeypatch.setattr(install, "uninstall_commands", no_commands)
@@ -109,6 +111,8 @@ def test_install_same_version_message_reflects_force_flag(
     monkeypatch.setattr(install, "is_linux", lambda: True)
     monkeypatch.setattr(install, "_check_python_version", lambda: True)
     monkeypatch.setattr(install, "has_pip", lambda: True)
+    monkeypatch.setattr(install, "bwrap_problem", lambda: None)
+    monkeypatch.setattr(install, "gpg_problem", lambda: None)
     monkeypatch.setattr(install, "installed_version", lambda: "1.0.0")
     monkeypatch.setattr(install, "repo_version", lambda: "1.0.0")
     calls: list[None] = []
@@ -145,6 +149,183 @@ def test_has_pip_handles_a_missing_pip_command(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(install.subprocess, "run", missing_pip)
 
     assert not install.has_pip()
+
+
+def test_bwrap_problem_reports_missing_tool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(install, "BWRAP", tmp_path / "missing-bwrap")
+
+    assert install.bwrap_problem() == "missing"
+
+
+@pytest.mark.parametrize(
+    ("returncodes", "expected"),
+    [([1], "broken"), ([0, 1], "userns"), ([0, 0], None)],
+)
+def test_bwrap_problem_classifies_version_and_namespace_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    returncodes: list[int],
+    expected: str | None,
+) -> None:
+    binary = tmp_path / "bwrap"
+    binary.write_bytes(b"fixture")
+    binary.chmod(0o700)
+    monkeypatch.setattr(install, "BWRAP", binary)
+    codes: list[int] = [int(code) for code in returncodes]
+
+    def record(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess([], codes.pop(0))
+
+    monkeypatch.setattr(install.subprocess, "run", record)
+
+    assert install.bwrap_problem() == expected
+    assert codes == []
+
+
+def test_bwrap_smoke_test_uses_namespaces_and_library_binds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    binary = tmp_path / "bwrap"
+    binary.write_bytes(b"fixture")
+    binary.chmod(0o700)
+    monkeypatch.setattr(install, "BWRAP", binary)
+    calls: list[list[str]] = []
+
+    def record(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return subprocess.CompletedProcess([], 0)
+
+    monkeypatch.setattr(install.subprocess, "run", record)
+
+    assert install.bwrap_problem() is None
+    assert calls[0] == [str(binary), "--version"]
+    smoke = calls[1]
+    for flag in ("--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-uts"):
+        assert flag in smoke
+    assert "--unshare-net" not in smoke
+    for name in ("/usr", "/lib", "/lib64"):
+        assert smoke.count(name) >= 2
+    assert smoke[-2:] == ["--", "/usr/bin/true"]
+
+
+def test_gpg_problem_reports_missing_broken_and_ok(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(install, "GPG", tmp_path / "missing-gpg")
+    assert install.gpg_problem() == "missing"
+    binary = tmp_path / "gpg"
+    binary.write_bytes(b"fixture")
+    binary.chmod(0o700)
+    monkeypatch.setattr(install, "GPG", binary)
+
+    def failing(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess([], 1)
+
+    def passing(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess([], 0)
+
+    monkeypatch.setattr(install.subprocess, "run", failing)
+    assert install.gpg_problem() == "broken"
+    monkeypatch.setattr(install.subprocess, "run", passing)
+    assert install.gpg_problem() is None
+
+
+def _mock_install_prerequisites(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(install, "is_linux", lambda: True)
+    monkeypatch.setattr(install, "_check_python_version", lambda: True)
+    monkeypatch.setattr(install, "has_pip", lambda: True)
+    monkeypatch.setattr(install, "bwrap_problem", lambda: None)
+    monkeypatch.setattr(install, "gpg_problem", lambda: None)
+
+
+def test_main_blocks_install_without_bwrap(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _mock_install_prerequisites(monkeypatch)
+    monkeypatch.setattr(install, "bwrap_problem", lambda: "userns")
+    monkeypatch.setattr(install.sys, "argv", ["install.py", "--install", "--yes"])
+    monkeypatch.setattr(install, "installed_version", lambda: None)
+    monkeypatch.setattr(install, "repo_version", lambda: "1.0.0")
+
+    def forbidden() -> bool:
+        pytest.fail("runtime checks must stop the install")
+
+    monkeypatch.setattr(install, "run_install", forbidden)
+
+    assert install.main() == 1
+    assert "user namespaces" in capsys.readouterr().err
+
+
+def test_main_uninstall_skips_runtime_tool_checks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _mock_install_prerequisites(monkeypatch)
+    monkeypatch.setattr(install, "BWRAP", tmp_path / "missing-bwrap")
+    monkeypatch.setattr(install, "GPG", tmp_path / "missing-gpg")
+    monkeypatch.setattr(install.sys, "argv", ["install.py", "--uninstall", "--yes"])
+    monkeypatch.setattr(install, "installed_version", lambda: "1.0.0")
+    monkeypatch.setattr(install, "run_uninstall", lambda: True)
+
+    assert install.main() == 0
+
+
+@pytest.mark.parametrize("verbose", [False, True])
+def test_main_dry_run_plan_verbosity(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], verbose: bool
+) -> None:
+    _mock_install_prerequisites(monkeypatch)
+    argv = ["install.py"]
+    if verbose:
+        argv.append("--verbose")
+    monkeypatch.setattr(install.sys, "argv", argv)
+    monkeypatch.setattr(install, "installed_version", lambda: None)
+    monkeypatch.setattr(install, "repo_version", lambda: "1.0.0")
+
+    assert install.main() == 0
+    output = capsys.readouterr().out
+    if verbose:
+        assert "MetadataOnlyFinder" in output
+    else:
+        assert "Install plan:" in output
+        assert "3 shell completions" in output
+        assert "MetadataOnlyFinder" not in output
+
+
+def test_run_install_reports_completion_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(install.os, "geteuid", lambda: 1000)
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(install.Path, "home", lambda: home)
+    source = tmp_path / "source"
+    source.write_bytes(b"completion")
+    target = home / "target"
+    monkeypatch.setattr(install, "COMPLETION_TARGETS", [(source, target)])
+
+    def fake_wheel(workspace: Path) -> Path:
+        return tmp_path / "wheel"
+
+    def succeed(args: list[str]) -> int:
+        return 0
+
+    monkeypatch.setattr(install, "build_wheel", fake_wheel)
+    monkeypatch.setattr(install, "run", succeed)
+
+    assert install.run_install()
+    assert "installed 1 shell completions" in capsys.readouterr().out
+
+
+def test_user_bin_without_path_detection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    site_packages = tmp_path / ".local/lib/python3.14/site-packages"
+    site_packages.mkdir(parents=True)
+    monkeypatch.setattr(install.site, "getusersitepackages", lambda: str(site_packages))
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    assert install.user_bin_without_path() == tmp_path / ".local/bin"
+    monkeypatch.setenv("PATH", f"/usr/bin:/bin:{tmp_path / '.local/bin'}")
+    assert install.user_bin_without_path() is None
 
 
 @pytest.fixture

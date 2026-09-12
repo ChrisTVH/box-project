@@ -40,3 +40,9 @@
 | game file | archivo del juego | |
 | traversal | recorrido | En rutas: sin recorrido. |
 | regular file | archivo regular | Término Unix. |
+| Bubblewrap | Bubblewrap | Nombre de herramienta; no traducir. |
+| GnuPG | GnuPG | Nombre de herramienta; no traducir. |
+| sandbox | entorno aislado | En «game sandbox». |
+| user namespaces | espacios de nombres de usuario | Función del kernel Linux. |
+| install plan | plan de instalación | |
+| private directory | directorio privado | |

@@ -26,7 +26,10 @@ To uninstall box-rpg and its shell completions:
 ./install.py --uninstall --yes
 ```
 
-The installer verifies Linux, Python 3.14+, and pip, and rejects root execution.
+The installer verifies Linux, Python 3.14+, pip, Bubblewrap (`/usr/bin/bwrap`
+with working user namespaces), and GnuPG (`/usr/bin/gpg`), and rejects root
+execution. It shows a short plan by default; pass `--verbose` to see the exact
+commands.
 Overriding an externally managed Python environment requires separate consent;
 `--yes` does not grant it. Existing modified completions are preserved, and
 uninstallation requires a package in the base interpreter's user-site.
