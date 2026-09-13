@@ -40,6 +40,39 @@ def _protected(root: Path) -> set[Path]:
     return {Path(os.fsdecode(name)) for name in result.stdout.split(b"\0") if name}
 
 
+def _only_bytecode(relative: Path, directory: int, protected: set[Path]) -> bool:
+    """Return whether a __pycache__ directory holds only owned bytecode.
+
+    Empty directories are eligible so stale caches disappear. Any
+    subdirectory, symlink, non-.pyc file, invalid bytecode, or protected
+    child keeps the directory itself ineligible; the walker then falls back
+    to collecting the owned .pyc files inside it.
+    """
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return False
+    if not names:
+        return True
+    for name in names:
+        try:
+            info = os.stat(name, dir_fd=directory, follow_symlinks=False)
+        except OSError:
+            return False
+        if not stat.S_ISREG(info.st_mode) or Path(name).suffix != ".pyc":
+            return False
+        child = relative / name
+        if any(path.is_relative_to(child) or child.is_relative_to(path) for path in protected):
+            return False
+        try:
+            data = read_regular(directory, name)
+        except OSError:
+            return False
+        if len(data) < 16 or data[:4] != importlib.util.MAGIC_NUMBER:
+            return False
+    return True
+
+
 def _eligible(root: Path, relative: Path, protected: set[Path]) -> str | None:
     if relative.is_absolute() or ".." in relative.parts or not relative.parts:
         return None
@@ -57,6 +90,10 @@ def _eligible(root: Path, relative: Path, protected: set[Path]) -> str | None:
             with open_directory(root / relative) as directory:
                 if PROJECT_MARKERS.intersection(os.listdir(directory)):
                     return None
+                if relative.name == "__pycache__" and _only_bytecode(
+                    relative, directory, protected
+                ):
+                    return "caches"
             if relative.name in TOOL_CACHES:
                 return "caches"
             if relative.name in VENV_NAMES:

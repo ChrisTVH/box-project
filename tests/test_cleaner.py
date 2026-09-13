@@ -37,12 +37,40 @@ def test_cache_policy_preserves_foreign_and_nested_projects(repository: Path) ->
     invalid.write_text("not bytecode")
     nested = bytecode(repository / "src" / "vendor" / "__pycache__" / "nested.pyc")
     (repository / "src" / "vendor" / "pyproject.toml").touch()
-    other = bytecode(repository / "unrelated" / "__pycache__" / "other.pyc")
+    other_dir = repository / "unrelated" / "__pycache__"
+    bytecode(other_dir / "other.pyc")
     targets = cleaner.collect_targets(repository)
-    assert targets["caches"] == [owned, other]
+    assert targets["caches"] == [owned, other_dir]
     assert cleaner.remove(targets)
-    assert not owned.exists() and not other.exists()
+    assert not owned.exists() and not other_dir.exists()
+    assert (repository / "src" / "__pycache__").exists()
     assert all(path.exists() for path in [foreign, invalid, nested])
+
+
+def test_pycache_dirs_with_only_bytecode_are_removed(repository: Path) -> None:
+    pure = repository / "pkg" / "__pycache__"
+    bytecode(pure / "first.pyc")
+    bytecode(pure / "second.pyc")
+    empty = repository / "empty" / "__pycache__"
+    empty.mkdir(parents=True)
+    targets = cleaner.collect_targets(repository)
+    assert pure in targets["caches"]
+    assert empty in targets["caches"]
+    assert cleaner.remove(targets)
+    assert not pure.exists()
+    assert not empty.exists()
+
+
+def test_pycache_dir_with_subdirectory_keeps_directory(repository: Path) -> None:
+    cache = repository / "pkg" / "__pycache__"
+    owned = bytecode(cache / "owned.pyc")
+    (cache / "nested").mkdir(parents=True)
+    (cache / "nested" / "keep.txt").write_text("keep")
+    targets = cleaner.collect_targets(repository)
+    assert targets["caches"] == [owned]
+    assert cleaner.remove(targets)
+    assert not owned.exists()
+    assert cache.exists()
 
 
 def test_nonempty_owned_trees_are_removed_recursively(repository: Path) -> None:
@@ -238,6 +266,8 @@ def test_parent_swap_at_deletion_uses_open_descriptor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     owned = bytecode(repository / "src" / "__pycache__" / "owned.pyc")
+    # Keep the directory itself ineligible so the file-level removal path is exercised.
+    (repository / "src" / "__pycache__" / "notes.txt").write_text("keep")
     targets = cleaner.collect_targets(repository)
     victim = bytecode(tmp_path / "outside" / "owned.pyc")
     original = os.rename
