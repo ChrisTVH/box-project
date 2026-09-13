@@ -6,6 +6,7 @@ import sys
 from argparse import Namespace
 from pathlib import Path
 
+from box.api.runtime import default_architecture
 from box.cli import cleanup as cleanup_command
 from box.cli import config as config_command
 from box.cli import diagnose as diagnose_command
@@ -19,7 +20,7 @@ from box.errors import BoxError, GameValidationError
 from box.games.detector import detect_game
 from box.paths import AppPaths
 from box.runtime.catalog import RuntimeCatalog
-from box.runtime.platform import current_architecture, normalize_architecture
+from box.runtime.platform import normalize_architecture
 from box.utils.i18n import _, configure
 from box.utils.terminal import safe_terminal_text
 
@@ -84,7 +85,7 @@ def _dispatch(arguments: Namespace) -> int:
         catalog = RuntimeCatalog(paths)
         if arguments.nwjs_command == "list":
             return runtime_command.list_runtimes(catalog)
-        architecture = normalize_architecture(arguments.architecture or current_architecture())
+        architecture = normalize_architecture(arguments.architecture or default_architecture())
         if arguments.nwjs_command == "available":
             return runtime_command.available(
                 paths,

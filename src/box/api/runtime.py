@@ -12,9 +12,11 @@ from box.runtime.downloader import install_runtime as install_nwjs_runtime
 from box.runtime.easyrpg import AvailableEasyRPGVersions, EasyRPGCatalog, EasyRPGRuntime
 from box.runtime.easyrpg import fetch_available_versions as fetch_easyrpg_versions
 from box.runtime.easyrpg import install_runtime as install_easyrpg_runtime
+from box.runtime.platform import current_architecture as _current_architecture
 
 __all__ = [
     "ProgressReporter",
+    "default_architecture",
     "fetch_easyrpg_available",
     "fetch_nwjs_available",
     "install_easyrpg",
@@ -24,6 +26,14 @@ __all__ = [
     "remove_easyrpg",
     "remove_nwjs",
 ]
+
+
+def default_architecture() -> str:
+    """Return the NW.js architecture for the current machine.
+
+    Raise RuntimeError for unsupported CPUs, same as the CLI fallback.
+    """
+    return _current_architecture()
 
 
 def list_nwjs(catalog: RuntimeCatalog) -> tuple[RuntimeInfo, ...]:

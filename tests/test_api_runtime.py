@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from box.api import runtime as api_runtime
+from box.errors import RuntimeError
 from box.models import RuntimeInfo, RuntimeSpec
 from box.paths import AppPaths
 from box.runtime.available import AvailableVersions
@@ -300,6 +301,16 @@ def test_easyrpg_install_runtime_forwards_progress_to_download(
     assert captured["progress"] is reporter
     assert runtime.version == "0.8.1"
     assert (runtime.root / "easyrpg-player").is_file()
+
+
+def test_default_architecture_returns_supported() -> None:
+    assert api_runtime.default_architecture() in {"x64", "ia32", "arm64", "arm"}
+
+
+def test_default_architecture_unsupported_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("box.runtime.platform.platform.machine", lambda: "riscv64")
+    with pytest.raises(RuntimeError):
+        api_runtime.default_architecture()
 
 
 def test_runtime_api_performs_no_console_io(

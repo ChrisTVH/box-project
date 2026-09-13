@@ -8,9 +8,11 @@ from box.api.interaction import ConsoleInteraction, Interaction
 from box.config.models import AppConfig
 from box.config.repository import ConfigRepository
 from box.models import GameInfo, RuntimeInfo, RuntimeSpec
+from box.paths import AppPaths
 
 __all__ = [
     "AppConfig",
+    "AppPaths",
     "ConfigRepository",
     "ConsoleInteraction",
     "DiagnoseResult",

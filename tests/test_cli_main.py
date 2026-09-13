@@ -365,7 +365,7 @@ def test_nwjs_runtime_available_uses_the_detected_architecture(
 
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
-    monkeypatch.setattr("box.cli.main.current_architecture", detect_architecture)
+    monkeypatch.setattr("box.cli.main.default_architecture", detect_architecture)
     monkeypatch.setattr("box.cli.main.runtime_command.available", list_available)
 
     assert main(["runtime", "nwjs", "available"]) == 0

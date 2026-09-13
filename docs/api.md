@@ -8,12 +8,12 @@ formatting locally.
 
 ## Public surface
 
-Stable: `box.api`, `box.models`, `box.errors`, `box.config.models`.
+Stable: `box.api`, `box.models`, `box.errors`, `box.config.models`, `box.paths`.
 Internal: `box.launch.sandbox`, `box.runtime.downloader`, `box.launch.session`
 and everything else under `box.cli`. Do not import internals from a frontend.
 
 `box.api.__init__` re-exports `Interaction`, `ConsoleInteraction`,
-`Inspection`, `DiagnoseResult`, `AppConfig`, `ConfigRepository`,
+`Inspection`, `DiagnoseResult`, `AppConfig`, `AppPaths`, `ConfigRepository`,
 `GameInfo`, `RuntimeInfo` and `RuntimeSpec` for convenience.
 
 ## Modules
@@ -33,7 +33,7 @@ and everything else under `box.cli`. Do not import internals from a frontend.
 - `box.api.diagnose`: `diagnose(paths, repository, game_path, version, sdk)`
   returns frozen `DiagnoseResult(environment, versions)`. Use
   `box.diagnostics.report.render_report` only in the CLI to format it.
-- `box.api.runtime`: `list_nwjs`, `install_nwjs`, `remove_nwjs`,
+- `box.api.runtime`: `default_architecture()`, `list_nwjs`, `install_nwjs`, `remove_nwjs`,
   `fetch_nwjs_available`, `list_easyrpg`, `install_easyrpg`,
   `remove_easyrpg`, `fetch_easyrpg_available`. Install functions accept an
   optional `ProgressReporter(completed, total | None)`. No printing or prompting.
