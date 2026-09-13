@@ -53,7 +53,7 @@ def test_session_links_game_writes_wrapper_and_cleans_up_without_mutation(
         assert json.loads((session.root / "package.json").read_text(encoding="utf-8")) == {
             "name": "Session Test",
             "main": "game/index.html",
-            "window": {"width": 960, "fullscreen": True},
+            "window": {"width": 960},
         }
 
     assert not session.root.exists()

@@ -886,6 +886,68 @@ def test_execute_nwjs_forwards_game_writes_flag(
     assert seen == {"allow_network": False, "allow_game_writes": True}
 
 
+def test_execute_nwjs_starts_inside_the_game_view(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Relative plugin paths (such as ./www/...) must match a stock export."""
+    root = tmp_path / "game"
+    (root / "www").mkdir(parents=True)
+    (root / "www" / "index.html").write_text("fixture")
+    (root / "package.json").write_text('{"name": "fixture"}')
+    game = GameInfo(
+        EngineName.RPG_MAKER_MV, root, root / "www" / "index.html", root / "package.json"
+    )
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    binary = runtime_root / "nw"
+    binary.write_text("fixture")
+    runtime = RuntimeInfo(RuntimeSpec("v0.90.0", "x64"), runtime_root, binary)
+    paths = AppPaths(tmp_path / "config", tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(root)
+    commands: list[list[str]] = []
+
+    def detect(game_path: Path, registry: EngineRegistry) -> GameInfo:
+        return game
+
+    def select(catalog: object, architecture: str, version: str | None, sdk: bool) -> RuntimeInfo:
+        return runtime
+
+    def probe(sandbox: Sandbox) -> str:
+        return "wayland"
+
+    def desktop(sandbox: Sandbox) -> None:
+        pass
+
+    def devices(sandbox: Sandbox) -> None:
+        pass
+
+    def audio(sandbox: Sandbox) -> None:
+        pass
+
+    def run(
+        command: list[str],
+        cwd: Path | None = None,
+        pass_fds: tuple[int, ...] = (),
+    ) -> int:
+        commands.append(command)
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.detect_game", detect)
+    monkeypatch.setattr("box.cli.launch.select_runtime", select)
+    monkeypatch.setattr(Sandbox, "display_probe", probe)
+    monkeypatch.setattr(Sandbox, "desktop", desktop)
+    monkeypatch.setattr(Sandbox, "devices", devices)
+    monkeypatch.setattr(Sandbox, "audio", audio)
+    monkeypatch.setattr("box.cli.launch.run_process", run)
+
+    assert execute(paths, repository, root, None, False) == 0
+    assert len(commands) == 1
+    chdir = commands[0].index("--chdir")
+    assert commands[0][chdir + 1] == "/session/game"
+    assert commands[0].index("/session") < chdir
+
+
 @pytest.mark.parametrize("engine", ["easyrpg", "nwjs"])
 def test_execute_calls_devices_and_audio_in_both_branches(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, engine: str

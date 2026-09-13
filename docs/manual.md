@@ -22,7 +22,8 @@ box-rpg launch /path/to/game
 
 Use `box-rpg inspect /path/to/game` to check detection without launching it.
 
-NW.js games always start fullscreen; there is no windowed mode.
+NW.js games start as their own manifest requests, usually windowed; plugins
+that manage the window geometry behave exactly like a stock export.
 
 Bubblewrap at `/usr/bin/bwrap`, enabled user namespaces, and a local Wayland
 socket are required. The launcher refuses unsandboxed execution. Runtime
@@ -109,6 +110,12 @@ path under `~/.cache`). The profile stores preferences, web storage, and cache.
 Existing profiles from older layouts are not migrated automatically.
 RPG Maker saves remain in `save/` beside the entrypoint, usually `<game>/www/save/`
 or `<game>/save/`. Existing saves are used directly, without copying to XDG data.
+
+The game process starts with its working directory inside the game view, so
+relative paths such as `./www/...` resolve exactly like a stock export launched
+from its own root. Plugins that persist data next to the game files need
+`--allow-game-writes` for that launch; plugins loading remote assets (fonts,
+stylesheets) need `--allow-network`.
 
 ### RPG Maker 2000/2003
 

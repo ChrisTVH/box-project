@@ -174,8 +174,11 @@ def execute(
                 command = build_command(runtime, Path("/session"), Path("/profile"), display)
                 command[0] = executable
                 validate_game_descriptor(game, game_descriptor)
+                # Start inside the game view so relative asset paths (such as
+                # ./www/...) resolve exactly like a stock export launched from
+                # its own root; /session remains the app directory for NW.js.
                 return run_process(
-                    sandbox.command(command, cwd="/session"), pass_fds=sandbox.pass_fds
+                    sandbox.command(command, cwd="/session/game"), pass_fds=sandbox.pass_fds
                 )
 
 

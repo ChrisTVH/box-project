@@ -116,9 +116,8 @@ def write_manifest(
             "main": f"game/{game.entrypoint.relative_to(game.root).as_posix()}",
         }
         window = _safe_window(source.get("window"))
-        # The launcher always starts games fullscreen; the game manifest
-        # cannot opt out, and nothing else about its window is trusted.
-        window["fullscreen"] = True
+        # The game's own presentation settings decide how the window starts;
+        # nothing else about its window is trusted.
         payload["window"] = window
         # Game-controlled Chromium/V8 switches can disable security or load code.
         # No switches are forwarded; presentation settings have a typed allowlist.
