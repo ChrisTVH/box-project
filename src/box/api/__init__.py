@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from box.api.cleanup import CleanupCatalog, CleanupItem, RemovalResult
 from box.api.diagnose import DiagnoseResult
 from box.api.inspect import Inspection
 from box.api.interaction import ConsoleInteraction, Interaction
@@ -13,12 +14,15 @@ from box.paths import AppPaths
 __all__ = [
     "AppConfig",
     "AppPaths",
+    "CleanupCatalog",
+    "CleanupItem",
     "ConfigRepository",
     "ConsoleInteraction",
     "DiagnoseResult",
     "GameInfo",
     "Inspection",
     "Interaction",
+    "RemovalResult",
     "RuntimeInfo",
     "RuntimeSpec",
 ]

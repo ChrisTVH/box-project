@@ -13,8 +13,9 @@ Internal: `box.launch.sandbox`, `box.runtime.downloader`, `box.launch.session`
 and everything else under `box.cli`. Do not import internals from a frontend.
 
 `box.api.__init__` re-exports `Interaction`, `ConsoleInteraction`,
-`Inspection`, `DiagnoseResult`, `AppConfig`, `AppPaths`, `ConfigRepository`,
-`GameInfo`, `RuntimeInfo` and `RuntimeSpec` for convenience.
+`Inspection`, `DiagnoseResult`, `AppConfig`, `AppPaths`, `CleanupCatalog`,
+`CleanupItem`, `ConfigRepository`, `GameInfo`, `RemovalResult`, `RuntimeInfo`
+and `RuntimeSpec` for convenience.
 
 ## Modules
 
@@ -37,6 +38,9 @@ and everything else under `box.cli`. Do not import internals from a frontend.
   `fetch_nwjs_available`, `list_easyrpg`, `install_easyrpg`,
   `remove_easyrpg`, `fetch_easyrpg_available`. Install functions accept an
   optional `ProgressReporter(completed, total | None)`. No printing or prompting.
+- `box.api.cleanup`: `CleanupCatalog.list/remove` plus `CleanupItem`,
+  `RemovalResult` and `CATEGORIES`. Same roots, runtimes, downloads and
+  profiles enumeration as the CLI, without printing or prompting.
 - `box.api.launch`: `launch(paths, repository, game_path, version, sdk,
   copy_root_files, allow_network, allow_game_writes, x11, interaction)`
   returns the exit code. Same validation, sandbox and session order as the
@@ -45,9 +49,8 @@ and everything else under `box.cli`. Do not import internals from a frontend.
 `box.api` performs no terminal I/O except the injectable `read`/`write`
 defaults of `ConsoleInteraction`. Configuration
 needs no wrapper: call `ConfigRepository.load`, `add_allowed_root` or
-`set_preferred_runtime` directly. Cleanup stays out of `box.api` for now;
-`box.cli.cleanup.CleanupCatalog.list/remove` is already structured and will
-adopt the same `Interaction` in a second pass.
+`set_preferred_runtime` directly. `box.api.cleanup.CleanupCatalog.list/remove`
+is already structured and will adopt the same `Interaction` in a second pass.
 
 ## Blocking contract
 

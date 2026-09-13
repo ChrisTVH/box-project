@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 # pyright: reportPrivateUsage=false
-from box.cli.cleanup import CleanupItem, _render_cleanup_item, execute
+from box.api.cleanup import CleanupItem
+from box.cli.cleanup import _render_cleanup_item, execute
 from box.config.repository import ConfigRepository
 from box.errors import RuntimeError
 from box.paths import AppPaths
