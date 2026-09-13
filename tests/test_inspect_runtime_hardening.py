@@ -40,10 +40,10 @@ def test_inspect_escapes_only_presentation(
     game = GameInfo(EngineName.RPG_MAKER_MV, root, root / "index.html")
     inspection = Inspection(game, "title\r\u202e", 1)
 
-    def inspect_stub(_path: Path) -> Inspection:
+    def inspect_stub(_path: Path, _registry: object = None) -> Inspection:
         return inspection
 
-    monkeypatch.setattr(inspect, "inspect_game", inspect_stub)
+    monkeypatch.setattr("box.api.inspect.inspect_game", inspect_stub)
     assert inspect.execute(root) == 0
     output = capsys.readouterr().out
     assert len(output.splitlines()) == 5

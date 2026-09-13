@@ -5,27 +5,28 @@ from __future__ import annotations
 from argparse import Namespace
 from collections.abc import Callable
 
+from box.api.runtime import fetch_easyrpg_available as fetch_easyrpg_versions
+from box.api.runtime import fetch_nwjs_available as fetch_available_versions
+from box.api.runtime import install_easyrpg as install_easyrpg_runtime
+from box.api.runtime import install_nwjs as api_install_nwjs
+from box.api.runtime import list_easyrpg as api_list_easyrpg
+from box.api.runtime import list_nwjs as api_list_nwjs
+from box.api.runtime import remove_easyrpg as api_remove_easyrpg
+from box.api.runtime import remove_nwjs as api_remove_nwjs
 from box.errors import RuntimeError
 from box.paths import AppPaths
-from box.runtime.available import AvailableVersions, fetch_available_versions
+from box.runtime.available import AvailableVersions
 from box.runtime.catalog import RuntimeCatalog
-from box.runtime.downloader import install_runtime
 from box.runtime.easyrpg import (
     AvailableEasyRPGVersions,
     EasyRPGCatalog,
-)
-from box.runtime.easyrpg import (
-    fetch_available_versions as fetch_easyrpg_versions,
-)
-from box.runtime.easyrpg import (
-    install_runtime as install_easyrpg_runtime,
 )
 from box.utils.i18n import _
 
 
 def list_runtimes(catalog: RuntimeCatalog) -> int:
     """Print every valid launcher-owned runtime."""
-    runtimes = catalog.list()
+    runtimes = api_list_nwjs(catalog)
     if not runtimes:
         print(_("no NW.js runtimes installed"))
         return 0
@@ -38,7 +39,7 @@ def list_runtimes(catalog: RuntimeCatalog) -> int:
 
 def install(paths: AppPaths, version: str, architecture: str, sdk: bool) -> int:
     """Install and report an NW.js runtime."""
-    runtime = install_runtime(paths, version, architecture, sdk)
+    runtime = api_install_nwjs(paths, version, architecture, sdk, progress=None)
     print(
         _("installed {version} ({flavor}) at {path}").format(
             version=runtime.spec.version,
@@ -164,7 +165,7 @@ def _runtime_flavor(sdk: bool) -> str:
 
 def remove(catalog: RuntimeCatalog, version: str, architecture: str, sdk: bool) -> int:
     """Remove a launcher-owned NW.js runtime."""
-    catalog.remove(version, architecture, sdk)
+    api_remove_nwjs(catalog, version, architecture, sdk)
     print(_("removed {version}").format(version=version))
     return 0
 
@@ -173,7 +174,7 @@ def easyrpg(paths: AppPaths, action: str, arguments: Namespace) -> int:
     """Dispatch EasyRPG Player runtime management commands."""
     catalog = EasyRPGCatalog(paths)
     if action == "list":
-        runtimes = catalog.list()
+        runtimes = api_list_easyrpg(catalog)
         if not runtimes:
             print(_("no EasyRPG Player runtimes installed"))
         for runtime in runtimes:
@@ -188,7 +189,7 @@ def easyrpg(paths: AppPaths, action: str, arguments: Namespace) -> int:
         )
         return 0
     if action == "remove":
-        catalog.remove(arguments.version)
+        api_remove_easyrpg(catalog, arguments.version)
         print(_("removed EasyRPG Player {version}").format(version=arguments.version))
         return 0
     return _easyrpg_available(paths, arguments.page, arguments.interactive)

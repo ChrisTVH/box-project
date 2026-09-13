@@ -58,7 +58,11 @@ def download_url(spec: RuntimeSpec) -> str:
 
 
 def install_runtime(
-    paths: AppPaths, version: str, architecture: str, sdk: bool = False
+    paths: AppPaths,
+    version: str,
+    architecture: str,
+    sdk: bool = False,
+    progress: ProgressReporter | None = None,
 ) -> RuntimeInfo:
     """Download, extract and atomically install an official NW.js runtime."""
     spec = RuntimeSpec(normalize_version(version), normalize_architecture(architecture), sdk)
@@ -76,7 +80,7 @@ def install_runtime(
         try:
             os.stat(spec.directory_name, dir_fd=runtime_descriptor, follow_symlinks=False)
         except FileNotFoundError:
-            download_archive_at(download_url(spec), archive_name, download_descriptor)
+            download_archive_at(download_url(spec), archive_name, download_descriptor, progress)
             archive_descriptor = _open_regular_file(archive_name, download_descriptor)
             try:
                 verify_archive(archive_descriptor, download_url(spec))

@@ -176,7 +176,13 @@ def test_install_rejects_hash_before_extraction(
         archive.write_bytes(b"modified cache")
     else:
 
-        def download(url: str, name: str, descriptor: int) -> None:
+        def download(
+            url: str,
+            name: str,
+            descriptor: int,
+            progress: object = None,
+            allowed_hosts: object = None,
+        ) -> None:
             archive.write_bytes(b"new but incorrect archive")
 
         monkeypatch.setattr(downloader, "download_archive_at", download)

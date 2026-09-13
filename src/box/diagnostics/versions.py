@@ -56,7 +56,7 @@ def collect_easyrpg_versions(game: GameInfo, runtime: EasyRPGRuntime) -> Version
 def _read_core_version(path: Path) -> str | None:
     try:
         content = read_regular_metadata(path, _CORE_LIMIT).decode("utf-8", errors="replace")
-    except OSError, ValueError:
+    except (OSError, ValueError):
         return None
     match = _CORE_VERSION.search(content)
     return safe_terminal_text(match.group(1)) if match else None
@@ -121,7 +121,7 @@ def _sandboxed_version(command: list[str], pass_fds: tuple[int, ...], fallback: 
         if process.returncode != 0:
             return fallback
         return safe_terminal_text(stdout or stderr) or fallback
-    except OSError, subprocess.TimeoutExpired:
+    except (OSError, subprocess.TimeoutExpired):
         return fallback
     finally:
         with suppress(ProcessLookupError):

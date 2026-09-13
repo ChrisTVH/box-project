@@ -108,9 +108,9 @@ def test_diagnose_uses_configured_runtime_preferences(
 
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
     monkeypatch.setenv("XDG_CACHE_HOME", str(cache_home))
-    monkeypatch.setattr("box.cli.diagnose.detect_game", detect_game)
-    monkeypatch.setattr("box.cli.diagnose.select_runtime", select_runtime)
-    monkeypatch.setattr("box.cli.diagnose.collect_versions", collect_versions)
+    monkeypatch.setattr("box.api.diagnose.detect_game", detect_game)
+    monkeypatch.setattr("box.api.diagnose.select_runtime", select_runtime)
+    monkeypatch.setattr("box.api.diagnose.collect_versions", collect_versions)
 
     assert main(["diagnose", str(tmp_path)]) == 0
     assert selected == [("v0.90.0", True)]
@@ -143,9 +143,9 @@ def test_diagnose_easyrpg_uses_explicit_version(
     def collect_versions(_: GameInfo, runtime: EasyRPGRuntime) -> VersionReport:
         return VersionReport("rpg-maker-2000-2003", None, None, runtime.version)
 
-    monkeypatch.setattr("box.cli.diagnose.detect_game", detect_game)
-    monkeypatch.setattr("box.cli.diagnose.EasyRPGCatalog", FakeCatalog)
-    monkeypatch.setattr("box.cli.diagnose.collect_easyrpg_versions", collect_versions)
+    monkeypatch.setattr("box.api.diagnose.detect_game", detect_game)
+    monkeypatch.setattr("box.api.diagnose.EasyRPGCatalog", FakeCatalog)
+    monkeypatch.setattr("box.api.diagnose.collect_easyrpg_versions", collect_versions)
 
     assert diagnose_command.execute(paths, repository, game_root, "0.8", False) == 0
     assert seen == {"version": "0.8"}
@@ -163,7 +163,7 @@ def test_diagnose_easyrpg_still_rejects_sdk(
     def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
         return game
 
-    monkeypatch.setattr("box.cli.diagnose.detect_game", detect_game)
+    monkeypatch.setattr("box.api.diagnose.detect_game", detect_game)
 
     with pytest.raises(GameValidationError, match="--sdk"):
         diagnose_command.execute(paths, repository, game_root, None, True)

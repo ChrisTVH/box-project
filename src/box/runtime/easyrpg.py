@@ -19,7 +19,7 @@ from urllib.request import Request
 
 from box.errors import ConfigurationError, RuntimeError
 from box.paths import AppPaths
-from box.runtime.downloader import download_archive_at
+from box.runtime.downloader import ProgressReporter, download_archive_at
 from box.runtime.http import open_official, validate_source
 from box.runtime.limits import extract_bounded
 from box.runtime.platform import current_architecture
@@ -288,7 +288,9 @@ class EasyRPGDownloadCatalog:
             os.close(descriptor)
 
 
-def install_runtime(paths: AppPaths, version: str) -> EasyRPGRuntime:
+def install_runtime(
+    paths: AppPaths, version: str, progress: ProgressReporter | None = None
+) -> EasyRPGRuntime:
     """Download and atomically install one official EasyRPG Player x64 runtime."""
     if current_architecture() != "x64":
         raise RuntimeError(_("EasyRPG Player managed downloads currently support x64 only"))
@@ -313,6 +315,7 @@ def install_runtime(paths: AppPaths, version: str) -> EasyRPGRuntime:
             download_url(normalized),
             archive_name,
             download_descriptor,
+            progress,
             allowed_hosts=OFFICIAL_DOWNLOAD_HOSTS,
         )
         archive = Path(f"/proc/self/fd/{download_descriptor}") / archive_name

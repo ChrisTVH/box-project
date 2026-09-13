@@ -288,7 +288,7 @@ def test_execute_does_not_register_a_game_when_no_runtime_is_available(
     def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
         return game
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
+    monkeypatch.setattr("box.api.launch.detect_game", detect_game)
 
     with pytest.raises(RuntimeError, match=r"box-rpg runtime nwjs available --interactive"):
         execute(paths, repository, game_root, None, False)
@@ -322,8 +322,8 @@ def test_execute_launches_rpg_rt_projects_with_easyrpg_fullscreen(
         calls.append((command, cwd))
         return 0
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
-    monkeypatch.setattr("box.cli.launch.EasyRPGCatalog.latest", latest)
+    monkeypatch.setattr("box.api.launch.detect_game", detect_game)
+    monkeypatch.setattr("box.api.launch.EasyRPGCatalog.latest", latest)
 
     def authorize(
         _: GameInfo,
@@ -333,8 +333,8 @@ def test_execute_launches_rpg_rt_projects_with_easyrpg_fullscreen(
     ) -> AppConfig:
         return repository.load()
 
-    monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.authorize_game", authorize)
+    monkeypatch.setattr("box.api.launch.run_process", run)
 
     def desktop(_: Sandbox) -> None:
         pass
@@ -412,13 +412,13 @@ def test_execute_passes_network_policy_to_nwjs(
         assert pass_fds
         return 0
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect)
-    monkeypatch.setattr("box.cli.launch.select_runtime", select)
+    monkeypatch.setattr("box.api.launch.detect_game", detect)
+    monkeypatch.setattr("box.api.launch.select_runtime", select)
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "display_probe", probe)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.run_process", run)
     assert execute(paths, repository, root, None, False, allow_network=allow_network) == 0
 
 
@@ -434,7 +434,7 @@ def test_execute_rejects_nwjs_options_for_rpg_rt_projects(
     def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
         return game
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
+    monkeypatch.setattr("box.api.launch.detect_game", detect_game)
 
     with pytest.raises(GameValidationError, match="--copy-root-file"):
         execute(paths, repository, game_root, None, False, copy_root_files=("messages.csv",))
@@ -479,10 +479,10 @@ def test_execute_rejects_relocation_during_authorization(
     def select(*_: object) -> RuntimeInfo:
         return runtime
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect)
-    monkeypatch.setattr("box.cli.launch.select_runtime", select)
-    monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.detect_game", detect)
+    monkeypatch.setattr("box.api.launch.select_runtime", select)
+    monkeypatch.setattr("box.api.launch.authorize_game", authorize)
+    monkeypatch.setattr("box.api.launch.run_process", run)
 
     with pytest.raises(GameValidationError, match="changed since detection"):
         execute(paths, repository, game_root, None, False)
@@ -715,9 +715,9 @@ def _prepare_easyrpg_game(
     def desktop(sandbox: Sandbox) -> None:
         pass
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
-    monkeypatch.setattr("box.cli.launch.EasyRPGCatalog.latest", latest)
-    monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
+    monkeypatch.setattr("box.api.launch.detect_game", detect_game)
+    monkeypatch.setattr("box.api.launch.EasyRPGCatalog.latest", latest)
+    monkeypatch.setattr("box.api.launch.authorize_game", authorize)
     monkeypatch.setattr(Sandbox, "display_probe", probe)
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     # Hermetic display: the extra-X11 consent reads the real DISPLAY.
@@ -754,7 +754,7 @@ def test_execute_forwards_sandbox_flags(
     monkeypatch.setattr(Sandbox, "__init__", spy)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.run_process", run)
 
     assert (
         execute(
@@ -808,7 +808,7 @@ def test_execute_easyrpg_game_writable_bind(
     monkeypatch.setattr(Sandbox, "game_writable", fake_writable)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.run_process", run)
 
     assert (
         execute(paths, repository, game.root, None, False, allow_game_writes=allow_game_writes) == 0
@@ -873,14 +873,14 @@ def test_execute_nwjs_forwards_game_writes_flag(
     ) -> int:
         return 0
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect)
-    monkeypatch.setattr("box.cli.launch.select_runtime", select)
+    monkeypatch.setattr("box.api.launch.detect_game", detect)
+    monkeypatch.setattr("box.api.launch.select_runtime", select)
     monkeypatch.setattr(Sandbox, "__init__", spy)
     monkeypatch.setattr(Sandbox, "display_probe", probe)
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.run_process", run)
 
     assert execute(paths, repository, root, None, False, allow_game_writes=True) == 0
     assert seen == {"allow_network": False, "allow_game_writes": True}
@@ -933,13 +933,13 @@ def test_execute_nwjs_starts_inside_the_game_view(
         commands.append(command)
         return 0
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect)
-    monkeypatch.setattr("box.cli.launch.select_runtime", select)
+    monkeypatch.setattr("box.api.launch.detect_game", detect)
+    monkeypatch.setattr("box.api.launch.select_runtime", select)
     monkeypatch.setattr(Sandbox, "display_probe", probe)
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.run_process", run)
 
     assert execute(paths, repository, root, None, False) == 0
     assert len(commands) == 1
@@ -977,7 +977,7 @@ def test_execute_calls_devices_and_audio_in_both_branches(
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.run_process", run)
     if engine == "easyrpg":
         paths, repository, game = _prepare_easyrpg_game(tmp_path, monkeypatch)
         assert execute(paths, repository, game.root, None, False) == 0
@@ -1004,8 +1004,8 @@ def test_execute_calls_devices_and_audio_in_both_branches(
         ) -> RuntimeInfo:
             return runtime
 
-        monkeypatch.setattr("box.cli.launch.detect_game", detect)
-        monkeypatch.setattr("box.cli.launch.select_runtime", select)
+        monkeypatch.setattr("box.api.launch.detect_game", detect)
+        monkeypatch.setattr("box.api.launch.select_runtime", select)
         assert execute(paths, repository, root, None, False) == 0
     assert calls == ["devices", "audio"]
 
@@ -1056,8 +1056,8 @@ def test_execute_nwjs_uses_x11_ozone_command(
     def confirm(prompt: str) -> str:
         return "yes"
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect)
-    monkeypatch.setattr("box.cli.launch.select_runtime", select)
+    monkeypatch.setattr("box.api.launch.detect_game", detect)
+    monkeypatch.setattr("box.api.launch.select_runtime", select)
     monkeypatch.setattr(Sandbox, "display_probe", probe)
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "x11", use_x11)
@@ -1070,7 +1070,7 @@ def test_execute_nwjs_uses_x11_ozone_command(
         commands.append(command)
         return 0
 
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.run_process", run)
 
     assert execute(paths, repository, root, None, False) == 0
     assert any("--ozone-platform=x11" in command for command in commands)
@@ -1120,8 +1120,8 @@ def test_execute_nwjs_forced_x11_skips_prompt(
     def forbidden(prompt: str) -> str:
         raise AssertionError("explicit --x11 is consent, must not prompt")
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect)
-    monkeypatch.setattr("box.cli.launch.select_runtime", select)
+    monkeypatch.setattr("box.api.launch.detect_game", detect)
+    monkeypatch.setattr("box.api.launch.select_runtime", select)
     monkeypatch.setattr(Sandbox, "display_probe", probe)
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "x11", use_x11)
@@ -1133,7 +1133,7 @@ def test_execute_nwjs_forced_x11_skips_prompt(
         commands.append(command)
         return 0
 
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.run_process", run)
 
     assert execute(paths, repository, root, None, False, x11=True) == 0
     assert len(x11_calls) == 1
@@ -1190,15 +1190,15 @@ def test_execute_easyrpg_extra_x11_consent(
     def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
         return 0
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
-    monkeypatch.setattr("box.cli.launch.EasyRPGCatalog.latest", latest)
-    monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
+    monkeypatch.setattr("box.api.launch.detect_game", detect_game)
+    monkeypatch.setattr("box.api.launch.EasyRPGCatalog.latest", latest)
+    monkeypatch.setattr("box.api.launch.authorize_game", authorize)
     monkeypatch.setattr(Sandbox, "display_probe", probe)
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "x11", use_x11)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.run_process", run)
 
     def stdin_is_tty() -> bool:
         return True
@@ -1265,14 +1265,14 @@ def test_execute_easyrpg_forced_x11_skips_prompt(
     def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
         return 0
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
-    monkeypatch.setattr("box.cli.launch.EasyRPGCatalog.latest", latest)
-    monkeypatch.setattr("box.cli.launch.authorize_game", authorize)
+    monkeypatch.setattr("box.api.launch.detect_game", detect_game)
+    monkeypatch.setattr("box.api.launch.EasyRPGCatalog.latest", latest)
+    monkeypatch.setattr("box.api.launch.authorize_game", authorize)
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "x11", use_x11)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.run_process", run)
     monkeypatch.setattr("builtins.input", forbidden)
 
     assert execute(paths, repository, game_root, None, False, x11=True) == 0
@@ -1337,11 +1337,11 @@ def _prepare_runtime_choice_game(
     def run(command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()) -> int:
         return 0
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect)
+    monkeypatch.setattr("box.api.launch.detect_game", detect)
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.run_process", run)
     monkeypatch.setattr("sys.stdin.isatty", stdin_is_tty)
     monkeypatch.setattr("builtins.input", confirm)
     return paths, repository, game, binaries
@@ -1519,11 +1519,11 @@ def _prepare_easyrpg_choice_game(
         launched.append(command)
         return 0
 
-    monkeypatch.setattr("box.cli.launch.detect_game", detect_game)
+    monkeypatch.setattr("box.api.launch.detect_game", detect_game)
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.cli.launch.run_process", run)
+    monkeypatch.setattr("box.api.launch.run_process", run)
     monkeypatch.setattr("sys.stdin.isatty", stdin_is_tty)
     monkeypatch.setattr("builtins.input", confirm)
     # Hermetic display: the extra-X11 consent reads the real DISPLAY.
