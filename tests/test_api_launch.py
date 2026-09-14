@@ -9,7 +9,7 @@ from types import TracebackType
 
 import pytest
 
-from box.api.launch import Interaction, authorize_game, launch
+from box.api.launch import Interaction, authorize_game, launch, list_root_files
 from box.config.repository import ConfigRepository
 from box.engines.registry import EngineRegistry
 from box.errors import GameValidationError
@@ -619,3 +619,20 @@ def test_fake_runtime_models_match_orchestration(tmp_path: Path) -> None:
     player = EasyRPGRuntime("0.8.1.1", tmp_path)
     assert runtime.spec.version == "v0.90.0"
     assert player.version == "0.8.1.1"
+
+
+def test_list_root_files_forwards_to_links_layer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, object] = {}
+    sentinel = ("a.txt", "b.py")
+
+    def fake_list_root_files(root: Path) -> tuple[str, ...]:
+        captured["root"] = root
+        return sentinel
+
+    monkeypatch.setattr("box.api.launch._list_root_files", fake_list_root_files)
+    game = GameInfo(EngineName.RPG_MAKER_MZ, tmp_path / "game")
+    result = list_root_files(game)
+    assert result is sentinel
+    assert captured["root"] == game.root

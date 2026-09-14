@@ -15,6 +15,7 @@ from box.errors import GameValidationError
 from box.games.detector import detect_game, ensure_allowed_root
 from box.games.files import open_game_directory, validate_game_descriptor
 from box.launch.command import build_command
+from box.launch.links import list_root_files as _list_root_files
 from box.launch.links import open_game_root
 from box.launch.process import run_process
 from box.launch.sandbox import Sandbox, validate_tree
@@ -29,7 +30,7 @@ from box.runtime.selector import matching_runtimes, select_runtime
 from box.utils.i18n import _
 from box.utils.terminal import safe_terminal_text
 
-__all__ = ["authorize_game", "launch"]
+__all__ = ["authorize_game", "launch", "list_root_files"]
 
 
 def _confirm_x11(sandbox: Sandbox, interaction: Interaction | None) -> None:
@@ -241,6 +242,11 @@ def authorize_game(
     """Authorize a game or ask the GUI to store its exact root."""
     with open_game_directory(game) as descriptor:
         return _authorize_open_game(game, repository, interaction, descriptor)
+
+
+def list_root_files(game: GameInfo) -> tuple[str, ...]:
+    """List game-root filenames available to pass as copy_root_files."""
+    return _list_root_files(game.root)
 
 
 def _authorize_open_game(

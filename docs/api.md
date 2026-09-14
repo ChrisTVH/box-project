@@ -45,6 +45,7 @@ and `RuntimeSpec` for convenience.
   copy_root_files, allow_network, allow_game_writes, x11, interaction)`
   returns the exit code. Same validation, sandbox and session order as the
   CLI, without terminal I/O. `authorize_game` is also exposed.
+  `list_root_files(game)` lists copyable game-root filenames.
 
 `box.api` performs no terminal I/O except the injectable `read`/`write`
 defaults of `ConsoleInteraction`. Configuration

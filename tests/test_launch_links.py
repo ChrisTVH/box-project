@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from box.errors import LaunchError
-from box.launch.links import copy_game_root_file, open_game_root
+from box.launch.links import copy_game_root_file, list_root_files, open_game_root
 
 
 def test_open_game_root_rejects_symlinked_ancestor(tmp_path: Path) -> None:
@@ -65,3 +65,42 @@ def test_copy_accepts_exact_limit_and_rejects_larger_file(
     with pytest.raises(LaunchError, match="byte limit"):
         copy_game_root_file(session, game, "large")
     assert not (session / "large").exists()
+
+
+def test_list_root_files_filters_mixed_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game = tmp_path / "game"
+    game.mkdir()
+    (game / "b.py").write_bytes(b"bb")
+    (game / "a.txt").write_bytes(b"a")
+    (game / "subdir").mkdir()
+    (game / "link.txt").symlink_to(game / "a.txt")
+    (game / "package.json").write_bytes(b"{}")
+    (game / "game").write_bytes(b"x")
+    (game / "large.bin").write_bytes(b"12345")
+    (game / "exact.bin").write_bytes(b"1234")
+    os.mkfifo(game / "pipe")
+    monkeypatch.setattr("box.launch.links.MAX_GAME_FILE_BYTES", 4)
+    assert list_root_files(game) == ("a.txt", "b.py", "exact.bin")
+
+
+def test_list_root_files_empty_root_returns_empty(tmp_path: Path) -> None:
+    game = tmp_path / "game"
+    game.mkdir()
+    assert list_root_files(game) == ()
+
+
+def test_list_root_files_missing_root_raises(tmp_path: Path) -> None:
+    with pytest.raises(LaunchError, match="unsafe"):
+        list_root_files(tmp_path / "missing")
+
+
+def test_list_root_files_rejects_symlinked_ancestor(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / "game").mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(target, target_is_directory=True)
+    with pytest.raises(LaunchError, match="unsafe"):
+        list_root_files(alias / "game")

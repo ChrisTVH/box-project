@@ -12,6 +12,8 @@ from box.games.files import MAX_GAME_FILE_BYTES
 from box.paths import open_directory_without_symlinks
 from box.utils.i18n import _
 
+_RESERVED_ROOT_NAMES = frozenset({"", ".", "..", "game", "package.json"})
+
 
 def open_game_root(game_root: Path) -> int:
     """Open a game root without following a replacement symlink."""
@@ -21,6 +23,44 @@ def open_game_root(game_root: Path) -> int:
         raise LaunchError(
             _("game root is missing or unsafe: {root}").format(root=game_root)
         ) from exc
+
+
+def list_root_files(game_root: Path) -> tuple[str, ...]:
+    """List copyable direct game-root filenames in sorted order.
+
+    Uses the open_game_root descriptor so listing and copying share one
+    trust model. Excludes directories, symlinks, reserved names, and files
+    over MAX_GAME_FILE_BYTES. Closes the descriptor in a finally block.
+    """
+    descriptor = open_game_root(game_root)
+    try:
+        try:
+            with os.scandir(descriptor) as it:
+                names: list[str] = []
+                for entry in it:
+                    try:
+                        is_file = entry.is_file(follow_symlinks=False)
+                    except OSError:
+                        continue
+                    if not is_file:
+                        continue
+                    name = entry.name
+                    if name in _RESERVED_ROOT_NAMES:
+                        continue
+                    try:
+                        size = entry.stat(follow_symlinks=False).st_size
+                    except OSError:
+                        continue
+                    if size > MAX_GAME_FILE_BYTES:
+                        continue
+                    names.append(name)
+        except OSError as exc:
+            raise LaunchError(
+                _("game root is missing or unsafe: {root}").format(root=game_root)
+            ) from exc
+        return tuple(sorted(names))
+    finally:
+        os.close(descriptor)
 
 
 def descriptor_path(descriptor: int) -> Path:
@@ -58,7 +98,7 @@ def copy_game_root_file(
     game_descriptor: int | None = None,
 ) -> Path:
     """Copy one validated direct game-root file into an isolated launch session."""
-    if Path(filename).name != filename or filename in {"", ".", "..", "game", "package.json"}:
+    if Path(filename).name != filename or filename in _RESERVED_ROOT_NAMES:
         raise LaunchError(_("invalid game-root filename: {filename!r}").format(filename=filename))
     destination = session_root / filename
     owns_session_descriptor = session_descriptor is None
