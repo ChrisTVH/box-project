@@ -1,0 +1,2 @@
+!*.md
+!version-standard/scripts/get_version.sh

@@ -1,0 +1,100 @@
+"""Frontend-owned default preferences (global EasyRPG runtime)."""
+
+from __future__ import annotations
+
+import json
+import os
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+
+from box.paths import AppPaths
+
+__all__ = ["DefaultsError", "DefaultsRepository", "RuntimeDefaults"]
+
+_DEFAULTS_VERSION = 1
+
+
+class DefaultsError(ValueError):
+    """Raised when the frontend defaults file cannot be read or written."""
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeDefaults:
+    """Global frontend defaults applied to new library entries."""
+
+    preferred_easyrpg_runtime: str | None = None
+
+
+class DefaultsRepository:
+    """JSON-backed defaults stored under the shared configuration root."""
+
+    def __init__(self, paths: AppPaths) -> None:
+        """Remember the paths used to locate the defaults file."""
+        self._paths = paths
+        self._file = paths.config_root / "defaults.json"
+
+    @property
+    def defaults_file(self) -> Path:
+        """Return the JSON file backing the defaults."""
+        return self._file
+
+    def load(self) -> RuntimeDefaults:
+        """Load defaults, or blank defaults when no file exists yet."""
+        try:
+            raw = self._file.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return RuntimeDefaults()
+        except OSError as exc:
+            raise DefaultsError(f"cannot read defaults file {self._file}: {exc}") from exc
+        try:
+            payload: object = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise DefaultsError(f"cannot parse defaults file {self._file}: {exc}") from exc
+        return _decode_defaults(payload, self._file)
+
+    def save(self, defaults: RuntimeDefaults) -> RuntimeDefaults:
+        """Persist defaults atomically with user-only file permissions."""
+        payload: dict[str, object] = {
+            "version": _DEFAULTS_VERSION,
+            "preferred_easyrpg_runtime": defaults.preferred_easyrpg_runtime,
+        }
+        content = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+        _atomic_write_text(self._file, content)
+        return defaults
+
+    def set_preferred_easyrpg_runtime(self, version: str | None) -> RuntimeDefaults:
+        """Store or clear the preferred EasyRPG Player version."""
+        return self.save(RuntimeDefaults(preferred_easyrpg_runtime=version))
+
+
+def _decode_defaults(payload: object, source: Path) -> RuntimeDefaults:
+    """Validate the top-level schema and convert it to RuntimeDefaults."""
+    if not isinstance(payload, dict):
+        raise DefaultsError(f"invalid defaults file {source}: top-level value must be an object")
+    version = payload.get("version")
+    if version != _DEFAULTS_VERSION:
+        raise DefaultsError(f"unsupported defaults version in {source}: {version!r}")
+    runtime_value = payload.get("preferred_easyrpg_runtime")
+    if runtime_value is not None and not isinstance(runtime_value, str):
+        raise DefaultsError(f"invalid defaults file {source}: bad preferred_easyrpg_runtime")
+    if runtime_value == "":
+        runtime_value = None
+    return RuntimeDefaults(preferred_easyrpg_runtime=runtime_value)
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Write text atomically with user-only file permissions."""
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=".defaults-", dir=path.parent, text=True)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as target:
+            target.write(content)
+            target.flush()
+            os.fsync(target.fileno())
+        temporary.chmod(0o600)
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()

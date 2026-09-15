@@ -1,0 +1,13 @@
+# Root-level config for the monorepo installer scripts only
+# (install.py, cleaner.py). Each subproject keeps its own identical
+# [tool.ruff] section in its pyproject.toml; per-file discovery gives
+# nested files their project's config and only the root scripts land here.
+line-length = 100
+target-version = "py314"
+src = ["."]
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "FURB"]
+ignore = [
+    "E501",  # user-facing strings (help, prompts) intentionally long
+]

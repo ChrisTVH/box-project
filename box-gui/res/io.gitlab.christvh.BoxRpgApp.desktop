@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Box RPG Maker
+Comment=GTK front end for box-rpg game inspection, launch, and runtimes
+Exec=box-rpg-maker
+Icon=io.gitlab.christvh.BoxRpgApp
+Terminal=false
+Categories=Game;
+StartupWMClass=io.gitlab.christvh.BoxRpgApp

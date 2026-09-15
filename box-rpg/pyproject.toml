@@ -1,0 +1,96 @@
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "box-rpg"
+version = "26.9.31"
+description = "A safe launcher for RPG Maker 2000/2003/MV/MZ projects"
+readme = "README.md"
+requires-python = ">=3.14"
+license = "BSD-3-Clause"
+authors = [
+    { name = "ChrisTVH" },
+]
+keywords = ["rpg-maker", "rpg-maker-2000", "rpg-maker-2003", "mv", "mz", "nwjs", "easyrpg", "launcher"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: POSIX :: Linux",
+    "Environment :: Console",
+]
+dependencies = []
+
+[project.scripts]
+box-rpg = "box.cli.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pyright>=1.1.390",
+    "ruff>=0.9",
+]
+
+[dependency-groups]
+build = [
+    "pip==26.2.1",
+    "setuptools==84.0.0",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+box = ["locale/**/*.mo", "runtime/keys/*.asc", "runtime/keys/README.md"]
+
+[tool.setuptools.data-files]
+"share/box-rpg/config" = ["res/config/box-rpg.toml.example"]
+"share/box-rpg/completions" = [
+    "res/completions/box-rpg.bash",
+    "res/completions/box-rpg.fish",
+    "res/completions/_box-rpg",
+]
+"share/doc/box-rpg" = ["README.md", "docs/manual.md", "docs/translations.md", "docs/development.md", "docs/security.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+# The root-level installer scripts are backend-owned: they are checked with
+# this project's strictest settings. Run from box-rpg/ so these resolve.
+# No venvPath/venv here (same as box-gui): the interpreter comes from the
+# documented invocation below, so `import box`/`import pytest` resolve
+# through that environment plus user-site, exactly like the test runs.
+# Each extraPaths entry is listed twice because include-style paths resolve
+# against this file's directory while extraPaths resolve against the
+# project root: one of each pair always lands on the monorepo root and on
+# the backend checkout, so `import install` and `import box` keep resolving
+# regardless of which base pyright picks.
+include = ["src", "tests", "../install.py", "../cleaner.py"]
+extraPaths = [".", "..", "box-rpg/src", "../box-rpg/src"]
+# install.py/cleaner.py live at the monorepo root so `import install` in the
+# tests (and in cleaner.py) resolves through this extra search path.
+reportMissingTypeStubs = false
+reportUnusedImport = true
+reportUnusedVariable = true
+reportUntypedFunctionDecorator = false
+venvPath = "."
+venv = ".venv"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "FURB"]
+ignore = [
+    "E501",  # user-facing strings (help, prompts) intentionally long
+]

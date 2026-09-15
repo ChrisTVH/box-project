@@ -1,0 +1,506 @@
+# Spanish translation for box-rpg-app.
+# Copyright (C) 2026 Christopher Herasme
+# This file is distributed under the same license as the box-rpg-app package.
+# Christopher Herasme <5632734-christvh@users.noreply.gitlab.com>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: box-rpg-app 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-14 00:00+0000\n"
+"PO-Revision-Date: 2026-09-14 00:00+0000\n"
+"Last-Translator: Christopher Herasme <5632734-"
+"christvh@users.noreply.gitlab.com>\n"
+"Language-Team: Spanish\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Box RPG Maker"
+msgstr "Box RPG Maker"
+
+msgid "Configuration Error"
+msgstr "Error de configuración"
+
+msgid "Close"
+msgstr "Cerrar"
+
+msgid "Inspection Failed"
+msgstr "Inspección fallida"
+
+msgid "Unexpected Error"
+msgstr "Error inesperado"
+
+msgid "Library"
+msgstr "Biblioteca"
+
+msgid "Add game"
+msgstr "Añadir juego"
+
+msgid "Settings"
+msgstr "Ajustes"
+
+msgid "Your library is empty. Click + to add your first game."
+msgstr "Tu biblioteca está vacía. Haz clic en + para añadir tu primer juego."
+
+msgid "Library Error"
+msgstr "Error de biblioteca"
+
+msgid "Latest"
+msgstr "Más reciente"
+
+msgid "Reorder or remove"
+msgstr "Reordenar o quitar"
+
+msgid "Move up"
+msgstr "Subir"
+
+msgid "Move down"
+msgstr "Bajar"
+
+msgid "Move to top"
+msgstr "Mover al principio"
+
+msgid "Move to bottom"
+msgstr "Mover al final"
+
+msgid "Remove from list"
+msgstr "Quitar de la lista"
+
+msgid "Select Game Folder"
+msgstr "Seleccionar carpeta del juego"
+
+msgid "Cannot resolve a local path for the selection."
+msgstr "No se puede resolver una ruta local para la selección."
+
+msgid "Launch Failed"
+msgstr "Inicio fallido"
+
+msgid "Game Detail"
+msgstr "Detalle del juego"
+
+msgid "Launch"
+msgstr "Iniciar"
+
+msgid "Diagnose"
+msgstr "Diagnosticar"
+
+msgid "Name"
+msgstr "Nombre"
+
+msgid "Engine"
+msgstr "Motor"
+
+msgid "Root"
+msgstr "Raíz"
+
+msgid "Entrypoint"
+msgstr "Punto de entrada"
+
+msgid "Title"
+msgstr "Título"
+
+msgid "Plugins"
+msgstr "Complementos"
+
+msgid "Preferred runtime"
+msgstr "Entorno de ejecución preferido"
+
+msgid "SDK"
+msgstr "SDK"
+
+msgid "Additional files"
+msgstr "Archivos adicionales"
+
+msgid "Some games keep language or settings files in the game root. Selected files are copied alongside the game on launch."
+msgstr "Algunos juegos guardan sus archivos de idioma o de configuración en la raíz del juego. Los seleccionados se copian junto al juego al iniciar."
+
+msgid "Add file"
+msgstr "Añadir archivo"
+
+msgid "No eligible files."
+msgstr "No existen archivos elegibles."
+
+msgid "Allow network usage"
+msgstr "Permitir uso de red"
+
+msgid "Allow modifying the game"
+msgstr "Permitir modificar en el juego"
+
+msgid "For games with automatic updates."
+msgstr "Para juegos con actualizaciones automáticas."
+
+msgid "Allow X11 or XWayland sessions"
+msgstr "Permitir sesiones de X11 o XWayland"
+
+msgid "Display name"
+msgstr "Nombre visible"
+
+msgid "Icon"
+msgstr "Icono"
+
+msgid "Change…"
+msgstr "Cambiar…"
+
+msgid "Select the game executable."
+msgstr "Selecciona el ejecutable del juego."
+
+msgid "Engine default"
+msgstr "Icono del motor"
+
+msgid "Choose which executable provides the library icon."
+msgstr "Elige qué ejecutable aporta el icono de la biblioteca."
+
+msgid "Choose Icon Image"
+msgstr "Elige una imagen para el icono"
+
+msgid "Images"
+msgstr "Imágenes"
+
+msgid "Cannot use that file as the game icon."
+msgstr "Ese archivo no sirve como icono del juego."
+
+msgid "Game info"
+msgstr "Información del juego"
+
+msgid "Runtime"
+msgstr "Entorno de ejecución"
+
+msgid "By default it uses the version defined in Settings; otherwise the most recently downloaded one."
+msgstr "Por defecto usa la versión definida en Ajustes; si no hay ninguna, la más reciente descargada."
+
+msgid "Sandbox permissions"
+msgstr "Permisos de la caja"
+
+msgid "Permissions apply when mounting the game in the sandbox."
+msgstr "Los permisos se aplican al montar el juego en la caja."
+
+#, python-brace-format
+msgid "Inspecting {path} …"
+msgstr "Inspeccionando {path} …"
+
+msgid "Inspection failed."
+msgstr "Inspección fallida."
+
+msgid "Remove file"
+msgstr "Quitar archivo"
+
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgid "Add"
+msgstr "Añadir"
+
+#, python-brace-format
+msgid "Launching {path} …"
+msgstr "Iniciando {path} …"
+
+msgid "Launch failed."
+msgstr "Inicio fallido."
+
+msgid "Open Runtimes"
+msgstr "Abrir entornos"
+
+msgid "General"
+msgstr "General"
+
+msgid "Allowed game roots"
+msgstr "Raíces de juego permitidas"
+
+msgid "No game roots configured."
+msgstr "No hay raíces de juego configuradas."
+
+msgid "Add root"
+msgstr "Añadir raíz"
+
+msgid "NW.js version"
+msgstr "Versión de NW.js"
+
+msgid "EasyRPG version"
+msgstr "Versión de EasyRPG"
+
+msgid "Preferred NW.js runtime"
+msgstr "Entorno NW.js preferido"
+
+msgid "Preferred EasyRPG runtime"
+msgstr "Entorno EasyRPG preferido"
+
+msgid "Undefined"
+msgstr "No definido"
+
+msgid "Default"
+msgstr "Por defecto"
+
+msgid "Remove"
+msgstr "Eliminar"
+
+msgid "Add game root"
+msgstr "Añadir raíz de juego"
+
+msgid "Cannot resolve the selected folder."
+msgstr "No se puede resolver la carpeta seleccionada."
+
+msgid "No versions available."
+msgstr "No hay versiones disponibles."
+
+msgid "Previous"
+msgstr "Anterior"
+
+msgid "Next"
+msgstr "Siguiente"
+
+#, python-brace-format
+msgid "Page {page}"
+msgstr "Página {page}"
+
+msgid "Loading runtimes."
+msgstr "Cargando entornos de ejecución."
+
+#, python-brace-format
+msgid "Loading installed {noun} runtimes …"
+msgstr "Cargando entornos {noun} instalados …"
+
+#, python-brace-format
+msgid "Loading {noun} versions (page {page}) …"
+msgstr "Cargando versiones de {noun} (página {page}) …"
+
+#, python-brace-format
+msgid "{count} {noun} runtime installed."
+msgid_plural "{count} {noun} runtimes installed."
+msgstr[0] "{count} entorno {noun} instalado."
+msgstr[1] "{count} entornos {noun} instalados."
+
+#, python-brace-format
+msgid "No {noun} runtimes installed."
+msgstr "No hay entornos {noun} instalados."
+
+msgid "Loading installed runtimes failed."
+msgstr "Error al cargar los entornos instalados."
+
+msgid "Install"
+msgstr "Instalar"
+
+msgid "Loading versions failed."
+msgstr "Error al cargar las versiones."
+
+msgid "Removal failed."
+msgstr "Eliminación fallida."
+
+msgid "Install complete."
+msgstr "Instalación completa."
+
+msgid "Install failed."
+msgstr "Instalación fallida."
+
+msgid "Installed NW.js runtimes"
+msgstr "Entornos NW.js instalados"
+
+msgid "Available NW.js versions"
+msgstr "Versiones NW.js disponibles"
+
+msgid "Architecture"
+msgstr "Arquitectura"
+
+msgid "standard"
+msgstr "estándar"
+
+#, python-brace-format
+msgid "NW.js {version} for {architecture} ({flavor})"
+msgstr "NW.js {version} para {architecture} ({flavor})"
+
+#, python-brace-format
+msgid "Removing NW.js {version} …"
+msgstr "Eliminando NW.js {version} …"
+
+msgid "Install Runtime"
+msgstr "Instalar entorno de ejecución"
+
+#, python-brace-format
+msgid "Install NW.js {version} for {architecture}?"
+msgstr "¿Instalar NW.js {version} para {architecture}?"
+
+#, python-brace-format
+msgid "Installing NW.js {version} …"
+msgstr "Instalando NW.js {version} …"
+
+msgid "Installed EasyRPG runtimes"
+msgstr "Entornos EasyRPG instalados"
+
+msgid "Available EasyRPG versions"
+msgstr "Versiones EasyRPG disponibles"
+
+#, python-brace-format
+msgid "Removing EasyRPG Player {version} …"
+msgstr "Eliminando EasyRPG Player {version} …"
+
+#, python-brace-format
+msgid "Install EasyRPG Player {version} for x64?"
+msgstr "¿Instalar EasyRPG Player {version} para x64?"
+
+#, python-brace-format
+msgid "Installing EasyRPG Player {version} …"
+msgstr "Instalando EasyRPG Player {version} …"
+
+msgid "Data"
+msgstr "Datos"
+
+msgid "No items."
+msgstr "No hay elementos."
+
+msgid "Loading cleanup items …"
+msgstr "Cargando elementos de limpieza …"
+
+msgid "Remove Item"
+msgstr "Eliminar elemento"
+
+#, python-brace-format
+msgid "Remove {label}?"
+msgstr "¿Eliminar {label}?"
+
+msgid "Loading cleanup items failed."
+msgstr "Error al cargar los elementos de limpieza."
+
+#, python-brace-format
+msgid "{count} item"
+msgid_plural "{count} items"
+msgstr[0] "{count} elemento"
+msgstr[1] "{count} elementos"
+
+#, python-brace-format
+msgid "Removing {label} …"
+msgstr "Eliminando {label} …"
+
+msgid "Authorized game roots"
+msgstr "Raíces de juego autorizadas"
+
+msgid "Managed runtimes"
+msgstr "Entornos gestionados"
+
+msgid "Download archives"
+msgstr "Archivos descargados"
+
+msgid "Game profiles"
+msgstr "Perfiles de juego"
+
+msgid "Unknown game"
+msgstr "Juego desconocido"
+
+msgid "Additional runtime settings or cache are stored here."
+msgstr "Se guardan configuraciones adicionales o cache de los entornos."
+
+msgid "Diagnose Failed"
+msgstr "Diagnóstico fallido"
+
+msgid "Collecting diagnostics …"
+msgstr "Recopilando diagnósticos …"
+
+msgid "Environment"
+msgstr "Entorno"
+
+msgid "Versions"
+msgstr "Versiones"
+
+msgid "System"
+msgstr "Sistema"
+
+msgid "Release"
+msgstr "Versión"
+
+msgid "Machine"
+msgstr "Máquina"
+
+msgid "Engine Version"
+msgstr "Versión del motor"
+
+msgid "NW.js"
+msgstr "NW.js"
+
+msgid "EasyRPG Player"
+msgstr "EasyRPG Player"
+
+msgid "Diagnose failed."
+msgstr "Diagnóstico fallido."
+
+msgid "Continue with X11?"
+msgstr "¿Continuar con X11?"
+
+#, python-brace-format
+msgid "Display {display} is insecure; X11 clients can capture input and screen contents (keylogging)."
+msgstr "La pantalla {display} es insegura; los clientes X11 pueden capturar la entrada y el contenido de la pantalla (keylogging)."
+
+msgid "Continue"
+msgstr "Continuar"
+
+msgid "Add game root?"
+msgstr "¿Añadir raíz de juego?"
+
+#, python-brace-format
+msgid "Add {path} to allowed game roots?"
+msgstr "¿Añadir {path} a las raíces de juego permitidas?"
+
+msgid "Select an EasyRPG Player runtime."
+msgstr "Selecciona un entorno de EasyRPG Player."
+
+msgid "Select an NW.js runtime."
+msgstr "Selecciona un entorno de NW.js."
+
+msgid "Select"
+msgstr "Seleccionar"
+
+#, python-brace-format
+msgid "Removed {removed} game; {failed} failed."
+msgid_plural "Removed {removed} games; {failed} failed."
+msgstr[0] "Se eliminó {removed} juego; fallos: {failed}."
+msgstr[1] "Se eliminaron {removed} juegos; fallos: {failed}."
+
+msgid "Load Roots"
+msgstr "Cargar raíces"
+
+msgid "Load Runtimes"
+msgstr "Cargar entornos"
+
+msgid "Load Settings"
+msgstr "Cargar ajustes"
+
+msgid "Add Root"
+msgstr "Añadir raíz"
+
+msgid "Remove Root"
+msgstr "Quitar raíz"
+
+msgid "Set Runtime"
+msgstr "Fijar entorno"
+
+msgid "Select Folder"
+msgstr "Elegir carpeta"
+
+msgid "Load Versions"
+msgstr "Cargar versiones"
+
+msgid "Remove Runtime"
+msgstr "Quitar entorno"
+
+msgid "Detect Architecture"
+msgstr "Detectar arquitectura"
+
+msgid "Load Items"
+msgstr "Cargar elementos"
+
+#, python-brace-format
+msgid "{operation} Failed"
+msgstr "{operation} ha fallado"
+
+#, python-brace-format
+msgid "{count} root configured."
+msgid_plural "{count} roots configured."
+msgstr[0] "{count} raíz configurada."
+msgstr[1] "{count} raíces configuradas."
+
+#, python-brace-format
+msgid "EasyRPG Player {version} for x64"
+msgstr "EasyRPG Player {version} para x64"
+
+msgid "EasyRPG"
+msgstr "EasyRPG"

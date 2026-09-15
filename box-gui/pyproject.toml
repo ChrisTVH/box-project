@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "box-rpg-maker"
+version = "26.9.31"
+description = "A safe GUI launcher for RPG Maker 2000/2003/MV/MZ projects"
+readme = "README.md"
+requires-python = ">=3.14"
+license = "BSD-3-Clause"
+authors = [
+    { name = "ChrisTVH" },
+]
+keywords = ["rpg-maker", "nwjs", "easyrpg", "gtk", "launcher"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: POSIX :: Linux",
+    "Environment :: X11 Applications :: GTK",
+]
+dependencies = [
+    "box-rpg>=26.9.31",
+    "PyGObject",
+    "pycairo",
+    "icoextract",
+]
+
+[project.scripts]
+box-rpg-maker = "box_gui.app:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pyright>=1.1.390",
+    "ruff>=0.9",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+box_gui = ["locale/**/*.mo"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "FURB"]
+ignore = [
+    "E501",  # user-facing strings (help, prompts) intentionally long
+]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["src", "tests"]
+reportMissingTypeStubs = false
+reportUnusedImport = true
+reportUnusedVariable = true
+reportUntypedFunctionDecorator = false
+# gi introspection ships no type stubs (see PyGObject-stubs); ignore
+# unknown-type noise from gi.repository while keeping strict otherwise.
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownParameterType = false
+reportUnknownArgumentType = false
+reportUnknownLambdaType = false
+reportUntypedBaseClass = false
+reportAttributeAccessIssue = false

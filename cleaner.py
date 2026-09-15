@@ -25,7 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 VENV_NAMES = {".venv", "venv"}
 BUILD_DIRS = {"dist", "build"}
 TOOL_CACHES = {".pytest_cache", ".ruff_cache"}
-EGG_INFO = {"box_rpg.egg-info"}
+EGG_INFO = {"box_rpg.egg-info", "box_rpg_maker.egg-info"}
 PROJECT_MARKERS = {".git", "pyproject.toml", "setup.py", "package.json", "Cargo.toml"}
 _MAX_TREE_DEPTH = 128
 
@@ -153,10 +153,46 @@ def _remove_tree(parent: int, name: str, depth: int = 0) -> None:
     os.rmdir(name, dir_fd=parent)
 
 
+# First-level monorepo members: walked as their own roots so their caches,
+# environments and build outputs stay covered. Any other nested project
+# (foreign checkouts, vendored trees) is still preserved untouched.
+MONOREPO_PROJECTS = ("box-rpg", "box-gui")
+
+
+def _project_roots() -> list[Path]:
+    """Return REPO_ROOT plus the monorepo member directories that exist.
+
+    Deeper nesting is still treated as foreign: _walk stops at project
+    markers below these roots, never descending into them.
+    """
+    roots = [REPO_ROOT]
+    for name in MONOREPO_PROJECTS:
+        child = REPO_ROOT / name
+        try:
+            with open_directory(child) as sub:
+                markers = PROJECT_MARKERS.intersection(os.listdir(sub))
+        except OSError:
+            continue
+        if markers and child not in roots:
+            roots.append(child)
+    return roots
+
+
+def _owning_root(path: Path) -> Path:
+    """Return the deepest project root containing path for revalidation."""
+    candidates = [root for root in _project_roots() if path == root or root in path.parents]
+    if not candidates:
+        return REPO_ROOT
+    return max(candidates, key=lambda root: len(root.parts))
+
+
 def collect_targets(root: Path) -> dict[str, list[Path]]:
     targets: dict[str, list[Path]] = {"caches": [], "venvs": [], "build": []}
     try:
         _walk(root, Path("."), _protected(root), targets)
+        if root == REPO_ROOT:
+            for sub in _project_roots()[1:]:
+                _walk(sub, Path("."), _protected(sub), targets)
     except (OSError, subprocess.SubprocessError) as exc:
         print(f"error collecting targets: {exc}", file=sys.stderr)
         return {"caches": [], "venvs": [], "build": []}
@@ -180,10 +216,10 @@ def print_targets(root: Path, targets: dict[str, list[Path]]) -> None:
 
 def remove(targets: dict[str, list[Path]]) -> bool:
     ok = True
-    root = REPO_ROOT
     for items in targets.values():
         for path in items:
             try:
+                root = _owning_root(path)
                 relative = path.relative_to(root)
                 if _eligible(root, relative, _protected(root)) is None:
                     raise PermissionError(path)

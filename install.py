@@ -2,11 +2,13 @@
 """Install box-rpg on the system.
 
 Checks that the system is Linux with Python 3.14+ and pip, then installs the
-package at user level and places the shell completions in each shell's user
-directory. No sudo is needed. By default it only verifies the prerequisites,
+selected distributions at user level: the box-rpg CLI with its shell
+completions, and the box-rpg-maker GTK GUI with its desktop entry and icons.
+No sudo is needed. By default it only verifies the prerequisites,
 reports the installed / repo versions and shows the exact commands; pass
 --install to actually run them (with a confirmation prompt) and --yes to skip
-the prompt. Pass --uninstall to remove the package and its completions.
+the prompt. Pass --uninstall to remove the selected packages and their files.
+Pass --target {cli,gui,all} to select which distributions to manage.
 """
 
 from __future__ import annotations
@@ -25,19 +27,27 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from pathlib import Path
 from typing import cast
 
 REPO_ROOT = Path(__file__).resolve().parent
+CLI_ROOT = REPO_ROOT / "box-rpg"
+GUI_ROOT = REPO_ROOT / "box-gui"
 PACKAGE = "box-rpg"
-INIT_PY = REPO_ROOT / "src/box/__init__.py"
+GUI_PACKAGE = "box-rpg-maker"
+PACKAGES = (PACKAGE, GUI_PACKAGE)
+INIT_PY = CLI_ROOT / "src/box/__init__.py"
+GUI_INIT_PY = GUI_ROOT / "src/box_gui/__init__.py"
+DESKTOP_FILE_NAME = "io.gitlab.christvh.BoxRpgApp.desktop"
 BWRAP = Path("/usr/bin/bwrap")
 GPG = Path("/usr/bin/gpg")
 
 # Managed shell completions are always published from the current checkout:
 # install overwrites any existing file and uninstall removes it. Symlinks are
 # never followed and raced replacements are preserved, never overwritten.
+# update_managed_file serves every managed file (completions, desktop entry,
+# icons) through this same protected path.
 
 # Run only under -I: load trusted pip before exposing user metadata. The
 # path-entry finder blocks ALL imports from user-site, including lazy imports.
@@ -83,7 +93,7 @@ sys.path.insert(0, str(user_site))
 # Permit pip's explicit --user scheme, not Python's site initialization.
 site.ENABLE_USER_SITE = True
 if sys.argv[1] in ('--verify-user-distribution', 'uninstall'):
-    distribution = metadata.distribution('box-rpg')
+    distribution = metadata.distribution('__PACKAGE__')
     location = Path(distribution.locate_file('')).resolve()
     if location != user_site:
         raise SystemExit('error: refusing a non-user-site distribution')
@@ -114,7 +124,7 @@ def _configure_translation() -> None:
     global _
     _ = gettext.translation(
         "box",
-        localedir=REPO_ROOT / "src/box/locale",
+        localedir=CLI_ROOT / "src/box/locale",
         languages=_languages(),
         fallback=True,
     ).gettext
@@ -125,18 +135,53 @@ def _configure_translation() -> None:
 # on demand during install / uninstall.
 COMPLETION_TARGETS = [
     (
-        REPO_ROOT / "res/completions/box-rpg.bash",
+        CLI_ROOT / "res/completions/box-rpg.bash",
         Path.home() / ".local/share/bash-completion/completions/box-rpg",
     ),
     (
-        REPO_ROOT / "res/completions/box-rpg.fish",
+        CLI_ROOT / "res/completions/box-rpg.fish",
         Path.home() / ".config/fish/completions/box-rpg.fish",
     ),
     (
-        REPO_ROOT / "res/completions/_box-rpg",
+        CLI_ROOT / "res/completions/_box-rpg",
         Path.home() / ".local/share/zsh/site-functions/_box-rpg",
     ),
 ]
+
+
+def _default_gui_targets() -> list[tuple[Path, Path]]:
+    """Resolve the GUI desktop entry plus every currently bundled icon."""
+    targets = [
+        (
+            GUI_ROOT / "res" / DESKTOP_FILE_NAME,
+            Path.home() / ".local/share/applications" / DESKTOP_FILE_NAME,
+        )
+    ]
+    icons_dir = GUI_ROOT / "res" / "icons"
+    if icons_dir.is_dir():
+        for icon in sorted(icons_dir.glob("*.svg")):
+            targets.append(
+                (
+                    icon,
+                    Path.home() / ".local/share/icons/hicolor/scalable/apps" / icon.name,
+                )
+            )
+    return targets
+
+
+# Managed GUI files are always published from the current checkout, like
+# completions: install overwrites any existing file and uninstall removes it.
+# Icon names are never hardcoded; they follow whatever res/icons/ ships.
+GUI_TARGETS = _default_gui_targets()
+
+
+def selected_packages(target: str) -> tuple[str, ...]:
+    """Return the distributions covered by an install/uninstall target."""
+    if target == "cli":
+        return (PACKAGE,)
+    if target == "gui":
+        return (GUI_PACKAGE,)
+    return PACKAGES
 
 
 def is_linux() -> bool:
@@ -158,7 +203,17 @@ def repo_version() -> str:
     return match.group(1) if match else "unknown"
 
 
-def installed_version() -> str | None:
+def gui_repo_version() -> str:
+    """Return the GUI package version from src/box_gui/__init__.py."""
+    try:
+        content = GUI_INIT_PY.read_text(encoding="utf-8")
+    except OSError:
+        return "unknown"
+    match = re.search(r'__version__\s*=\s*"([^"]+)"', content)
+    return match.group(1) if match else "unknown"
+
+
+def installed_version(package: str = PACKAGE) -> str | None:
     """Return the installed distribution version, or None if not installed.
 
     The user site-packages are checked explicitly so the detection works
@@ -172,7 +227,7 @@ def installed_version() -> str | None:
         return next(
             distribution.version
             for distribution in metadata.distributions(path=[str(user_site)])
-            if distribution.metadata["Name"] == PACKAGE
+            if distribution.metadata["Name"] == package
         )
     except Exception:  # PackageNotFoundError / import errors
         return None
@@ -293,6 +348,17 @@ def gpg_problem() -> str | None:
     return None
 
 
+def gtk_problem() -> str | None:
+    """Return None when the GTK4/libadwaita typelibs resolve, else a reason."""
+    probe = (
+        "import gi; gi.require_version('Gtk', '4.0'); gi.require_version('Adw', '1'); "
+        "from gi.repository import Gtk, Adw"
+    )
+    if not _tool_runs([system_python(), "-I", "-c", probe]):
+        return "missing"
+    return None
+
+
 allow_system_packages = False
 force_reinstall = False
 
@@ -367,11 +433,11 @@ def remove_matching(parent: int, name: str, expected: bytes) -> None:
             os.rmdir(recovery, dir_fd=parent)
 
 
-def update_completion(source: Path, target: Path, *, uninstall: bool = False) -> None:
-    """Publish the current completion, replacing any existing file on install."""
+def update_managed_file(source: Path, target: Path, *, uninstall: bool = False) -> None:
+    """Publish the current managed file, replacing any existing file on install."""
     home = Path.home()
     if target == home or not target.is_relative_to(home) or ".." in target.parts:
-        raise PermissionError(f"Completion outside home: {target}")
+        raise PermissionError(f"Managed file outside home: {target}")
     with open_directory(source.parent) as source_parent:
         expected = read_regular(source_parent, source.name)
     try:
@@ -404,11 +470,11 @@ def update_completion(source: Path, target: Path, *, uninstall: bool = False) ->
             raise
 
 
-def _user_distribution_verified() -> bool:
+def _user_distribution_verified(package: str = PACKAGE) -> bool:
     """Verify what the base interpreter (and therefore pip) will select."""
     try:
         result = subprocess.run(
-            [*_user_pip_args(), "--verify-user-distribution"],
+            [*_user_pip_args(package), "--verify-user-distribution"],
             check=False,
             capture_output=True,
             text=True,
@@ -429,18 +495,26 @@ def _user_distribution_verified() -> bool:
         return False
 
 
-def _user_pip_args() -> list[str]:
-    return [system_python(), "-I", "-c", USER_PIP_BOOTSTRAP]
+def _user_pip_args(package: str = PACKAGE) -> list[str]:
+    return [system_python(), "-I", "-c", USER_PIP_BOOTSTRAP.replace("__PACKAGE__", package)]
 
 
-def _pip_install_args(wheel: Path) -> list[str]:
+def _pip_install_args(
+    wheel: Path, *, with_dependencies: bool = False, extra_wheels: Sequence[Path] = ()
+) -> list[str]:
     args = [
         *_user_pip_args(),
         "install",
         "--user",
-        "--no-deps",
-        "--no-index",
+    ]
+    if not with_dependencies:
+        # The CLI ships zero runtime dependencies; the GUI wheel installs its
+        # real dependencies (PyGObject, pycairo, icoextract) instead, with the
+        # backend pinned to the just-built local wheel rather than PyPI.
+        args += ["--no-deps", "--no-index"]
+    args += [
         str(wheel),
+        *(str(extra) for extra in extra_wheels),
         "--no-input",
         "--no-warn-script-location",
         "--disable-pip-version-check",
@@ -458,17 +532,39 @@ def user_bin_without_path() -> Path | None:
     return None
 
 
-def copy_build_source(destination: Path) -> None:
+def copy_build_source(destination: Path, project_dir: Path | None = None) -> None:
     """Stage the trusted checkout without venvs or previous build artifacts."""
-    destination.mkdir()
-    for name in ("pyproject.toml", "README.md", "LICENSE"):
-        shutil.copyfile(REPO_ROOT / name, destination / name)
-    for name in ("src", "res", "docs"):
+    source_root = CLI_ROOT if project_dir is None else project_dir
+    # Nested workspaces (e.g. the GUI build stages cli/ and gui/ side by
+    # side) may not exist yet; still refuse to reuse an existing destination.
+    destination.mkdir(parents=True)
+    for name in ("pyproject.toml", "README.md"):
+        shutil.copyfile(source_root / name, destination / name)
+    # The license lives once at the monorepo root but ships in both wheels.
+    shutil.copyfile(REPO_ROOT / "LICENSE", destination / "LICENSE")
+    for name in ("src", "res"):
         shutil.copytree(
-            REPO_ROOT / name,
+            source_root / name,
             destination / name,
             ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"),
         )
+    if source_root == GUI_ROOT:
+        # The GUI project ships no separate requirements lock by design; its
+        # wheel build reuses the shared locked build environment, so stage the
+        # backend build lock where _build_commands expects it.
+        requirements = destination / "res" / "requirements" / "build.txt"
+        requirements.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(CLI_ROOT / "res/requirements/build.txt", requirements)
+    else:
+        # Backend docs live outside the backend project directory in the
+        # monorepo; stage them back under docs/ for the share/doc data files.
+        monorepo_docs = REPO_ROOT / "docs" / "box-rpg"
+        if monorepo_docs.is_dir():
+            shutil.copytree(
+                monorepo_docs,
+                destination / "docs",
+                ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"),
+            )
 
 
 def _wheel_args(python: Path, workspace: Path) -> list[str]:
@@ -515,110 +611,205 @@ def _build_commands(workspace: Path) -> list[list[str]]:
     ]
 
 
-def build_wheel(workspace: Path) -> Path:
+def build_wheel(
+    workspace: Path,
+    project_dir: Path | None = None,
+    *,
+    wheel_glob: str = "box_rpg-*.whl",
+    label: str = PACKAGE,
+) -> Path:
     """Build with hash-checked tools in a private, disposable environment."""
-    copy_build_source(workspace / "source")
+    copy_build_source(workspace / "source", project_dir)
     for command in _build_commands(workspace):
         if run(command) != 0:
             raise RuntimeError("locked wheel build failed")
-    wheels = list((workspace / "wheels").glob("box_rpg-*.whl"))
+    wheels = list((workspace / "wheels").glob(wheel_glob))
     if len(wheels) != 1 or not wheels[0].is_file() or wheels[0].is_symlink():
-        raise RuntimeError("expected exactly one box-rpg wheel")
+        raise RuntimeError(f"expected exactly one {label} wheel")
     return wheels[0]
 
 
-def _pip_uninstall_args() -> list[str]:
+def _pip_uninstall_args(package: str = PACKAGE) -> list[str]:
     """Build pip's user-level uninstall command."""
-    args = [*_user_pip_args(), "uninstall", "-y", PACKAGE]
+    args = [*_user_pip_args(package), "uninstall", "-y", package]
     return [*args, *_break_system_packages_args()]
 
 
-def install_commands() -> list[str]:
+def install_commands(target: str = "all") -> list[str]:
     workspace = Path("<private-temporary-directory>")
-    cmds = [
-        "stage trusted checkout in private temporary directory; "
-        + " && ".join(shlex.join(command) for command in _build_commands(workspace))
-        + " && "
-        + shlex.join(_pip_install_args(workspace / "wheels/box_rpg-<version>-py3-none-any.whl"))
-        + "; clean up temporary directory"
-    ]
-    for source, target in COMPLETION_TARGETS:
+    cmds: list[str] = []
+    if target in ("cli", "all"):
         cmds.append(
-            f"safe completion install: {shlex.quote(str(source))} -> {shlex.quote(str(target))}"
+            "stage trusted checkout in private temporary directory; "
+            + " && ".join(shlex.join(command) for command in _build_commands(workspace))
+            + " && "
+            + shlex.join(_pip_install_args(workspace / "wheels/box_rpg-<version>-py3-none-any.whl"))
+            + "; clean up temporary directory"
         )
+        for source, destination in COMPLETION_TARGETS:
+            cmds.append(
+                f"safe completion install: {shlex.quote(str(source))}"
+                f" -> {shlex.quote(str(destination))}"
+            )
+    if target in ("gui", "all"):
+        cmds.append(
+            "stage trusted GUI checkout in private temporary directory; "
+            + " && ".join(shlex.join(command) for command in _build_commands(workspace))
+            + " && "
+            + shlex.join(
+                _pip_install_args(
+                    workspace / "wheels/box_rpg_maker-<version>-py3-none-any.whl",
+                    extra_wheels=(workspace / "wheels/box_rpg-<version>-py3-none-any.whl",),
+                    with_dependencies=True,
+                )
+            )
+            + "; clean up temporary directory"
+        )
+        for source, destination in GUI_TARGETS:
+            cmds.append(
+                f"safe GUI file install: {shlex.quote(str(source))}"
+                f" -> {shlex.quote(str(destination))}"
+            )
     return cmds
 
 
-def run_install() -> bool:
+def run_install(target: str = "all") -> bool:
     if os.geteuid() == 0:
         print(_("error: refusing to run as root"), file=sys.stderr)
         return False
     ok = True
-    try:
-        with tempfile.TemporaryDirectory(prefix="box-rpg-build-") as directory:
-            wheel = build_wheel(Path(directory))
-            if run(_pip_install_args(wheel)) != 0:
-                raise RuntimeError("pip install failed")
-    except (OSError, RuntimeError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return False
-    done = 0
-    for source, target in COMPLETION_TARGETS:
-        if not source.exists():
-            print(
-                _("warning: completion source missing: {source}").format(source=source),
-                file=sys.stderr,
-            )
-            continue
+    if target in ("cli", "all"):
         try:
-            update_completion(source, target)
-        except OSError as exc:
-            print(
-                _("error: cannot install completion {target}: {error}").format(
-                    target=target, error=exc
-                ),
-                file=sys.stderr,
-            )
-            ok = False
-            continue
-        done += 1
-    print(_("installed {count} shell completions").format(count=done))
+            with tempfile.TemporaryDirectory(prefix="box-rpg-build-") as directory:
+                wheel = build_wheel(Path(directory))
+                if run(_pip_install_args(wheel)) != 0:
+                    raise RuntimeError("pip install failed")
+        except (OSError, RuntimeError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return False
+        done = 0
+        for source, destination in COMPLETION_TARGETS:
+            if not source.exists():
+                print(
+                    _("warning: completion source missing: {source}").format(source=source),
+                    file=sys.stderr,
+                )
+                continue
+            try:
+                update_managed_file(source, destination)
+            except OSError as exc:
+                print(
+                    _("error: cannot install completion {target}: {error}").format(
+                        target=destination, error=exc
+                    ),
+                    file=sys.stderr,
+                )
+                ok = False
+                continue
+            done += 1
+        print(_("installed {count} shell completions").format(count=done))
+    if target in ("gui", "all"):
+        try:
+            with tempfile.TemporaryDirectory(prefix="box-rpg-maker-build-") as directory:
+                base = Path(directory)
+                # The GUI depends on the backend, so pin it to the just-built
+                # local wheel in the same pip invocation instead of PyPI.
+                cli_wheel = build_wheel(base / "cli")
+                gui_wheel = build_wheel(
+                    base / "gui",
+                    GUI_ROOT,
+                    wheel_glob="box_rpg_maker-*.whl",
+                    label=GUI_PACKAGE,
+                )
+                if (
+                    run(
+                        _pip_install_args(
+                            gui_wheel, extra_wheels=(cli_wheel,), with_dependencies=True
+                        )
+                    )
+                    != 0
+                ):
+                    raise RuntimeError("pip install failed")
+        except (OSError, RuntimeError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return False
+        done = 0
+        for source, destination in GUI_TARGETS:
+            if not source.exists():
+                print(
+                    _("warning: GUI source missing: {source}").format(source=source),
+                    file=sys.stderr,
+                )
+                continue
+            try:
+                update_managed_file(source, destination)
+            except OSError as exc:
+                print(
+                    _("error: cannot install GUI file {target}: {error}").format(
+                        target=destination, error=exc
+                    ),
+                    file=sys.stderr,
+                )
+                ok = False
+                continue
+            done += 1
+        print(_("installed {count} GUI files").format(count=done))
     return ok
 
 
-def uninstall_commands() -> list[str]:
-    cmds = [shlex.join(_pip_uninstall_args())]
-    for _source, target in COMPLETION_TARGETS:
-        cmds.append(f"safe completion removal: {shlex.quote(str(target))}")
+def uninstall_commands(target: str = "all") -> list[str]:
+    cmds: list[str] = []
+    if target in ("cli", "all"):
+        cmds.append(shlex.join(_pip_uninstall_args()))
+        for _source, destination in COMPLETION_TARGETS:
+            cmds.append(f"safe completion removal: {shlex.quote(str(destination))}")
+    if target in ("gui", "all"):
+        cmds.append(shlex.join(_pip_uninstall_args(GUI_PACKAGE)))
+        for _source, destination in GUI_TARGETS:
+            cmds.append(f"safe GUI file removal: {shlex.quote(str(destination))}")
     return cmds
 
 
-def run_uninstall() -> bool:
-    if os.geteuid() == 0 or not _user_distribution_verified():
+def run_uninstall(target: str = "all") -> bool:
+    if os.geteuid() == 0:
         print(
             _("error: uninstall requires a verified user-site package and a non-root user"),
             file=sys.stderr,
         )
         return False
     ok = True
-    if run(_pip_uninstall_args()) != 0:
-        print(_("error: pip uninstall failed"), file=sys.stderr)
-        ok = False
+    for package in selected_packages(target):
+        if installed_version(package) is None:
+            continue
+        if not _user_distribution_verified(package):
+            print(
+                _("error: uninstall requires a verified user-site package and a non-root user"),
+                file=sys.stderr,
+            )
+            return False
+        if run(_pip_uninstall_args(package)) != 0:
+            print(_("error: pip uninstall failed"), file=sys.stderr)
+            ok = False
+    managed: list[tuple[Path, Path]] = []
+    if target in ("cli", "all"):
+        managed += COMPLETION_TARGETS
+    if target in ("gui", "all"):
+        managed += GUI_TARGETS
     done = 0
-    for source, target in COMPLETION_TARGETS:
+    for source, destination in managed:
         try:
-            update_completion(source, target, uninstall=True)
+            update_managed_file(source, destination, uninstall=True)
         except OSError as exc:
             print(
-                _("error: failed to remove completion {target}: {error}").format(
-                    target=target, error=exc
+                _("error: failed to remove managed file {target}: {error}").format(
+                    target=destination, error=exc
                 ),
                 file=sys.stderr,
             )
             ok = False
         else:
             done += 1
-    print(_("removed {count} shell completions").format(count=done))
+    print(_("removed {count} managed files").format(count=done))
     return ok
 
 
@@ -645,11 +836,13 @@ def main() -> int:
             """Install box-rpg on the system.
 
 Checks that the system is Linux with Python 3.14+ and pip, then installs the
-package at user level and places shell completions in each shell's user
-directory. No sudo is needed. By default it only verifies prerequisites,
+selected distributions at user level: the box-rpg CLI with its shell
+completions, and the box-rpg-maker GTK GUI with its desktop entry and icons.
+No sudo is needed. By default it only verifies prerequisites,
 reports installed / repo versions and shows the exact commands; pass --install
 to actually run them (with a confirmation prompt) and --yes to skip the
-prompt. Pass --uninstall to remove the package and its completions."""
+prompt. Pass --uninstall to remove the selected packages and their files.
+Pass --target {cli,gui,all} to select which distributions to manage."""
         )
     )
     parser.add_argument(
@@ -660,7 +853,7 @@ prompt. Pass --uninstall to remove the package and its completions."""
     parser.add_argument(
         "--uninstall",
         action="store_true",
-        help=_("uninstall the package and its completions"),
+        help=_("uninstall the selected packages and their files"),
     )
     parser.add_argument(
         "--yes",
@@ -676,6 +869,12 @@ prompt. Pass --uninstall to remove the package and its completions."""
         "--force-reinstall",
         action="store_true",
         help=_("reinstall the package even when the same version is installed"),
+    )
+    parser.add_argument(
+        "--target",
+        choices=("cli", "gui", "all"),
+        default="all",
+        help=_("select which distributions to manage: cli, gui, or all"),
     )
     parser.add_argument(
         "--verbose",
@@ -714,16 +913,20 @@ prompt. Pass --uninstall to remove the package and its completions."""
         return 1
     print(_("OK: pip found for the system Python."))
 
-    installed = installed_version()
-    repo = repo_version()
-    print(_("\nInstalled: {installed}").format(installed=installed or "none"))
-    print(_("Repo:      {repo}").format(repo=repo))
+    installed = {package: installed_version(package) for package in selected_packages(args.target)}
+    if args.target in ("cli", "all"):
+        print(_("\nInstalled: {installed}").format(installed=installed[PACKAGE] or "none"))
+        print(_("Repo:      {repo}").format(repo=repo_version()))
+    if args.target in ("gui", "all"):
+        print(_("\nInstalled GUI: {installed}").format(installed=installed[GUI_PACKAGE] or "none"))
+        print(_("Repo GUI:      {repo}").format(repo=gui_repo_version()))
 
     if args.uninstall:
-        if installed is None:
-            print(_("error: {package} is not installed").format(package=PACKAGE), file=sys.stderr)
+        if all(version is None for version in installed.values()):
+            names = ", ".join(selected_packages(args.target))
+            print(_("error: {package} is not installed").format(package=names), file=sys.stderr)
             return 1
-        cmds = uninstall_commands()
+        cmds = uninstall_commands(args.target)
         print_commands(_("Uninstall commands that would be run:"), cmds)
         if not args.yes:
             answer = _prompt(_("\nProceed with uninstall? [y/N] "))
@@ -731,7 +934,7 @@ prompt. Pass --uninstall to remove the package and its completions."""
                 if answer is not None:
                     print(_("Aborted."))
                 return 0
-        ok = run_uninstall()
+        ok = run_uninstall(args.target)
         return 0 if ok else 1
 
     problem = bwrap_problem()
@@ -772,58 +975,95 @@ prompt. Pass --uninstall to remove the package and its completions."""
         return 1
     print(_("OK: GnuPG found."))
 
-    cmds = install_commands()
+    if args.target in ("gui", "all"):
+        if gtk_problem() == "missing":
+            print(
+                _(
+                    "error: GTK 4 and libadwaita typelibs are required to install "
+                    "the GUI (needs PyGObject with Gtk 4.0 and Adw 1)"
+                ),
+                file=sys.stderr,
+            )
+            return 1
+        print(_("OK: GTK 4 and libadwaita found."))
+
+    cmds = install_commands(args.target)
     if args.verbose:
         print_commands(_("Install commands that would be run:"), cmds)
     else:
         print(_("Install plan:"))
-        print(
-            _("  - Build {package} {repo} in a private directory.").format(
-                package=PACKAGE, repo=repo
+        if args.target in ("cli", "all"):
+            print(
+                _("  - Build {package} {repo} in a private directory.").format(
+                    package=PACKAGE, repo=repo_version()
+                )
             )
-        )
-        print(_("  - Install it for your user."))
-        print(_("  - Install {count} shell completions.").format(count=len(COMPLETION_TARGETS)))
+            print(_("  - Install it for your user."))
+            print(_("  - Install {count} shell completions.").format(count=len(COMPLETION_TARGETS)))
+        if args.target in ("gui", "all"):
+            print(
+                _("  - Build {package} {repo} in a private directory.").format(
+                    package=GUI_PACKAGE, repo=gui_repo_version()
+                )
+            )
+            print(_("  - Install it for your user with its runtime dependencies."))
+            print(_("  - Install {count} GUI files.").format(count=len(GUI_TARGETS)))
 
-    if installed is not None:
-        cmp = compare_versions(repo, installed)
+    selected_repos: list[tuple[str, str]] = []
+    if args.target in ("cli", "all"):
+        selected_repos.append((PACKAGE, repo_version()))
+    if args.target in ("gui", "all"):
+        selected_repos.append((GUI_PACKAGE, gui_repo_version()))
+    for package, repo in selected_repos:
+        current = installed[package]
+        if current is None:
+            continue
+        prefix = f"{package}: " if len(selected_repos) > 1 else ""
+        cmp = compare_versions(repo, current)
         if cmp > 0:
             print(
-                _("\nAn update is available (installed: {installed}, repo: {repo}).").format(
-                    installed=installed, repo=repo
+                prefix
+                + _("\nAn update is available (installed: {installed}, repo: {repo}).").format(
+                    installed=current, repo=repo
                 )
             )
         elif cmp < 0:
             print(
-                _("\nThe installed version ({installed}) is newer than the repo ({repo}).").format(
-                    installed=installed, repo=repo
-                )
+                prefix
+                + _(
+                    "\nThe installed version ({installed}) is newer than the repo ({repo})."
+                ).format(installed=current, repo=repo)
             )
         elif force_reinstall:
             print(
-                _("\nReinstalling the same version ({installed}) as requested.").format(
-                    installed=installed
+                prefix
+                + _("\nReinstalling the same version ({installed}) as requested.").format(
+                    installed=current
                 )
             )
         else:
             print(
-                _("\nThe same version ({installed}) is already installed.").format(
-                    installed=installed
+                prefix
+                + _("\nThe same version ({installed}) is already installed.").format(
+                    installed=current
                 )
             )
 
     if not args.install:
         print(_("\nRun with --install to actually install."))
-        if installed is not None:
+        if any(version is not None for version in installed.values()):
             print(_("To remove it instead, run with --uninstall."))
         return 0
 
-    if installed is not None and not args.yes:
+    if any(version is not None for version in installed.values()) and not args.yes:
+        names = ", ".join(
+            package for package in selected_packages(args.target) if installed[package] is not None
+        )
         answer = _prompt(
             _(
                 "\n{package} is already installed. "
                 "[r] Reinstall/update, [u] Uninstall, [c] Cancel [r/u/c] "
-            ).format(package=PACKAGE)
+            ).format(package=names)
         )
         if answer in ("u", "uninstall"):
             confirmation = _prompt(_("\nConfirm uninstall? [y/N] "))
@@ -831,7 +1071,7 @@ prompt. Pass --uninstall to remove the package and its completions."""
                 if confirmation is not None:
                     print(_("Aborted."))
                 return 0
-            ok = run_uninstall()
+            ok = run_uninstall(args.target)
             return 0 if ok else 1
         if answer not in ("r", "reinstall", ""):
             if answer is not None:
@@ -844,7 +1084,7 @@ prompt. Pass --uninstall to remove the package and its completions."""
                 print(_("Aborted."))
             return 0
 
-    ok = run_install()
+    ok = run_install(args.target)
     if ok:
         missing = user_bin_without_path()
         if missing is not None:

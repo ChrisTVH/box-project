@@ -1,0 +1,4 @@
+!/box_gui/**/*.py
+!/box_gui/**/py.typed
+!/box_gui/**/locale/**/*.po
+!/box_gui/**/locale/**/*.mo
