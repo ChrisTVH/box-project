@@ -7,27 +7,21 @@ from pathlib import Path
 
 import pytest
 
-try:
-    import gi
+gi = pytest.importorskip("gi", reason="gi unavailable")
+gi.require_version("GdkPixbuf", "2.0")
+pytest.importorskip("gi.repository.GdkPixbuf", reason="GdkPixbuf typelib unavailable")
+pytest.importorskip("icoextract", reason="icoextract unavailable")
 
-    gi.require_version("GdkPixbuf", "2.0")
+from box.models import EngineName, GameInfo  # noqa: E402
+from gi.repository import GdkPixbuf  # noqa: E402
 
-    from box.models import EngineName, GameInfo
-    from gi.repository import GdkPixbuf
-
-    import box_gui.core.game_icon as game_icon_module
-    from box_gui.core.game_icon import (
-        extract_icon_png,
-        find_game_executables,
-        icon_path_for_game,
-        install_image_as_icon,
-    )
-
-    _game_icon_available = True
-except Exception:
-    _game_icon_available = False
-
-pytestmark = pytest.mark.skipif(not _game_icon_available, reason="gi/icoextract unavailable")
+import box_gui.core.game_icon as game_icon_module  # noqa: E402
+from box_gui.core.game_icon import (  # noqa: E402
+    extract_icon_png,
+    find_game_executables,
+    icon_path_for_game,
+    install_image_as_icon,
+)
 
 
 def _make_game(root: Path) -> GameInfo:

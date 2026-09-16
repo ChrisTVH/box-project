@@ -11,6 +11,7 @@ from types import TracebackType
 
 from box.errors import LaunchError
 from box.games.files import validate_game_descriptor
+from box.launch.gamemode import GAMEMODE_PROXY_SOCKET_NAME
 from box.launch.profiles import ProfileCatalog
 from box.models import EngineName, GameInfo
 from box.paths import AppPaths, open_directory_without_symlinks
@@ -455,6 +456,32 @@ class Sandbox:
         if cookie_descriptor is not None:
             self.bind(cookie_descriptor, "/home/sandbox/.pulse-cookie")
             self.options += ["--setenv", "PULSE_COOKIE", "/home/sandbox/.pulse-cookie"]
+
+    def gamemode(self, proxy_host_path: Path) -> None:
+        """Expose only the filtered GameMode proxy socket, never the host bus.
+
+        Binds the supervisor-created socket at ``proxy_host_path`` read-only to
+        ``/run/user/gamemode-proxy`` and points ``DBUS_SESSION_BUS_ADDRESS`` at
+        ``unix:path=/run/user/gamemode-proxy``. Only the ``com.feralinteractive.GameMode``
+        name is allowed through the proxy (--filter --talk, no see/own/broadcast).
+        The socket itself is created by the supervisor after this method runs,
+        so only the uid-owned 0700 parent directory is validated here.
+        """
+        if proxy_host_path.name != GAMEMODE_PROXY_SOCKET_NAME or not proxy_host_path.is_absolute():
+            raise LaunchError("unsafe GameMode proxy path")
+        try:
+            parent = self.keep(open_directory_without_symlinks(proxy_host_path.parent))
+        except OSError as exc:
+            raise LaunchError(f"cannot access GameMode proxy directory: {exc}") from exc
+        metadata = os.fstat(parent)
+        if metadata.st_uid != os.getuid() or metadata.st_mode & 0o077:
+            raise LaunchError("unsafe GameMode proxy directory")
+        expected = Path(os.path.abspath(proxy_host_path.parent))
+        if Path(os.readlink(f"/proc/self/fd/{parent}")) != expected:
+            raise LaunchError("GameMode proxy directory changed during preparation")
+        destination = f"/run/user/{GAMEMODE_PROXY_SOCKET_NAME}"
+        self.options += ["--ro-bind", str(proxy_host_path), destination]
+        self.options += ["--setenv", "DBUS_SESSION_BUS_ADDRESS", f"unix:path={destination}"]
 
     def persistence(self, paths: AppPaths, game: GameInfo) -> None:
         """Mount only the disposable runtime profile from the launcher cache."""

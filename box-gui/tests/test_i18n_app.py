@@ -1,4 +1,4 @@
-"""Gettext coverage for the box-rpg-app frontend domain."""
+"""Gettext coverage for the box-rpg-maker frontend domain."""
 
 from __future__ import annotations
 
@@ -110,6 +110,6 @@ def test_i18n_keeps_english_without_a_catalog_after_spanish() -> None:
 
 
 def test_i18n_includes_the_compiled_spanish_catalog_as_package_data() -> None:
-    catalog = files("box_gui").joinpath("locale/es/LC_MESSAGES/box-rpg-app.mo")
+    catalog = files("box_gui").joinpath("locale/es/LC_MESSAGES/box-rpg-maker.mo")
 
     assert catalog.is_file()

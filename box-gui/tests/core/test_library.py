@@ -6,12 +6,19 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 from box.paths import AppPaths
 
-from box_gui.core.library import LibraryEntry, LibraryError, LibraryRepository
+from box_gui.core.library import (
+    GHOST_THRESHOLD,
+    LibraryEntry,
+    LibraryError,
+    LibraryRepository,
+    is_ghost,
+)
 
 
 def _make_repository(tmp_path: Path) -> LibraryRepository:
@@ -181,13 +188,15 @@ def test_save_writes_versioned_schema(tmp_path: Path) -> None:
 
     payload = json.loads(repository.library_file.read_text(encoding="utf-8"))
 
-    assert payload["version"] == 3
+    assert payload["version"] == 5
     assert isinstance(payload["entries"], list)
     assert payload["entries"][0]["path"] == "/games/a"
     assert payload["entries"][0]["engine"] is None
     assert payload["entries"][0]["allow_network"] is False
     assert payload["entries"][0]["allow_game_writes"] is False
     assert payload["entries"][0]["allow_x11"] is False
+    assert payload["entries"][0]["use_gamemode"] is False
+    assert payload["entries"][0]["missing_streak"] == 0
 
 
 def test_migrates_v1_without_engine_to_none(tmp_path: Path) -> None:
@@ -216,11 +225,12 @@ def test_migrates_v1_without_engine_to_none(tmp_path: Path) -> None:
     repository.save(loaded)
     migrated = json.loads(repository.library_file.read_text(encoding="utf-8"))
 
-    assert migrated["version"] == 3
+    assert migrated["version"] == 5
     assert migrated["entries"][0]["engine"] is None
     assert migrated["entries"][0]["allow_network"] is False
     assert migrated["entries"][0]["allow_game_writes"] is False
     assert migrated["entries"][0]["allow_x11"] is False
+    assert migrated["entries"][0]["use_gamemode"] is False
 
 
 def test_loads_v2_with_engine_string(tmp_path: Path) -> None:
@@ -412,10 +422,11 @@ def test_migrates_v2_without_permissions_to_false(tmp_path: Path) -> None:
     repository.save(loaded)
     migrated = json.loads(repository.library_file.read_text(encoding="utf-8"))
 
-    assert migrated["version"] == 3
+    assert migrated["version"] == 5
     assert migrated["entries"][0]["allow_network"] is False
     assert migrated["entries"][0]["allow_game_writes"] is False
     assert migrated["entries"][0]["allow_x11"] is False
+    assert migrated["entries"][0]["use_gamemode"] is False
 
 
 def test_decode_rejects_bad_permissions(tmp_path: Path) -> None:
@@ -609,3 +620,445 @@ def test_decode_rejects_bad_icon_path(tmp_path: Path) -> None:
 
     with pytest.raises(LibraryError):
         repository.load()
+
+
+def _legacy_entry(path: str) -> dict[str, object]:
+    """Build a version-3 style entry without the gamemode key."""
+    return {
+        "path": path,
+        "display_name": Path(path).name,
+        "order": 0,
+        "preferred_runtime": None,
+        "preferred_sdk": False,
+        "copy_root_files": [],
+        "engine": None,
+        "allow_network": False,
+        "allow_game_writes": False,
+        "allow_x11": False,
+    }
+
+
+def test_old_payload_without_gamemode_defaults_to_false(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    repository.library_file.parent.mkdir(parents=True, exist_ok=True)
+    entry = _legacy_entry("/games/legacy")
+    repository.library_file.write_text(
+        json.dumps({"version": 3, "entries": [entry]}), encoding="utf-8"
+    )
+
+    loaded = repository.load()
+
+    assert len(loaded) == 1
+    assert loaded[0].use_gamemode is False
+
+
+def test_gamemode_round_trip_with_true(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    created = repository.add(tmp_path / "game", "Game")
+    updated = repository.update(
+        LibraryEntry(
+            path=created.path,
+            display_name=created.display_name,
+            order=created.order,
+            preferred_runtime=created.preferred_runtime,
+            preferred_sdk=created.preferred_sdk,
+            copy_root_files=created.copy_root_files,
+            engine=created.engine,
+            allow_network=created.allow_network,
+            allow_game_writes=created.allow_game_writes,
+            allow_x11=created.allow_x11,
+            use_gamemode=True,
+            icon_path=created.icon_path,
+        )
+    )
+
+    assert updated.use_gamemode is True
+
+    loaded = repository.load()
+    assert loaded[0].use_gamemode is True
+    payload = json.loads(repository.library_file.read_text(encoding="utf-8"))
+    assert payload["entries"][0]["use_gamemode"] is True
+
+
+def test_version_4_accepted_and_99_rejected(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    repository.library_file.parent.mkdir(parents=True, exist_ok=True)
+    entry = _legacy_entry("/games/modern")
+    entry["use_gamemode"] = True
+    repository.library_file.write_text(
+        json.dumps({"version": 4, "entries": [entry]}), encoding="utf-8"
+    )
+
+    loaded = repository.load()
+    assert len(loaded) == 1
+    assert loaded[0].use_gamemode is True
+
+    repository.library_file.write_text(json.dumps({"version": 99, "entries": []}), encoding="utf-8")
+    with pytest.raises(LibraryError):
+        repository.load()
+
+
+def test_decode_rejects_bad_gamemode(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    repository.library_file.parent.mkdir(parents=True, exist_ok=True)
+    entry = _legacy_entry("/games/bad")
+    entry["use_gamemode"] = 1
+    repository.library_file.write_text(
+        json.dumps({"version": 4, "entries": [entry]}), encoding="utf-8"
+    )
+
+    with pytest.raises(LibraryError):
+        repository.load()
+
+
+def test_add_reorder_update_preserve_gamemode(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    first = repository.add(tmp_path / "one", "One")
+    assert first.use_gamemode is False
+
+    enabled = repository.update(
+        LibraryEntry(
+            path=first.path,
+            display_name=first.display_name,
+            order=first.order,
+            preferred_runtime=first.preferred_runtime,
+            preferred_sdk=first.preferred_sdk,
+            copy_root_files=first.copy_root_files,
+            engine=first.engine,
+            allow_network=first.allow_network,
+            allow_game_writes=first.allow_game_writes,
+            allow_x11=first.allow_x11,
+            use_gamemode=True,
+            icon_path=first.icon_path,
+        )
+    )
+    assert enabled.use_gamemode is True
+
+    second = repository.add(tmp_path / "two", "Two")
+    reordered = repository.reorder(second, "up")
+
+    assert [entry.use_gamemode for entry in reordered] == [False, True]
+    assert [entry.use_gamemode for entry in repository.load()] == [False, True]
+
+    renamed = repository.update(
+        LibraryEntry(
+            path=first.path,
+            display_name="One Renamed",
+            order=999,
+            preferred_runtime=None,
+            preferred_sdk=False,
+            copy_root_files=(),
+            engine=None,
+            allow_network=False,
+            allow_game_writes=False,
+            allow_x11=False,
+            use_gamemode=True,
+            icon_path=None,
+        )
+    )
+    assert renamed.use_gamemode is True
+    assert renamed.display_name == "One Renamed"
+
+
+def test_prune_missing_removes_only_missing_dirs(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    existing = tmp_path / "games" / "existing"
+    existing.mkdir(parents=True)
+    missing = tmp_path / "games" / "missing"
+    regular_file = tmp_path / "games" / "file-game"
+    regular_file.parent.mkdir(parents=True, exist_ok=True)
+    regular_file.write_text("data", encoding="utf-8")
+    dangling = tmp_path / "games" / "dangling"
+    if dangling.exists() or dangling.is_symlink():
+        dangling.unlink()
+    dangling.symlink_to(tmp_path / "games" / "no-target", target_is_directory=True)
+    repository.add(existing, "Existing")
+    repository.add(missing, "Missing")
+    repository.add(regular_file, "File")
+    repository.add(dangling, "Dangling")
+
+    removed = repository.prune_missing()
+
+    assert {entry.path for entry in removed} == {missing, regular_file, dangling}
+    assert [entry.path for entry in repository.load()] == [existing]
+    assert existing.is_dir()
+    assert regular_file.is_file()
+
+
+def test_prune_missing_no_save_when_nothing_removed(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    existing = tmp_path / "games" / "existing"
+    existing.mkdir(parents=True)
+    repository.add(existing, "Existing")
+    before = repository.library_file.read_text(encoding="utf-8")
+    before_mtime = repository.library_file.stat().st_mtime_ns
+
+    removed = repository.prune_missing()
+
+    assert removed == ()
+    assert repository.library_file.read_text(encoding="utf-8") == before
+    assert repository.library_file.stat().st_mtime_ns == before_mtime
+    assert [entry.path for entry in repository.load()] == [existing]
+
+
+def test_prune_missing_other_oserror_raises_library_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository = _make_repository(tmp_path)
+    existing = tmp_path / "games" / "existing"
+    existing.mkdir(parents=True)
+    repository.add(existing, "Existing")
+
+    original_resolve = Path.resolve
+
+    def _boom(self: Path, *args: object, **kwargs: object) -> Path:
+        raise PermissionError("simulated permission error")
+
+    monkeypatch.setattr(Path, "resolve", _boom)
+    try:
+        with pytest.raises(LibraryError):
+            repository.prune_missing()
+    finally:
+        monkeypatch.setattr(Path, "resolve", original_resolve)
+
+    assert [entry.path for entry in repository.load()] == [existing]
+
+
+def test_missing_streak_round_trip(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    created = repository.add(tmp_path / "game", "Game")
+
+    assert created.missing_streak == 0
+
+    streaked = repository.update(replace(created, missing_streak=2))
+
+    assert streaked.missing_streak == 2
+    loaded = repository.load()
+    assert loaded[0].missing_streak == 2
+    payload = json.loads(repository.library_file.read_text(encoding="utf-8"))
+    assert payload["entries"][0]["missing_streak"] == 2
+
+
+def test_old_payload_without_streak_defaults_to_zero(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    repository.library_file.parent.mkdir(parents=True, exist_ok=True)
+    entry = _legacy_entry("/games/legacy")
+    entry["use_gamemode"] = False
+    repository.library_file.write_text(
+        json.dumps({"version": 4, "entries": [entry]}), encoding="utf-8"
+    )
+
+    loaded = repository.load()
+
+    assert len(loaded) == 1
+    assert loaded[0].missing_streak == 0
+    assert is_ghost(loaded[0]) is False
+
+
+def test_version_5_accepted_and_99_rejected(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    repository.library_file.parent.mkdir(parents=True, exist_ok=True)
+    entry = _legacy_entry("/games/modern")
+    entry["use_gamemode"] = False
+    entry["missing_streak"] = 1
+    repository.library_file.write_text(
+        json.dumps({"version": 5, "entries": [entry]}), encoding="utf-8"
+    )
+
+    loaded = repository.load()
+    assert len(loaded) == 1
+    assert loaded[0].missing_streak == 1
+
+    repository.library_file.write_text(json.dumps({"version": 99, "entries": []}), encoding="utf-8")
+    with pytest.raises(LibraryError):
+        repository.load()
+
+
+def test_decode_rejects_bad_missing_streak(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    repository.library_file.parent.mkdir(parents=True, exist_ok=True)
+
+    for bad in (-1, True, False, "3", 1.5, None, [0]):
+        entry = _legacy_entry("/games/bad")
+        entry["use_gamemode"] = False
+        entry["missing_streak"] = bad
+        repository.library_file.write_text(
+            json.dumps({"version": 5, "entries": [entry]}), encoding="utf-8"
+        )
+        with pytest.raises(LibraryError):
+            repository.load()
+
+
+def test_note_missing_state_increments_then_resets(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    present = tmp_path / "games" / "present"
+    present.mkdir(parents=True)
+    missing = tmp_path / "games" / "missing"
+    repository.add(present, "Present")
+    repository.add(missing, "Missing")
+
+    first = repository.note_missing_presentation_state()
+    by_name = {entry.display_name: entry for entry in first}
+
+    assert by_name["Present"].missing_streak == 0
+    assert by_name["Missing"].missing_streak == 1
+    assert is_ghost(by_name["Missing"]) is False
+
+    second = repository.note_missing_presentation_state()
+    assert {entry.display_name: entry for entry in second}["Missing"].missing_streak == 2
+
+    missing.mkdir(parents=True)
+    third = repository.update_streak()
+    by_name = {entry.display_name: entry for entry in third}
+
+    assert by_name["Missing"].missing_streak == 0
+    assert by_name["Present"].missing_streak == 0
+    assert all(is_ghost(entry) is False for entry in third)
+
+
+def test_ghost_threshold_marks_ghosts(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    missing = tmp_path / "games" / "missing"
+    repository.add(missing, "Missing")
+
+    for _ in range(GHOST_THRESHOLD - 1):
+        repository.note_missing_presentation_state()
+    below = repository.load()[0]
+
+    assert below.missing_streak == GHOST_THRESHOLD - 1
+    assert is_ghost(below) is False
+
+    repository.note_missing_presentation_state()
+    ghost = repository.load()[0]
+
+    assert ghost.missing_streak == GHOST_THRESHOLD
+    assert is_ghost(ghost) is True
+
+
+def test_note_missing_state_skips_save_when_unchanged(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    existing = tmp_path / "games" / "existing"
+    existing.mkdir(parents=True)
+    repository.add(existing, "Existing")
+    before = repository.library_file.read_text(encoding="utf-8")
+    before_mtime = repository.library_file.stat().st_mtime_ns
+
+    refreshed = repository.note_missing_presentation_state()
+
+    assert [entry.display_name for entry in refreshed] == ["Existing"]
+    assert repository.library_file.read_text(encoding="utf-8") == before
+    assert repository.library_file.stat().st_mtime_ns == before_mtime
+
+
+def test_add_reorder_update_preserve_missing_streak(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    first = repository.add(tmp_path / "one", "One")
+    assert first.missing_streak == 0
+
+    streaked = repository.update(replace(first, missing_streak=2))
+    assert streaked.missing_streak == 2
+
+    second = repository.add(tmp_path / "two", "Two")
+    reordered = repository.reorder(second, "up")
+
+    assert [entry.missing_streak for entry in reordered] == [0, 2]
+    assert [entry.missing_streak for entry in repository.load()] == [0, 2]
+
+    renamed = repository.update(replace(streaked, display_name="One Renamed", order=999))
+    assert renamed.missing_streak == 2
+    assert renamed.display_name == "One Renamed"
+
+
+def test_update_relocates_by_order_and_clears_streak(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    old_root = tmp_path / "old"
+    old_root.mkdir()
+    new_root = tmp_path / "new"
+    new_root.mkdir()
+    created = repository.add(old_root, "Game", "rpg-maker-mv")
+    streaked = repository.update(
+        replace(created, preferred_runtime="0.83.0", use_gamemode=True, missing_streak=3)
+    )
+    assert is_ghost(streaked) is True
+
+    relocated = repository.update(replace(streaked, path=new_root, missing_streak=0))
+    loaded = repository.load()
+
+    assert relocated.path == new_root
+    assert relocated.missing_streak == 0
+    assert relocated.order == streaked.order
+    assert relocated.display_name == "Game"
+    assert relocated.engine == "rpg-maker-mv"
+    assert relocated.preferred_runtime == "0.83.0"
+    assert relocated.use_gamemode is True
+    assert is_ghost(loaded[0]) is False
+
+
+def test_update_relocate_onto_taken_path_raises(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    first = repository.add(tmp_path / "one", "One")
+    second = repository.add(tmp_path / "two", "Two")
+
+    with pytest.raises(LibraryError):
+        repository.update(replace(first, path=second.path, missing_streak=0))
+
+
+def test_note_missing_entry_increments_and_reports_absence(tmp_path: Path) -> None:
+    """One sighting for a single entry bumps its streak and reports missing."""
+    repository = _make_repository(tmp_path)
+    created = repository.add(tmp_path / "gone", "Gone")
+
+    updated, present = repository.note_missing_entry(created)
+
+    assert present is False
+    assert updated.missing_streak == 1
+    assert repository.load()[0].missing_streak == 1
+
+
+def test_note_missing_entry_resets_on_success(tmp_path: Path) -> None:
+    """A present folder clears the streak and returns the stored entry."""
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "back"
+    root.mkdir()
+    created = repository.add(root, "Back")
+    streaked = repository.update(replace(created, missing_streak=2))
+
+    updated, present = repository.note_missing_entry(streaked)
+
+    assert present is True
+    assert updated.missing_streak == 0
+    assert repository.load()[0].missing_streak == 0
+
+
+def test_note_missing_entry_skips_save_when_unchanged(tmp_path: Path) -> None:
+    """A present streak-free entry performs no write at all."""
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "steady"
+    root.mkdir()
+    created = repository.add(root, "Steady")
+    before = repository.library_file.read_text(encoding="utf-8")
+    before_mtime = repository.library_file.stat().st_mtime_ns
+
+    updated, present = repository.note_missing_entry(created)
+
+    assert present is True
+    assert updated == created
+    assert repository.library_file.read_text(encoding="utf-8") == before
+    assert repository.library_file.stat().st_mtime_ns == before_mtime
+
+
+def test_note_missing_entry_ignores_unknown_entries(tmp_path: Path) -> None:
+    """Entries absent from the file are returned untouched without saving."""
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "kept"
+    root.mkdir()
+    kept = repository.add(root, "Kept")
+    before = repository.library_file.read_text(encoding="utf-8")
+    outsider = replace(kept, path=tmp_path / "elsewhere")
+
+    updated, present = repository.note_missing_entry(outsider)
+
+    assert updated == outsider
+    assert present is False
+    assert repository.load()[0] == kept
+    assert repository.library_file.read_text(encoding="utf-8") == before

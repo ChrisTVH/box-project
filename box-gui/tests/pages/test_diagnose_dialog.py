@@ -14,6 +14,8 @@ from typing import Any
 
 import pytest
 
+from box_gui import gtk
+
 try:
     import gi
 
@@ -25,7 +27,6 @@ try:
     from box.errors import BoxError
     from gi.repository import Adw
 
-    import box_gui.gtk
     from box_gui.pages.diagnose_dialog import DiagnoseDialog, diagnose_error_heading
 
     def Environment(system: str, release: str, machine: str) -> Any:
@@ -48,7 +49,6 @@ try:
 
     _diagnose_available = True
 except Exception:
-    box_gui: Any = None
     AppPaths: Any = None
     ConfigRepository: Any = None
     DiagnoseResult: Any = None
@@ -117,7 +117,7 @@ def _make_dialog(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_diagnose:
 
     module.run_diagnose = _run_diagnose  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "box_gui.gtk.workers", module)
-    monkeypatch.setattr(box_gui.gtk, "workers", module, raising=False)
+    monkeypatch.setattr(gtk, "workers", module, raising=False)
     paths = _make_paths(tmp_path)
     return DiagnoseDialog(paths, ConfigRepository(paths), tmp_path / "game")
 

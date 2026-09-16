@@ -60,10 +60,15 @@ Shared source of truth for both projects. The first section covers the backend (
 | distribution | distribución | En «select which distributions to manage». |
 | managed file | archivo gestionado | Plural masculino «archivos gestionados»; paralelo a «managed directory». |
 | JSON Lines | JSON Lines | Formato de un objeto JSON por línea; claves y selectores quedan en inglés. |
+| GameMode | GameMode | Nombre de producto; no traducir. Mantener `gamemoderun`, la ruta `/usr/bin/gamemoderun` y la opción `--gamemode` sin cambios. |
+| supervisor status | estado del supervisor | Estado escrito por el supervisor en `status.json`; usado en `stop_session`. |
+| launch status | estado de inicio | Estado registrado en `status.json`; distinto de «launch session» → «sesión de inicio». |
+| name collision | colisión de nombres | En «cannot create launch session: name collision». |
+| session bus | bus de sesión | En «session bus address»; las variables `$DBUS_SESSION_BUS_ADDRESS` y `$XDG_RUNTIME_DIR/bus` quedan literales. |
 
 ## Frontend (`box-gui`)
 
-Terms taken from the `box-rpg-app` catalog; if a msgid contains a backend term, the backend Spanish above wins (adjust agreement as needed).
+Terms taken from the `box-rpg-maker` catalog; if a msgid contains a backend term, the backend Spanish above wins (adjust agreement as needed).
 
 | English | Spanish | Notes |
 | --- | --- | --- |

@@ -7,7 +7,7 @@ import os
 from collections.abc import Mapping
 from pathlib import Path
 
-_DOMAIN = "box-rpg-app"
+_DOMAIN = "box-rpg-maker"
 _LOCALE_DIRECTORY = Path(__file__).resolve().parent / "locale"
 _translation: gettext.NullTranslations = gettext.NullTranslations()
 

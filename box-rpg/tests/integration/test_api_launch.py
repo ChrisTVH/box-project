@@ -13,6 +13,7 @@ from box.api.launch import Interaction, authorize_game, launch, list_root_files
 from box.config.repository import ConfigRepository
 from box.engines.registry import EngineRegistry
 from box.errors import GameValidationError
+from box.launch.supervisor import LaunchedSession
 from box.models import EngineName, GameInfo, RuntimeInfo, RuntimeSpec
 from box.paths import AppPaths
 from box.runtime.easyrpg import EasyRPGRuntime
@@ -137,7 +138,17 @@ class FakeSession:
 
     def __init__(self, session_descriptor: int, root: Path) -> None:
         self.session_descriptor = session_descriptor
+        self.parent_descriptor = os.dup(session_descriptor)
         self.root = root
+        self.name = "testsession"
+        self.detached = False
+
+    @property
+    def identifier(self) -> str:
+        return "testidentifier"
+
+    def detach(self) -> None:
+        self.detached = True
 
     def __enter__(self) -> FakeSession:
         return self
@@ -150,6 +161,8 @@ class FakeSession:
     ) -> None:
         with suppress(OSError):
             os.close(self.session_descriptor)
+        with suppress(OSError):
+            os.close(self.parent_descriptor)
 
 
 def _paths(tmp_path: Path) -> AppPaths:
@@ -229,7 +242,58 @@ def _patch_session(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[Fake
     return sessions
 
 
-def test_nwjs_launch_returns_exit_code_and_forwards_flags(
+def _patch_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+    capture: list[list[str]] | None = None,
+) -> list[tuple[list[str], tuple[int, ...]]]:
+    """Mock detached spawn; capture commands and return a fake handle."""
+    seen: list[tuple[list[str], tuple[int, ...]]] = []
+
+    def fake_spawn(
+        paths: AppPaths,
+        identifier: str,
+        name: str,
+        command: list[str],
+        pass_fds: tuple[int, ...] = (),
+        *,
+        parent_descriptor: int,
+        session_descriptor: int,
+        use_gamemode: bool = False,
+        gamemode_proxy: Path | None = None,
+    ) -> LaunchedSession:
+        seen.append((list(command), tuple(pass_fds)))
+        if capture is not None:
+            capture.append(list(command))
+        return LaunchedSession(
+            identifier=identifier, name=name, root=paths.sessions_root / identifier / name
+        )
+
+    monkeypatch.setattr("box.api.launch.spawn_detached", fake_spawn)
+    # EasyRPG branch creates its session via create_supervisor_session; keep fds valid.
+    return seen
+
+
+def _patch_spawn_forbidden(monkeypatch: pytest.MonkeyPatch, message: str) -> None:
+    """Fail any detached spawn attempt with a test assertion."""
+
+    def forbidden_spawn(
+        paths: AppPaths,
+        identifier: str,
+        name: str,
+        command: list[str],
+        pass_fds: tuple[int, ...] = (),
+        *,
+        parent_descriptor: int,
+        session_descriptor: int,
+        use_gamemode: bool = False,
+        gamemode_proxy: Path | None = None,
+    ) -> LaunchedSession:
+        raise AssertionError(message)
+
+    monkeypatch.setattr("box.api.launch.spawn_detached", forbidden_spawn)
+
+
+def test_nwjs_launch_returns_handle_and_forwards_flags(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     game = _nwjs_game(tmp_path)
@@ -245,29 +309,22 @@ def test_nwjs_launch_returns_exit_code_and_forwards_flags(
     def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
         return game
 
-    def fake_run(
-        command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()
-    ) -> int:
-        commands.append(command)
-        return 3
-
+    _patch_spawn(monkeypatch, capture=commands)
     monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
-    monkeypatch.setattr("box.api.launch.run_process", fake_run)
     monkeypatch.delenv("DISPLAY", raising=False)
 
-    assert (
-        launch(
-            paths,
-            repository,
-            game.root,
-            "v0.90.0",
-            False,
-            allow_network=True,
-            allow_game_writes=True,
-            interaction=interaction,
-        )
-        == 3
+    handle = launch(
+        paths,
+        repository,
+        game.root,
+        "v0.90.0",
+        False,
+        allow_network=True,
+        allow_game_writes=True,
+        interaction=interaction,
     )
+    assert handle.identifier
+    assert handle.name
     assert len(sandboxes) == 1
     assert sandboxes[0].allow_network is True
     assert sandboxes[0].allow_game_writes is True
@@ -295,16 +352,13 @@ def test_easyrpg_launch_uses_fullscreen_command(
     def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
         return game
 
-    def fake_run(
-        command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()
-    ) -> int:
-        return 0
-
+    _patch_spawn(monkeypatch)
     monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
-    monkeypatch.setattr("box.api.launch.run_process", fake_run)
     monkeypatch.delenv("DISPLAY", raising=False)
 
-    assert launch(paths, repository, game.root, "0.8.1.1", False, interaction=interaction) == 0
+    assert launch(
+        paths, repository, game.root, "0.8.1.1", False, interaction=interaction
+    ).identifier
     assert len(sandboxes) == 1
     assert sandboxes[0].last_cwd == "/game"
     assert sandboxes[0].last_arguments[-6:] == [
@@ -325,13 +379,8 @@ def test_easyrpg_rejects_sdk_option(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
         return game
 
-    def forbidden_run(
-        command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()
-    ) -> int:
-        raise AssertionError("rejected launch must not run")
-
+    _patch_spawn_forbidden(monkeypatch, "rejected launch must not run")
     monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
-    monkeypatch.setattr("box.api.launch.run_process", forbidden_run)
 
     with pytest.raises(GameValidationError, match=r"only available for NW\.js"):
         launch(paths, repository, game.root, None, True, interaction=FakeInteraction())
@@ -350,13 +399,8 @@ def test_x11_denial_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
         return game
 
-    def forbidden_run(
-        command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()
-    ) -> int:
-        raise AssertionError("denied X11 must not run")
-
+    _patch_spawn_forbidden(monkeypatch, "denied X11 must not run")
     monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
-    monkeypatch.setattr("box.api.launch.run_process", forbidden_run)
     monkeypatch.setenv("DISPLAY", ":0")
 
     with pytest.raises(GameValidationError, match="not confirmed"):
@@ -396,16 +440,13 @@ def test_add_root_confirm_stores_root(tmp_path: Path, monkeypatch: pytest.Monkey
     def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
         return game
 
-    def fake_run(
-        command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()
-    ) -> int:
-        return 0
-
+    _patch_spawn(monkeypatch)
     monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
-    monkeypatch.setattr("box.api.launch.run_process", fake_run)
     monkeypatch.delenv("DISPLAY", raising=False)
 
-    assert launch(paths, repository, game.root, "v0.90.0", False, interaction=interaction) == 0
+    assert launch(
+        paths, repository, game.root, "v0.90.0", False, interaction=interaction
+    ).identifier
     assert interaction.add_root_calls == [game.root]
     assert repository.load().allowed_game_roots == (game.root,)
 
@@ -422,13 +463,8 @@ def test_add_root_denied_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
         return game
 
-    def forbidden_run(
-        command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()
-    ) -> int:
-        raise AssertionError("denied root must not run")
-
+    _patch_spawn_forbidden(monkeypatch, "denied root must not run")
     monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
-    monkeypatch.setattr("box.api.launch.run_process", forbidden_run)
     monkeypatch.delenv("DISPLAY", raising=False)
 
     with pytest.raises(GameValidationError, match="not authorized"):
@@ -479,16 +515,11 @@ def test_nwjs_runtime_choice_selects_requested_index(
     def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
         return game
 
-    def fake_run(
-        command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()
-    ) -> int:
-        return 0
-
+    _patch_spawn(monkeypatch)
     monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
-    monkeypatch.setattr("box.api.launch.run_process", fake_run)
     monkeypatch.delenv("DISPLAY", raising=False)
 
-    assert launch(paths, repository, game.root, None, False, interaction=interaction) == 0
+    assert launch(paths, repository, game.root, None, False, interaction=interaction).identifier
     assert len(interaction.runtime_calls) == 1
     kind, candidates, _title = interaction.runtime_calls[0]
     assert kind == "nwjs"
@@ -512,16 +543,11 @@ def test_easyrpg_runtime_choice_selects_requested_index(
     def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
         return game
 
-    def fake_run(
-        command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()
-    ) -> int:
-        return 0
-
+    _patch_spawn(monkeypatch)
     monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
-    monkeypatch.setattr("box.api.launch.run_process", fake_run)
     monkeypatch.delenv("DISPLAY", raising=False)
 
-    assert launch(paths, repository, game.root, None, False, interaction=interaction) == 0
+    assert launch(paths, repository, game.root, None, False, interaction=interaction).identifier
     assert len(interaction.runtime_calls) == 1
     kind, candidates, _title = interaction.runtime_calls[0]
     assert kind == "easyrpg"
@@ -543,13 +569,8 @@ def test_runtime_cancel_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
         return game
 
-    def forbidden_run(
-        command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()
-    ) -> int:
-        raise AssertionError("cancelled choice must not run")
-
+    _patch_spawn_forbidden(monkeypatch, "cancelled choice must not run")
     monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
-    monkeypatch.setattr("box.api.launch.run_process", forbidden_run)
     monkeypatch.delenv("DISPLAY", raising=False)
 
     with pytest.raises(GameValidationError, match="cancelled"):
@@ -594,16 +615,11 @@ def test_non_interactive_ambiguous_runtime_picks_latest(
     def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
         return game
 
-    def fake_run(
-        command: list[str], cwd: Path | None = None, pass_fds: tuple[int, ...] = ()
-    ) -> int:
-        return 0
-
+    _patch_spawn(monkeypatch)
     monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
-    monkeypatch.setattr("box.api.launch.run_process", fake_run)
     monkeypatch.delenv("DISPLAY", raising=False)
 
-    assert launch(paths, repository, game.root, None, False, interaction=None) == 0
+    assert launch(paths, repository, game.root, None, False, interaction=None).identifier
     assert sandboxes[0].runtime_paths == [latest]
 
 

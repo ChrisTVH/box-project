@@ -1,0 +1,9 @@
+<!-- Tabler Icons "folder" (outline converted to fills for GTK symbolic recoloring), Copyright (c) Tabler, MIT License. Vendored from @tabler/icons 3.34.1. -->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+>
+  <path fill="#2e3436" fill-rule="evenodd" d="M5 3 L9 3 A1 1 0 0 1 9.71 3.29 L12.71 6.29 A1 1 0 0 0 12 6 L19 6 A3 3 0 0 1 22 9 L22 17 A3 3 0 0 1 19 20 L5 20 A3 3 0 0 1 2 17 L2 6 A3 3 0 0 1 5 3 Z M5 5 L9 5 A1 1 0 0 1 8.29 4.71 L11.29 7.71 A1 1 0 0 0 12 8 L19 8 A1 1 0 0 1 20 9 L20 17 A1 1 0 0 1 19 18 L5 18 A1 1 0 0 1 4 17 L4 6 A1 1 0 0 1 5 5 Z"/>
+</svg>

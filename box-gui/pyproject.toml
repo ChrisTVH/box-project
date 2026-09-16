@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "box-rpg-maker"
-version = "26.9.31"
+version = "26.9.32"
 description = "A safe GUI launcher for RPG Maker 2000/2003/MV/MZ projects"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -20,7 +20,7 @@ classifiers = [
     "Environment :: X11 Applications :: GTK",
 ]
 dependencies = [
-    "box-rpg>=26.9.31",
+    "box-rpg>=26.9.32",
     "PyGObject",
     "pycairo",
     "icoextract",
@@ -65,6 +65,11 @@ ignore = [
 pythonVersion = "3.14"
 typeCheckingMode = "strict"
 include = ["src", "tests"]
+# `import box` resolves to the backend checkout and `import box_gui` to this
+# checkout through one of each pair: paths resolve against the project
+# root, so one entry always lands correctly whether pyright runs from
+# box-gui/ or the monorepo root (same dual trick as box-rpg/pyproject.toml).
+extraPaths = ["../box-rpg/src", "box-rpg/src", "../box-gui/src", "box-gui/src"]
 reportMissingTypeStubs = false
 reportUnusedImport = true
 reportUnusedVariable = true

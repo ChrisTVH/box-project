@@ -4,17 +4,33 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import tempfile
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
 from box.paths import AppPaths
 
-__all__ = ["LibraryEntry", "LibraryError", "LibraryRepository"]
+__all__ = [
+    "GHOST_THRESHOLD",
+    "LibraryEntry",
+    "LibraryError",
+    "LibraryRepository",
+    "is_ghost",
+]
 
-_LIBRARY_VERSION = 3
+GHOST_THRESHOLD: int = 3
+"""Consecutive missing-folder sightings before an entry counts as a ghost.
+
+Hardcoded on purpose: there is no settings UI for it. Below the
+threshold a missing folder stays a silent normal row; at or above it
+the presentation layers dim the row and offer relocation instead of
+deleting anything.
+"""
+
+_LIBRARY_VERSION = 5
 
 ReorderDirection = Literal["up", "down", "top", "bottom"]
 
@@ -37,7 +53,26 @@ class LibraryEntry:
     allow_network: bool = False
     allow_game_writes: bool = False
     allow_x11: bool = False
+    use_gamemode: bool = False
     icon_path: Path | None = None
+    missing_streak: int = 0
+
+
+def is_ghost(entry: LibraryEntry) -> bool:
+    """Return True when a missing streak reached the ghost threshold."""
+    return entry.missing_streak >= GHOST_THRESHOLD
+
+
+def _probe_present(path: Path) -> bool:
+    """Advisory narrow check: True only while path is a directory.
+
+    Presentation state only, never a security boundary: inspect()
+    and launch() still run the backend's real validation regardless.
+    """
+    try:
+        return Path(path).is_dir()
+    except OSError:
+        return False
 
 
 class LibraryRepository:
@@ -101,6 +136,8 @@ class LibraryRepository:
             allow_network=False,
             allow_game_writes=False,
             allow_x11=False,
+            use_gamemode=False,
+            missing_streak=0,
         )
         entries.append(created)
         self.save(tuple(entries))
@@ -147,7 +184,9 @@ class LibraryRepository:
                 allow_network=stored.allow_network,
                 allow_game_writes=stored.allow_game_writes,
                 allow_x11=stored.allow_x11,
+                use_gamemode=stored.use_gamemode,
                 icon_path=stored.icon_path,
+                missing_streak=stored.missing_streak,
             )
             for position, stored in enumerate(loaded)
         ]
@@ -155,27 +194,133 @@ class LibraryRepository:
         return tuple(reordered)
 
     def update(self, entry: LibraryEntry) -> LibraryEntry:
-        """Persist display-name, runtime, SDK, file, icon, and permission edits for one path."""
+        """Persist display-name, runtime, SDK, file, icon, permission, and streak edits.
+
+        Entries normally match by path. When the path itself changed (the
+        Locate-folder flow points a ghost at a new folder), the entry
+        matches by its unique order instead so the row keeps its slot.
+        Relocating onto a path owned by another entry raises LibraryError.
+        """
         loaded = list(self.load())
-        for position, stored in enumerate(loaded):
+        path_position: int | None = None
+        for index, stored in enumerate(loaded):
             if stored.path == entry.path:
-                merged = LibraryEntry(
-                    path=stored.path,
-                    display_name=entry.display_name,
-                    order=stored.order,
-                    preferred_runtime=entry.preferred_runtime,
-                    preferred_sdk=entry.preferred_sdk,
-                    copy_root_files=entry.copy_root_files,
-                    engine=entry.engine if entry.engine is not None else stored.engine,
-                    allow_network=entry.allow_network,
-                    allow_game_writes=entry.allow_game_writes,
-                    allow_x11=entry.allow_x11,
-                    icon_path=entry.icon_path,
-                )
-                loaded[position] = merged
-                self.save(tuple(loaded))
-                return merged
-        raise LibraryError(f"game is not in the library: {entry.path}")
+                path_position = index
+                break
+        order_positions = [
+            index for index, stored in enumerate(loaded) if stored.order == entry.order
+        ]
+        order_position = order_positions[0] if len(order_positions) == 1 else None
+        if (
+            path_position is not None
+            and order_position is not None
+            and path_position != order_position
+        ):
+            raise LibraryError(f"game is already in the library: {entry.path}")
+        position = path_position if path_position is not None else order_position
+        if position is None:
+            raise LibraryError(f"game is not in the library: {entry.path}")
+        stored = loaded[position]
+        merged = LibraryEntry(
+            path=entry.path,
+            display_name=entry.display_name,
+            order=stored.order,
+            preferred_runtime=entry.preferred_runtime,
+            preferred_sdk=entry.preferred_sdk,
+            copy_root_files=entry.copy_root_files,
+            engine=entry.engine if entry.engine is not None else stored.engine,
+            allow_network=entry.allow_network,
+            allow_game_writes=entry.allow_game_writes,
+            allow_x11=entry.allow_x11,
+            use_gamemode=entry.use_gamemode,
+            icon_path=entry.icon_path,
+            missing_streak=entry.missing_streak,
+        )
+        loaded[position] = merged
+        self.save(tuple(loaded))
+        return merged
+
+    def note_missing_presentation_state(self) -> tuple[LibraryEntry, ...]:
+        """Refresh missing streaks from a narrow folder probe, saving only if changed.
+
+        Each entry gets one advisory ``is_dir`` check: a hit increments its
+        missing streak, a success resets it to zero. This never inspects
+        games and never raises ``GameValidationError``; only the library
+        remembers the outcome, game files are never touched. Unlike
+        prune_missing, nothing is ever deleted here.
+        """
+        entries = self.load()
+        refreshed: list[LibraryEntry] = []
+        changed = False
+        for entry in entries:
+            present = _probe_present(entry.path)
+            if present:
+                if entry.missing_streak != 0:
+                    refreshed.append(replace(entry, missing_streak=0))
+                    changed = True
+                else:
+                    refreshed.append(entry)
+            else:
+                refreshed.append(replace(entry, missing_streak=entry.missing_streak + 1))
+                changed = True
+        if changed:
+            self.save(tuple(refreshed))
+        return tuple(refreshed)
+
+    def note_missing_entry(self, entry: LibraryEntry) -> tuple[LibraryEntry, bool]:
+        """Record one advisory sighting for a single entry.
+
+        Probes ``entry.path`` with ``is_dir`` only (never inspect, never
+        ``GameValidationError``) and persists the streak change. Returns
+        the stored entry and whether the folder is present. Entries
+        unknown to the file are returned untouched with their probe
+        outcome and never trigger a save, so callers can still block
+        on a missing folder they cannot track.
+        """
+        present = _probe_present(entry.path)
+        stored_entries = list(self.load())
+        for index, stored in enumerate(stored_entries):
+            if stored.path != entry.path:
+                continue
+            updated = replace(stored, missing_streak=0 if present else stored.missing_streak + 1)
+            if updated.missing_streak == stored.missing_streak:
+                return updated, present
+            stored_entries[index] = updated
+            self.save(tuple(stored_entries))
+            return updated, present
+        return entry, present
+
+    def update_streak(self) -> tuple[LibraryEntry, ...]:
+        """Alias for note_missing_presentation_state for shorter call sites."""
+        return self.note_missing_presentation_state()
+
+    def prune_missing(self) -> tuple[LibraryEntry, ...]:
+        """Drop entries whose game directory no longer exists without deleting files."""
+        entries = self.load()
+        kept: list[LibraryEntry] = []
+        removed: list[LibraryEntry] = []
+        for entry in entries:
+            try:
+                resolved = entry.path.resolve(strict=True)
+            except FileNotFoundError:
+                removed.append(entry)
+                continue
+            except OSError as exc:
+                raise LibraryError(f"cannot inspect library path {entry.path}: {exc}") from exc
+            try:
+                is_directory = stat.S_ISDIR(resolved.stat().st_mode)
+            except FileNotFoundError:
+                removed.append(entry)
+                continue
+            except OSError as exc:
+                raise LibraryError(f"cannot inspect library path {entry.path}: {exc}") from exc
+            if is_directory:
+                kept.append(entry)
+            else:
+                removed.append(entry)
+        if removed:
+            self.save(tuple(kept))
+        return tuple(removed)
 
 
 def _decode_library(payload: object, source: Path) -> tuple[LibraryEntry, ...]:
@@ -183,7 +328,7 @@ def _decode_library(payload: object, source: Path) -> tuple[LibraryEntry, ...]:
     if not isinstance(payload, dict):
         raise LibraryError(f"invalid library file {source}: top-level value must be an object")
     version = payload.get("version")
-    if version not in (1, 2, 3):
+    if version not in (1, 2, 3, 4, 5):
         raise LibraryError(f"unsupported library version in {source}: {version!r}")
     raw_entries = payload.get("entries")
     if not isinstance(raw_entries, list):
@@ -207,6 +352,8 @@ def _decode_entry(raw: object, source: Path, number: int) -> LibraryEntry:
     network_value = raw.get("allow_network", False)
     writes_value = raw.get("allow_game_writes", False)
     x11_value = raw.get("allow_x11", False)
+    gamemode_value = raw.get("use_gamemode", False)
+    streak_value = raw.get("missing_streak", 0)
     icon_value = raw.get("icon_path")
     if not isinstance(path_value, str) or not path_value:
         raise LibraryError(f"invalid library entry #{number} in {source}: bad path")
@@ -232,9 +379,12 @@ def _decode_entry(raw: object, source: Path, number: int) -> LibraryEntry:
         ("allow_network", network_value),
         ("allow_game_writes", writes_value),
         ("allow_x11", x11_value),
+        ("use_gamemode", gamemode_value),
     ):
         if not isinstance(value, bool):
             raise LibraryError(f"invalid library entry #{number} in {source}: bad {label}")
+    if not isinstance(streak_value, int) or isinstance(streak_value, bool) or streak_value < 0:
+        raise LibraryError(f"invalid library entry #{number} in {source}: bad missing_streak")
     return LibraryEntry(
         path=Path(path_value),
         display_name=display_value,
@@ -246,7 +396,9 @@ def _decode_entry(raw: object, source: Path, number: int) -> LibraryEntry:
         allow_network=network_value,
         allow_game_writes=writes_value,
         allow_x11=x11_value,
+        use_gamemode=gamemode_value,
         icon_path=Path(icon_value) if icon_value is not None else None,
+        missing_streak=streak_value,
     )
 
 
@@ -263,7 +415,9 @@ def _encode_entry(entry: LibraryEntry) -> dict[str, object]:
         "allow_network": entry.allow_network,
         "allow_game_writes": entry.allow_game_writes,
         "allow_x11": entry.allow_x11,
+        "use_gamemode": entry.use_gamemode,
         "icon_path": str(entry.icon_path) if entry.icon_path is not None else None,
+        "missing_streak": entry.missing_streak,
     }
 
 

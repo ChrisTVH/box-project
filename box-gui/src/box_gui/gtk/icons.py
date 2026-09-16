@@ -2,7 +2,8 @@
 
 UI icons (`box-rpg-plus-symbolic`, `box-rpg-settings-symbolic`,
 `box-rpg-dots-symbolic`, `box-rpg-rocket-symbolic`,
-`box-rpg-x-symbolic`, `box-rpg-trash-symbolic`, `box-rpg-box-symbolic`)
+`box-rpg-rocket-off-symbolic`, `box-rpg-x-symbolic`, `box-rpg-trash-symbolic`, `box-rpg-box-symbolic`,
+`box-rpg-warning-symbolic`, `box-rpg-folder-symbolic`)
 and the engine tabs below
 are Tabler Icons (Copyright (c) Tabler, MIT license), vendored from
 @tabler/icons 3.34.1 into `res/icons/`. Only the application icon stays
@@ -27,7 +28,9 @@ __all__ = [
     "APP_ICON_NAME",
     "BOX_ICON_NAME",
     "EASYRPG_ICON_NAME",
+    "FOLDER_ICON_NAME",
     "NWJS_ICON_NAME",
+    "WARNING_ICON_NAME",
 ]
 
 
@@ -47,3 +50,9 @@ EASYRPG_ICON_NAME: str = "box-rpg-easyrpg-symbolic"
 
 BOX_ICON_NAME: str = "box-rpg-box-symbolic"
 """Fallback icon for games with an unknown engine (Tabler "box" in `res/icons/`)."""
+
+WARNING_ICON_NAME: str = "box-rpg-warning-symbolic"
+"""Themed icon name for unavailable-feature warnings (Tabler "alert-triangle")."""
+
+FOLDER_ICON_NAME: str = "box-rpg-folder-symbolic"
+"""Themed icon name for ghost relocate buttons (Tabler "folder")."""

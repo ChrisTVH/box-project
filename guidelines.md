@@ -1,6 +1,6 @@
 # Spanish localization guidelines
 
-These rules are global for both projects: the `box-rpg` backend catalog (`box` domain) and the `box-gui` frontend catalog (`box-rpg-app` domain). Project-specific commands live in each [backend](docs/box-rpg/translations.md) and [frontend](docs/box-gui/translations.md) translation guide.
+These rules are global for both projects: the `box-rpg` backend catalog (`box` domain) and the `box-gui` frontend catalog (`box-rpg-maker` domain). Project-specific commands live in each [backend](docs/box-rpg/translations.md) and [frontend](docs/box-gui/translations.md) translation guide.
 
 ## What to translate
 

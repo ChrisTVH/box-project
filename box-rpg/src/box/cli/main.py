@@ -51,6 +51,7 @@ def main(argv: list[str] | None = None) -> int:
             allow_network=False,
             allow_game_writes=False,
             x11=False,
+            gamemode=False,
         )
     try:
         return _dispatch(arguments)
@@ -108,6 +109,7 @@ def _dispatch(arguments: Namespace) -> int:
             allow_network=arguments.allow_network,
             allow_game_writes=arguments.allow_game_writes,
             x11=arguments.x11,
+            gamemode=getattr(arguments, "gamemode", False),
         )
     if arguments.command == "config":
         if arguments.config_command == "show":

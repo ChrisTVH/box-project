@@ -34,6 +34,7 @@ class LaunchSession:
     game_descriptor: int
     profile_root: Path
     owns_game_descriptor: bool
+    detached: bool = False
 
     @property
     def reference(self) -> Path:
@@ -41,9 +42,28 @@ class LaunchSession:
         return self.root
 
     @property
+    def identifier(self) -> str:
+        """Return the per-game directory name owning this session."""
+        return self.root.parent.name
+
+    @property
     def process_descriptors(self) -> tuple[int, ...]:
         """Return descriptors retained by the launcher while its session is active."""
         return ()
+
+    def detach(self) -> None:
+        """Transfer lifetime to the detached supervisor; skip removal on exit."""
+        self.detached = True
+
+    def release(self) -> None:
+        """Close launcher descriptors without removing the supervised directory."""
+        with suppress(OSError):
+            os.close(self.session_descriptor)
+        with suppress(OSError):
+            os.close(self.parent_descriptor)
+        if self.owns_game_descriptor:
+            with suppress(OSError):
+                os.close(self.game_descriptor)
 
     def cleanup(self) -> None:
         """Remove this session directory."""
@@ -71,6 +91,9 @@ class LaunchSession:
         traceback: TracebackType | None,
     ) -> None:
         """Clean the session even when launching fails."""
+        if self.detached:
+            self.release()
+            return
         self.cleanup()
 
 

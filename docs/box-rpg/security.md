@@ -11,12 +11,13 @@ This guide explains what `box-rpg` protects against and where its limits are. Re
 - Game paths are resolved, including links, before use. Path traversal and escaping links are rejected.
 - Keep the game directory in place during authorization and launch. The launcher rejects observed location changes.
 - An isolated session separates launcher files and profiles. Only the Bubblewrap sandbox confines running processes.
+- One session per game entry is firm: a second launch while one runs fails with "game already running".
 
 ## Launch sandbox
 
-Games and runtime version probes always run inside a mandatory Bubblewrap sandbox at `/usr/bin/bwrap` with user namespaces. There is no fallback without it.
+Games and runtime version probes always run inside a mandatory Bubblewrap sandbox at `/usr/bin/bwrap` with user namespaces. There is no fallback without it. `--die-with-parent` is kept: the launcher double-forks a detached supervisor (setsid, orphaned to init) that becomes the Bubblewrap parent, so the guarantee moves to the supervisor instead of disappearing when the launcher exits. Only the `pass_fds` allowlist crosses into Bubblewrap; supervisor descriptors use `O_CLOEXEC`, there is no shell, and extra descriptors are closed.
 
-The sandbox gives the game read-only system libraries and selected game and runtime files. Process, IPC, UTS, and `/tmp` namespaces are private. Your home directory, D-Bus, and SSH agent are never shared. Only saves, the selected profile, and private temporary storage are writable.
+The sandbox gives the game read-only system libraries and selected game and runtime files. Process, IPC, UTS, and `/tmp` namespaces are private. Your home directory and SSH agent are never shared. D-Bus is never shared except for the opt-in filtered GameMode proxy described below. Only saves, the selected profile, and private temporary storage are writable.
 
 Extra access is always opt-in for one launch:
 
@@ -24,10 +25,13 @@ Extra access is always opt-in for one launch:
 - Graphics devices under `/dev/dri` and read-only `/sys` are shared after validation so games can use acceleration. This enables hardware fingerprinting and driver attack surface.
 - Your PipeWire and PulseAudio sockets are shared after validation so games play sound. The audio socket does not separate speakers from microphone input.
 - X11 access needs explicit confirmation per launch, or `--x11`. This covers X11 sessions and XWayland for runtimes without Wayland support, such as the EasyRPG build. X11 programs can observe input and screen contents, so Wayland stays better isolated. Only the local display socket and its authority cookie are shared.
+- `--gamemode` registers the host Bubblewrap PID with `com.feralinteractive.GameMode` via `/usr/bin/busctl` (host, timeout-bounded) and shares only that bus name over a filtered `xdg-dbus-proxy` socket at `/run/user/gamemode-proxy` (no see/own/broadcasts). Host registration is authoritative because the PID namespace hides in-sandbox PIDs; the in-sandbox `gamemoderun` prefix stays as fallback. A missing bus client, proxy, bus address, socket, or failed host registration fails the launch instead of running unboosted.
 - `--allow-game-writes` mounts the game directory writable so self-updating games can patch themselves. Never combine it with untrusted games. For NW.js only the save directory is guaranteed writable. For EasyRPG, writes persist.
 - The runtime receives a small explicit environment. Host secrets and loader injection variables are not passed. Terminal output escapes control characters from game metadata.
 
 Validation is not an immutable snapshot. It cannot defend against other local processes with the same permissions. Game code can still damage its own writable saves or profile, exhaust resources, or attack shared interfaces. `diagnose` runs the runtime too, but always inside the sandbox.
+
+Supervised sessions use `sessions_root/<game_id>/<session>` depth-2 directories with `0700` permissions and lower-case names under launcher containment. Liveness is an exclusive non-blocking flock on `session.lock` (PID-reuse safe, never a bare PID). `status.json` is launcher-owned, atomically written (`mkstemp`/`fsync`/`chmod 0600`/`os.replace`), never writable from the sandbox, and read with bounded typed checks (`None` while running, exit code when exited).
 
 ## Runtimes, network, and authenticity
 

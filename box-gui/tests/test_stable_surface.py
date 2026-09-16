@@ -130,13 +130,17 @@ def test_core_subpackage_has_no_widget_imports() -> None:
 
 
 def test_bundled_icon_names_resolve_to_repo_svgs() -> None:
-    """Every box-rpg-* icon referenced in src ships in res/icons/."""
+    """Every box-rpg-* icon referenced in src ships in res/icons/.
+
+    Only -symbolic names count: the gettext domain (box-rpg-maker) shares
+    the box-rpg- prefix but is not an icon.
+    """
     import re
 
     root = Path(__file__).resolve().parent.parent
     names: set[str] = set()
     for path in sorted((root / "src" / "box_gui").rglob("*.py")):
-        names.update(re.findall(r'"(box-rpg-[a-z-]+)"', path.read_text(encoding="utf-8")))
+        names.update(re.findall(r'"(box-rpg-[a-z-]+-symbolic)"', path.read_text(encoding="utf-8")))
     assert names, "expected vendored icon references in src"
     for name in sorted(names):
         assert (root / "res" / "icons" / f"{name}.svg").is_file(), f"missing {name}.svg"

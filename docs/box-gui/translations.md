@@ -7,8 +7,8 @@ This guide shows how to add or edit interface translations for `box-gui`.
 ## How it works
 
 - `box-gui/src/box_gui/i18n.py` loads the catalog for the current locale from `$LANGUAGE`, `$LC_ALL`, `$LC_MESSAGES`, or `$LANG`, with English fallback. It exposes `_()` and `ngettext()`. Startup in `app.py` calls this frontend `configure()` and then `box.utils.i18n.configure()` so backend strings shown by the UI follow the same locale.
-- `box-gui/src/box_gui/locale/<lang>/LC_MESSAGES/box-rpg-app.po` is the human-readable translation per language.
-- `box-gui/src/box_gui/locale/<lang>/LC_MESSAGES/box-rpg-app.mo` is the compiled catalog used at runtime.
+- `box-gui/src/box_gui/locale/<lang>/LC_MESSAGES/box-rpg-maker.po` is the human-readable translation per language.
+- `box-gui/src/box_gui/locale/<lang>/LC_MESSAGES/box-rpg-maker.mo` is the compiled catalog used at runtime.
 - `box-gui/pyproject.toml` ships `locale/**/*.mo` as package data.
 
 Singular and plural pairs use `ngettext`:
@@ -34,7 +34,7 @@ ngettext(
    ```bash
    xgettext --from-code=UTF-8 --language=Python \
      --keyword=_ --keyword=ngettext:1,2 \
-     --output=box-gui/src/box_gui/locale/<lang>/LC_MESSAGES/box-rpg-app.po \
+     --output=box-gui/src/box_gui/locale/<lang>/LC_MESSAGES/box-rpg-maker.po \
      $(find box-gui/src/box_gui -name '*.py')
    ```
 
@@ -44,8 +44,8 @@ ngettext(
 
    ```bash
    msgfmt --check --verbose \
-     -o box-gui/src/box_gui/locale/<lang>/LC_MESSAGES/box-rpg-app.mo \
-     box-gui/src/box_gui/locale/<lang>/LC_MESSAGES/box-rpg-app.po
+     -o box-gui/src/box_gui/locale/<lang>/LC_MESSAGES/box-rpg-maker.mo \
+     box-gui/src/box_gui/locale/<lang>/LC_MESSAGES/box-rpg-maker.po
    ```
 
 5. Make sure both `.po` and `.mo` files are tracked by git.
@@ -54,10 +54,10 @@ ngettext(
 
 ## Edit an existing language
 
-Edit `box-rpg-app.po` directly, then recompile:
+Edit `box-rpg-maker.po` directly, then recompile:
 
 ```bash
-msgfmt --check --verbose -o box-gui/src/box_gui/locale/es/LC_MESSAGES/box-rpg-app.mo box-gui/src/box_gui/locale/es/LC_MESSAGES/box-rpg-app.po
+msgfmt --check --verbose -o box-gui/src/box_gui/locale/es/LC_MESSAGES/box-rpg-maker.mo box-gui/src/box_gui/locale/es/LC_MESSAGES/box-rpg-maker.po
 ```
 
 To find missing translations, regenerate the template and list untranslated and fuzzy entries:
@@ -65,10 +65,10 @@ To find missing translations, regenerate the template and list untranslated and 
 ```bash
 xgettext --from-code=UTF-8 --language=Python \
   --keyword=_ --keyword=ngettext:1,2 \
-  --output=/tmp/box-rpg-app.pot \
+  --output=/tmp/box-rpg-maker.pot \
   $(find box-gui/src/box_gui -name '*.py')
-msgattrib --untranslated --only-file=/tmp/box-rpg-app.pot box-gui/src/box_gui/locale/es/LC_MESSAGES/box-rpg-app.po
-msgattrib --only-fuzzy --only-file=/tmp/box-rpg-app.pot box-gui/src/box_gui/locale/es/LC_MESSAGES/box-rpg-app.po
+msgattrib --untranslated --only-file=/tmp/box-rpg-maker.pot box-gui/src/box_gui/locale/es/LC_MESSAGES/box-rpg-maker.po
+msgattrib --only-fuzzy --only-file=/tmp/box-rpg-maker.pot box-gui/src/box_gui/locale/es/LC_MESSAGES/box-rpg-maker.po
 ```
 
 Both commands should print nothing when the catalog is complete. The Spanish catalog keeps one legacy entry without a current source call site because `test_i18n_app.py` still covers it. Keep it until the test goes away.

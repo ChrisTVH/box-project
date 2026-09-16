@@ -87,6 +87,10 @@ class BoxRpgApplication(Adw.Application):
             provider.load_from_data(
                 b".runtime-pill { background-color: alpha(currentColor, 0.07); "
                 b"border-radius: 20px; padding: 5px 13px; } "
+                b".missing-pill { background-color: alpha(@error_bg_color, 0.35); "
+                b"border-radius: 20px; padding: 5px 13px; } "
+                b".running-pill { background-color: alpha(@success_bg_color, 0.35); "
+                b"border-radius: 20px; padding: 5px 13px; } "
                 b".chip-remove { min-height: 22px; min-width: 22px; "
                 b"padding: 0; border-radius: 9999px; } "
                 b".chip-flow > flowboxchild:hover, "

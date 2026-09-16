@@ -15,6 +15,8 @@ from typing import Any
 
 import pytest
 
+from box_gui import gtk
+
 try:
     import gi
 
@@ -29,8 +31,7 @@ try:
     from box.runtime.catalog import RuntimeCatalog, RuntimeInfo, RuntimeSpec
     from gi.repository import Adw
 
-    import box_gui.gtk
-    from box_gui.core.library import LibraryEntry, LibraryRepository
+    from box_gui.core.library import LibraryEntry, LibraryRepository, is_ghost
     from box_gui.pages.game_detail_page import (
         AllowX11Interaction,
         GameDetailPage,
@@ -40,7 +41,6 @@ try:
 
     _detail_available = True
 except Exception:
-    box_gui: Any = None
     AppPaths: Any = None
     ConfigRepository: Any = None
     Inspection: Any = None
@@ -58,6 +58,7 @@ except Exception:
     launch_error_heading: Any = None
     LibraryEntry: Any = None
     LibraryRepository: Any = None
+    is_ghost: Any = None
     _detail_available = False
 
 pytestmark = pytest.mark.skipif(not _detail_available, reason="gi/Adw unavailable")
@@ -112,7 +113,7 @@ def _make_inspection(root: Path, engine: Any = None, title: str | None = "Demo")
 
 def _install_fake_workers(monkeypatch: pytest.MonkeyPatch, factory: Any) -> dict[str, Any]:
     """Serve synchronous fake inspections plus a synchronous thread runner."""
-    state: dict[str, Any] = {"inspects": []}
+    state: dict[str, Any] = {"inspects": [], "stops": [], "stop_error": None}
     module = types.ModuleType("box_gui.gtk.workers")
 
     def _run_inspect(path: Any, on_done: Any, on_error: Any) -> None:
@@ -129,10 +130,22 @@ def _install_fake_workers(monkeypatch: pytest.MonkeyPatch, factory: Any) -> dict
             on_done(result)
         return None
 
+    def _run_stop(paths: Any, entry: Any, name: Any, on_done: Any, on_error: Any) -> None:
+        state["stops"].append((entry.path, name))
+        if state["stop_error"] is not None:
+            on_error(state["stop_error"])
+        else:
+            live = state.get("live_names")
+            if isinstance(live, dict):
+                live["names"] = []
+            on_done(None)
+        return None
+
     module.run_inspect = _run_inspect  # type: ignore[attr-defined]
     module.run_in_thread = _run_in_thread  # type: ignore[attr-defined]
+    module.run_stop = _run_stop  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "box_gui.gtk.workers", module)
-    monkeypatch.setattr(box_gui.gtk, "workers", module, raising=False)
+    monkeypatch.setattr(gtk, "workers", module, raising=False)
     return state
 
 
@@ -161,6 +174,9 @@ def _make_page(
         config_root=tmp_path / "library-config", cache_root=tmp_path / "library-cache"
     )
     library = LibraryRepository(library_paths)
+    # Detail pages in production open over an existing folder; the
+    # refresh sighting would otherwise block on a missing fixture dir.
+    (tmp_path / "game").mkdir(exist_ok=True)
     entry = library.add(tmp_path / "game", "Demo")
     page = GameDetailPage(
         entry=entry,
@@ -433,6 +449,7 @@ def test_easyrpg_hides_files_and_sdk(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert page._files_group.get_visible() is False
     assert page._entrypoint_row.get_visible() is False
     assert page._plugins_row.get_visible() is False
+    assert page._gamemode_row.get_visible() is True
     assert page._launch_button.get_sensitive() is True
     assert page._diagnose_button.get_sensitive() is True
 
@@ -473,6 +490,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
         allow_network: bool = False,
         allow_game_writes: bool = False,
         x11: bool = False,
+        gamemode: bool = False,
         interaction: Any = None,
     ) -> int:
         calls.update(
@@ -483,6 +501,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
                 "allow_network": allow_network,
                 "allow_game_writes": allow_game_writes,
                 "x11": x11,
+                "gamemode": gamemode,
                 "interaction": interaction,
             }
         )
@@ -502,6 +521,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
         allow_network: bool = False,
         allow_game_writes: bool = False,
         x11: bool = False,
+        gamemode: bool = False,
     ) -> Any:
         try:
             code = _fake_launch(
@@ -514,6 +534,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
                 allow_network=allow_network,
                 allow_game_writes=allow_game_writes,
                 x11=x11,
+                gamemode=gamemode,
                 interaction=interaction,
             )
         except BaseException as exc:
@@ -537,6 +558,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
     assert calls["allow_network"] is True
     assert calls["allow_game_writes"] is False
     assert calls["x11"] is True
+    assert calls["gamemode"] is False
     assert calls["interaction"].confirm_x11(":0") is True
     assert page._status.get_text() == ""
     assert page._status_box.get_visible() is False
@@ -664,12 +686,14 @@ def _capture_launch_version(monkeypatch: pytest.MonkeyPatch, page: Any) -> dict[
         allow_network: bool = False,
         allow_game_writes: bool = False,
         x11: bool = False,
+        gamemode: bool = False,
     ) -> Any:
         calls.update(
             {
                 "version": version,
                 "sdk": sdk,
                 "copy_root_files": copy_root_files,
+                "gamemode": gamemode,
             }
         )
         on_done(0)
@@ -1179,3 +1203,854 @@ def test_edits_survive_reopen(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     assert reopened._entry.preferred_runtime == "0.99.0"
     assert reopened._runtime_row.get_selected() == 1
     assert reopened._title_label.get_text() == "Renamed"
+
+
+def _gamemode_warning_images(page: Any) -> list[Any]:
+    """Collect warning icons currently attached below the GameMode row."""
+    from gi.repository import Gtk
+
+    images: list[Any] = []
+    pending: list[Any] = [page._gamemode_row]
+    while pending:
+        widget = pending.pop()
+        if isinstance(widget, Gtk.Image) and widget.get_icon_name() == ("box-rpg-warning-symbolic"):
+            images.append(widget)
+        child = widget.get_first_child()
+        while child is not None:
+            pending.append(child)
+            child = child.get_next_sibling()
+    return images
+
+
+def test_gamemode_unavailable_disables_row_with_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Without GameMode support the row locks off, warns, and launches False."""
+    monkeypatch.setattr(GameDetailPage, "_is_gamemode_available", staticmethod(lambda: False))
+    page, library, entry = _make_page(monkeypatch, tmp_path)
+
+    assert page._gamemode_row.get_title() == "GameMode"
+    assert page._gamemode_row.get_sensitive() is False
+    assert page._gamemode_row.get_active() is False
+    assert page._gamemode_warning is not None
+    assert page._gamemode_warning.get_icon_name() == "box-rpg-warning-symbolic"
+    assert (
+        page._gamemode_warning.get_tooltip_text() == "This feature is not available on your system."
+    )
+    assert len(_gamemode_warning_images(page)) == 1
+
+    # A stale True can never reach launch: syncing forces and persists False.
+    page._entry = library.update(replace(entry, use_gamemode=True))
+    page._sync_gamemode_availability()
+
+    assert page._gamemode_row.get_active() is False
+    assert library.load()[0].use_gamemode is False
+    assert len(_gamemode_warning_images(page)) == 1
+
+    calls = _capture_launch_version(monkeypatch, page)
+    page._on_launch_clicked(page._launch_button)
+
+    assert calls["gamemode"] is False
+
+
+def test_gamemode_toggle_persists_when_available(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """With GameMode support the switch follows and stores the entry flag."""
+    monkeypatch.setattr(GameDetailPage, "_is_gamemode_available", staticmethod(lambda: True))
+    page, library, _entry = _make_page(monkeypatch, tmp_path)
+
+    assert page._gamemode_row.get_sensitive() is True
+    assert page._gamemode_row.get_active() is False
+    assert page._gamemode_warning is None
+    assert _gamemode_warning_images(page) == []
+
+    page._gamemode_row.set_active(True)
+
+    assert library.load()[0].use_gamemode is True
+    assert page._entry.use_gamemode is True
+
+    calls = _capture_launch_version(monkeypatch, page)
+    page._on_launch_clicked(page._launch_button)
+
+    assert calls["gamemode"] is True
+
+
+def test_gamemode_warning_removed_when_available(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The warning suffix is added once and detached once support appears."""
+    monkeypatch.setattr(GameDetailPage, "_is_gamemode_available", staticmethod(lambda: False))
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    assert len(_gamemode_warning_images(page)) == 1
+
+    page._sync_gamemode_availability()
+    assert len(_gamemode_warning_images(page)) == 1
+
+    monkeypatch.setattr(GameDetailPage, "_is_gamemode_available", staticmethod(lambda: True))
+    page._sync_gamemode_availability()
+
+    assert page._gamemode_warning is None
+    assert _gamemode_warning_images(page) == []
+    assert page._gamemode_row.get_sensitive() is True
+
+
+def test_easyrpg_launch_forwards_gamemode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """EasyRPG resets SDK/files but still forwards the GameMode flag."""
+    monkeypatch.setattr(GameDetailPage, "_is_gamemode_available", staticmethod(lambda: True))
+    page, library, entry = _make_page(
+        monkeypatch,
+        tmp_path,
+        lambda path: _make_inspection(path, EngineName.RPG_MAKER_2000_2003),
+    )
+    page._entry = library.update(
+        replace(entry, preferred_sdk=True, copy_root_files=("extra.txt",), use_gamemode=True)
+    )
+    page._gamemode_row.set_active(True)
+
+    assert page._gamemode_row.get_visible() is True
+    calls = _capture_launch_version(monkeypatch, page)
+    page._on_launch_clicked(page._launch_button)
+
+    assert calls["sdk"] is False
+    assert calls["copy_root_files"] == ()
+    assert calls["gamemode"] is True
+
+
+_GHOST_REASON = "The game folder is missing. Use Locate folder… to point at it again."
+_GHOST_BLOCKED_STATUS = _GHOST_REASON
+_GHOST_LAUNCH_TIP = _GHOST_REASON
+
+
+def _make_ghost_page(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, streak: int = 3
+) -> tuple[Any, Any, Any, dict[str, Any], list[Any]]:
+    """Build a ghost detail page with a stored streak, recording workers and alerts."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    state = _install_fake_workers(monkeypatch, _make_inspection)
+    _stub_runtime_catalog(monkeypatch, tmp_path)
+    paths = _make_paths(tmp_path)
+    repository = ConfigRepository(paths)
+    library_paths = AppPaths(
+        config_root=tmp_path / "library-config", cache_root=tmp_path / "library-cache"
+    )
+    library = LibraryRepository(library_paths)
+    entry = library.add(tmp_path / "game", "Demo")
+    ghost = library.update(replace(entry, missing_streak=streak))
+    page = GameDetailPage(
+        entry=ghost,
+        paths=paths,
+        repository=repository,
+        library=library,
+    )
+    return page, library, ghost, state, presented
+
+
+def test_ghost_detail_shows_blocked_without_inspect(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A ghost entry blocks launch and diagnose without any inspection attempt."""
+    page, _library, _ghost, state, _presented = _make_ghost_page(monkeypatch, tmp_path)
+
+    assert state["inspects"] == []
+    assert page._inspection is None
+    assert page._status.get_text() == _GHOST_BLOCKED_STATUS
+    # Long status messages must stay fully readable: wrapped in place
+    # with the complete text mirrored to the tooltip. Ellipsize must
+    # stay NONE or GTK4 pins the label back to a single line.
+    assert page._status.get_wrap() is True
+    from gi.repository import Pango
+
+    assert page._status.get_ellipsize() == Pango.EllipsizeMode.NONE
+    assert page._status.get_tooltip_text() == _GHOST_BLOCKED_STATUS
+    assert page._launch_button.get_sensitive() is False
+    assert page._launch_button.get_tooltip_text() == _GHOST_LAUNCH_TIP
+    assert page._diagnose_button.get_sensitive() is False
+    assert page._diagnose_button.get_tooltip_text() == _GHOST_REASON
+    assert page._locate_button.get_visible() is True
+    assert page._locate_button.get_tooltip_text() == "Locate folder…"
+    # The explicit Stop action never shows for ghosts.
+    assert page._stop_button.get_visible() is False
+    assert page._stop_button.get_sensitive() is False
+
+
+def test_ghost_detail_blocks_launch_and_diagnose_with_reason(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ghost launch and diagnose clicks explain instead of touching the backend."""
+    page, _library, _ghost, state, presented = _make_ghost_page(monkeypatch, tmp_path)
+    calls = _capture_launch_version(monkeypatch, page)
+
+    page._on_launch_clicked(page._launch_button)
+    page._on_diagnose_clicked(page._diagnose_button)
+
+    assert [dialog.get_heading() for dialog in presented] == ["Folder missing", "Folder missing"]
+    bodies = [dialog.get_body() for dialog in presented]
+    assert bodies == [_GHOST_REASON, _GHOST_REASON]
+    for heading, body in zip([dialog.get_heading() for dialog in presented], bodies, strict=True):
+        assert body != heading
+        assert not body.startswith(heading)
+    assert state["inspects"] == []
+    assert state["stops"] == []
+    assert calls == {}
+
+
+def test_ghost_detail_below_threshold_blocks_without_inspect(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A missing folder blocks the detail page even below the threshold.
+
+    The visit records one more sighting instead of attempting a doomed
+    re-inspection, so no raw backend dialog ever pops on open.
+    """
+    page, library, _ghost, state, presented = _make_ghost_page(monkeypatch, tmp_path, streak=2)
+
+    assert state["inspects"] == []
+    assert presented == []
+    assert page._inspection is None
+    stored = library.load()[0]
+    assert stored.missing_streak == 3
+    assert is_ghost(stored)
+    assert page._launch_button.get_sensitive() is False
+    assert page._launch_button.get_tooltip_text() == _GHOST_REASON
+    assert page._locate_button.get_visible() is True
+
+
+def test_ghost_detail_locate_valid_relocates(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A valid relocation points the detail entry at the new folder and revives it."""
+    page, library, ghost, state, presented = _make_ghost_page(monkeypatch, tmp_path)
+    new_root = tmp_path / "new-home"
+    new_root.mkdir()
+
+    class _FakeFile:
+        def get_path(self) -> str | None:
+            return str(new_root)
+
+    class _FakeDialog:
+        def select_folder_finish(self, _result: Any) -> Any:
+            return _FakeFile()
+
+    page._on_locate_folder_chosen(_FakeDialog(), None)
+
+    assert presented == []
+    stored = library.load()[0]
+    assert stored.path == new_root
+    assert stored.missing_streak == 0
+    assert stored.order == ghost.order
+    assert stored.display_name == "Demo"
+    assert page._entry.path == new_root
+    assert new_root in state["inspects"]
+    assert page._inspection is not None
+    assert page._launch_button.get_sensitive() is True
+    assert page._launch_button.get_tooltip_text() == "Launch"
+    assert page._locate_button.get_visible() is False
+
+
+def test_ghost_detail_locate_invalid_stays_ghost(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failed relocation inspection alerts and keeps the ghost blocked."""
+    page, library, ghost, _state, presented = _make_ghost_page(monkeypatch, tmp_path)
+    new_root = tmp_path / "new-home"
+    new_root.mkdir()
+    monkeypatch.setattr(
+        sys.modules["box_gui.gtk.workers"],
+        "run_inspect",
+        lambda path, on_done, on_error: on_error(BoxError("not a game")),
+    )
+
+    class _FakeFile:
+        def get_path(self) -> str | None:
+            return str(new_root)
+
+    class _FakeDialog:
+        def select_folder_finish(self, _result: Any) -> Any:
+            return _FakeFile()
+
+    page._on_locate_folder_chosen(_FakeDialog(), None)
+
+    assert len(presented) == 1
+    assert presented[0].get_heading() == "Inspection Failed"
+    stored = library.load()[0]
+    assert stored.path == ghost.path
+    assert is_ghost(stored)
+    assert page._launch_button.get_sensitive() is False
+    assert page._locate_button.get_visible() is True
+
+
+def test_running_disables_launch_and_offers_stop(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A running entry disables Launch and offers an explicit Stop action."""
+    page, _library, entry = _make_page(monkeypatch, tmp_path)
+    (tmp_path / "game").mkdir(exist_ok=True)
+    workers_state = _install_fake_workers(monkeypatch, _make_inspection)
+    live_names: dict[str, Any] = {"names": ["s1"]}
+    workers_state["live_names"] = live_names
+    monkeypatch.setattr(
+        "box.api.launch.find_live_sessions",
+        lambda paths, identifier: list(live_names["names"]),
+        raising=False,
+    )
+    calls = _capture_launch_version(monkeypatch, page)
+
+    page._sync_running_state()
+
+    assert page._launch_button.get_sensitive() is False
+    assert page._launch_button.get_tooltip_text() == "Game is running"
+    assert page._launch_button.get_icon_name() == "box-rpg-rocket-off-symbolic"
+    assert page._stop_button.get_visible() is True
+    assert page._stop_button.get_sensitive() is True
+    assert page._stop_button.get_tooltip_text() == "Stop"
+    # The status label stays reserved for transient busy messages: the
+    # Stop button and the Launch tooltip already communicate running.
+    assert page._status.get_text() == ""
+    assert page._status_box.get_visible() is False
+
+    # Clicking Launch while running only resyncs, never stops the game.
+    page._launch_button.emit("clicked")
+
+    assert workers_state["stops"] == []
+    assert calls == {}
+    assert page._launch_button.get_sensitive() is False
+
+    # The explicit Stop action stops the session and restores Launch.
+    page._stop_button.emit("clicked")
+
+    assert workers_state["stops"] == [(entry.path, "s1")]
+    assert page._launch_button.get_tooltip_text() == "Launch"
+    assert page._launch_button.get_sensitive() is True
+    assert page._stop_button.get_visible() is False
+    assert page._status.get_text() == ""
+
+
+def test_launch_click_while_running_never_stops(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Repeated Launch clicks while running cause zero surprise stops."""
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    (tmp_path / "game").mkdir(exist_ok=True)
+    workers_state = _install_fake_workers(monkeypatch, _make_inspection)
+    _stub_live_names(monkeypatch, ["s1"])
+    calls = _capture_launch_version(monkeypatch, page)
+    page._sync_running_state()
+
+    for _ in range(3):
+        page._on_launch_clicked(page._launch_button)
+
+    assert workers_state["stops"] == []
+    assert calls == {}
+    assert page._launch_button.get_sensitive() is False
+    assert page._stop_button.get_visible() is True
+
+
+def test_running_stop_error_alerts(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A failed stop alerts without leaving the page busy or killing Launch."""
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    (tmp_path / "game").mkdir(exist_ok=True)
+    workers_state = _install_fake_workers(monkeypatch, _make_inspection)
+    workers_state["stop_error"] = BoxError("cannot stop")
+    monkeypatch.setattr(
+        "box.api.launch.find_live_sessions", lambda paths, identifier: ["s1"], raising=False
+    )
+    presented = _capture_alerts(monkeypatch)
+    page._sync_running_state()
+
+    page._stop_button.emit("clicked")
+
+    assert len(presented) == 1
+    assert presented[0].get_heading() == "Launch Failed"
+    assert page._status.get_text() == "Stop failed."
+    # The session is still running, so Launch stays disabled.
+    assert page._launch_button.get_sensitive() is False
+    assert page._launch_button.get_tooltip_text() == "Game is running"
+    assert page._stop_button.get_visible() is True
+
+
+def _stub_live_names(monkeypatch: pytest.MonkeyPatch, names: list[str]) -> dict[str, Any]:
+    """Stub the backend live-session listing with a mutable name list."""
+    live: dict[str, Any] = {"names": list(names)}
+    monkeypatch.setattr(
+        "box.api.launch.find_live_sessions",
+        lambda paths, identifier: list(live["names"]),
+        raising=False,
+    )
+    return live
+
+
+def _button_affordance(page: Any) -> tuple[Any, Any, bool, Any]:
+    """Return icon name, child image icon, style flag, and tooltip."""
+    button = page._launch_button
+    # get_icon_name exercises the same set_icon_name API used in production.
+    icon_name = button.get_icon_name()
+    child = button.get_first_child()
+    child_icon = child.get_icon_name() if child is not None else None
+    return (
+        icon_name,
+        child_icon,
+        button.has_css_class("suggested-action"),
+        (button.get_tooltip_text()),
+    )
+
+
+def test_running_shows_disabled_launch_plus_stop(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A running session disables Launch and shows the Stop button."""
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    (tmp_path / "game").mkdir(exist_ok=True)
+    _stub_live_names(monkeypatch, ["s1"])
+
+    page._sync_running_state()
+
+    icon_name, child_icon, suggested, tooltip = _button_affordance(page)
+    assert icon_name == "box-rpg-rocket-off-symbolic"
+    assert child_icon == "box-rpg-rocket-off-symbolic"
+    assert suggested is False
+    assert tooltip == "Game is running"
+    assert page._launch_button.get_sensitive() is False
+    assert page._stop_button.get_visible() is True
+    assert page._stop_button.get_sensitive() is True
+    assert page._stop_button.get_tooltip_text() == "Stop"
+    assert page._stop_button.get_icon_name() == "box-rpg-x-symbolic"
+    assert page._status.get_text() == ""
+    assert page._status_box.get_visible() is False
+
+
+def test_idle_shows_launch_affordance(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """An idle entry restores the rocket Launch affordance and hides Stop."""
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    (tmp_path / "game").mkdir(exist_ok=True)
+    live = _stub_live_names(monkeypatch, ["s1"])
+
+    # Start running, then go idle and check the restore.
+    page._sync_running_state()
+    assert page._launch_button.get_sensitive() is False
+    assert page._stop_button.get_visible() is True
+
+    live["names"] = []
+    page._sync_running_state()
+
+    icon_name, child_icon, suggested, tooltip = _button_affordance(page)
+    assert icon_name == "box-rpg-rocket-symbolic"
+    assert child_icon == "box-rpg-rocket-symbolic"
+    assert suggested is True
+    assert tooltip == "Launch"
+    assert page._launch_button.get_sensitive() is True
+    assert page._stop_button.get_visible() is False
+
+
+def test_running_state_transitions_both_directions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Syncing flips the Launch/Stop affordance both ways without extra state."""
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    (tmp_path / "game").mkdir(exist_ok=True)
+    live = _stub_live_names(monkeypatch, [])
+
+    # Idle first, then running, then idle again.
+    page._sync_running_state()
+    assert _button_affordance(page)[:3] == (
+        "box-rpg-rocket-symbolic",
+        "box-rpg-rocket-symbolic",
+        True,
+    )
+    assert page._launch_button.get_sensitive() is True
+    assert page._stop_button.get_visible() is False
+
+    live["names"] = ["s1"]
+    page._sync_running_state()
+    assert _button_affordance(page)[3] == "Game is running"
+    assert page._launch_button.get_sensitive() is False
+    assert page._stop_button.get_visible() is True
+    assert page._stop_button.get_sensitive() is True
+
+    live["names"] = []
+    page._sync_running_state()
+    assert _button_affordance(page)[:3] == (
+        "box-rpg-rocket-symbolic",
+        "box-rpg-rocket-symbolic",
+        True,
+    )
+    assert page._launch_button.get_sensitive() is True
+    assert page._stop_button.get_visible() is False
+
+
+def test_launch_and_stop_done_flip_affordance(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Done handlers leave Launch/Stop matching the backend session."""
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    (tmp_path / "game").mkdir(exist_ok=True)
+    live = _stub_live_names(monkeypatch, [])
+
+    # A fresh spawn reports a live session, so Stop appears.
+    live["names"] = ["s1"]
+    page._on_launch_done(0)
+
+    assert page._launch_button.get_icon_name() == "box-rpg-rocket-off-symbolic"
+    assert page._launch_button.has_css_class("suggested-action") is False
+    assert page._launch_button.get_tooltip_text() == "Game is running"
+    assert page._launch_button.get_sensitive() is False
+    assert page._stop_button.get_visible() is True
+
+    # After the session stops, Launch restores and Stop hides.
+    live["names"] = []
+    page._on_stop_done(None)
+
+    assert page._launch_button.get_icon_name() == "box-rpg-rocket-symbolic"
+    assert page._launch_button.has_css_class("suggested-action") is True
+    assert page._launch_button.get_tooltip_text() == "Launch"
+    assert page._launch_button.get_sensitive() is True
+    assert page._stop_button.get_visible() is False
+
+
+def test_busy_never_reenables_launch_while_running(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The busy spinner never re-enables Launch while a session runs."""
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    (tmp_path / "game").mkdir(exist_ok=True)
+    _stub_live_names(monkeypatch, ["s1"])
+    page._sync_running_state()
+    assert page._launch_button.get_sensitive() is False
+    assert page._launch_button.get_tooltip_text() == "Game is running"
+
+    # Busy only touches spinner and status, never the running affordance.
+    page._set_busy(True, "Stopping …")
+    assert page._launch_button.get_icon_name() == "box-rpg-rocket-off-symbolic"
+    assert page._launch_button.has_css_class("suggested-action") is False
+    assert page._launch_button.get_tooltip_text() == "Game is running"
+    assert page._launch_button.get_sensitive() is False
+    assert page._stop_button.get_visible() is True
+    assert page._stop_button.get_sensitive() is False
+
+    page._set_busy(False, "")
+    assert page._launch_button.get_icon_name() == "box-rpg-rocket-off-symbolic"
+    assert page._launch_button.has_css_class("suggested-action") is False
+    assert page._launch_button.get_tooltip_text() == "Game is running"
+    assert page._launch_button.get_sensitive() is False
+    assert page._stop_button.get_sensitive() is True
+
+
+def test_ghost_never_shows_stop(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A ghost entry stays blocked with the folder action, never Stop."""
+    page, _library, _ghost, _state, _presented = _make_ghost_page(monkeypatch, tmp_path)
+    (tmp_path / "game").mkdir(exist_ok=True)
+    _stub_live_names(monkeypatch, ["s1"])
+
+    # The ghost early-return must win over a live backend session.
+    page._sync_running_state()
+
+    icon_name, child_icon, _suggested, tooltip = _button_affordance(page)
+    assert icon_name == "box-rpg-rocket-off-symbolic"
+    assert child_icon == "box-rpg-rocket-off-symbolic"
+    assert tooltip == _GHOST_LAUNCH_TIP
+    assert tooltip != "Stop"
+    assert page._launch_button.get_sensitive() is False
+    assert page._stop_button.get_visible() is False
+    assert page._locate_button.get_visible() is True
+
+
+def test_ghost_header_folder_button_tracks_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The header folder shortcut shows only for ghosts and opens locate."""
+    from box_gui.gtk.icons import FOLDER_ICON_NAME
+
+    page, _library, _ghost, _state, _presented = _make_ghost_page(monkeypatch, tmp_path)
+
+    # Ghost headers expose the folder icon next to the disabled Launch.
+    assert page._locate_button.get_visible() is True
+    assert page._locate_button.get_icon_name() == FOLDER_ICON_NAME
+    assert page._locate_button.get_tooltip_text() == "Locate folder…"
+    assert page._launch_button.get_sensitive() is False
+    assert page._launch_button.get_tooltip_text() == _GHOST_REASON
+    assert page._diagnose_button.get_sensitive() is False
+
+    # The header button shares the existing locate flow, not a new dialog.
+    from gi.repository import Gtk
+
+    captured: dict[str, Any] = {}
+
+    class _FakeDialog:
+        def __init__(self, **kwargs: Any) -> None:
+            captured.update(kwargs)
+
+        def select_folder(self, parent: Any, _cancellable: Any, callback: Any) -> None:
+            captured["callback"] = callback
+
+    monkeypatch.setattr(Gtk, "FileDialog", _FakeDialog)
+    page._locate_button.emit("clicked")
+
+    assert captured.get("title") == "Select Game Folder"
+    assert callable(captured.get("callback"))
+    assert page._locate_file_dialog is not None
+
+    # Reviving the entry hides the folder shortcut and restores Launch.
+    from dataclasses import replace as _replace
+
+    page._entry = _replace(page._entry, missing_streak=0)
+    page._on_inspect_done(_make_inspection(tmp_path / "game", title="Demo"))
+
+    assert page._locate_button.get_visible() is False
+    assert page._launch_button.get_sensitive() is True
+    assert page._launch_button.get_tooltip_text() == "Launch"
+
+
+def test_idle_hides_header_folder_button(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Normal entries never show the ghost folder shortcut in the header."""
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+
+    assert page._locate_button.get_visible() is False
+    assert page._launch_button.get_sensitive() is True
+    assert page._stop_button.get_visible() is False
+
+
+def test_detail_poll_tracks_visibility(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The detail poll timer runs while the probe exists and stops off-screen."""
+    _require_display()
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    try:
+        # Pages without backend paths never poll.
+        assert page._session_poll_id is None or page._paths is not None
+
+        monkeypatch.setattr(
+            "box.api.launch.find_live_sessions", lambda paths, identifier: [], raising=False
+        )
+        page._ensure_session_poll()
+
+        assert page._session_poll_id is not None
+
+        page._on_unmapped(page)
+
+        assert page._session_poll_id is None
+        # Off-screen the tick stops itself instead of rescheduling work.
+        assert page._on_session_poll() is False
+        assert page._session_poll_id is None
+    finally:
+        with contextlib.suppress(Exception):
+            page._stop_session_poll()
+            page.destroy()
+
+
+def test_detail_poll_applies_async_result(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Poll results flip Launch/Stop without blocking the main loop."""
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    (tmp_path / "game").mkdir(exist_ok=True)
+    try:
+        assert page._running is False
+        assert page._stop_button.get_visible() is False
+
+        page._on_poll_result(True, page._entry.path)
+
+        assert page._running is True
+        assert page._launch_button.get_sensitive() is False
+        assert page._launch_button.get_tooltip_text() == "Game is running"
+        assert page._stop_button.get_visible() is True
+
+        # Stale ticks for a previous path never clobber the current entry.
+        page._on_poll_result(False, tmp_path / "elsewhere")
+
+        assert page._running is True
+        assert page._stop_button.get_visible() is True
+
+        page._on_poll_result(False, page._entry.path)
+
+        assert page._running is False
+        assert page._launch_button.get_sensitive() is True
+        assert page._stop_button.get_visible() is False
+    finally:
+        with contextlib.suppress(Exception):
+            page._stop_session_poll()
+            page.destroy()
+
+
+def _pump_main_loop() -> None:
+    """Run pending main-loop sources (idle callbacks) to completion."""
+    from gi.repository import GLib
+
+    context = GLib.main_context_default()
+    while context.pending():
+        context.iteration(False)
+
+
+def test_opening_detail_drops_name_autofocus(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Opening the page hands back the autofocus stolen by the Name field."""
+    from gi.repository import Gtk
+
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    (tmp_path / "game").mkdir(exist_ok=True)
+    window = Gtk.Window()
+    window.set_child(page)
+    try:
+        # Simulate the GTK focus fallback landing in the Name row on open,
+        # text selected and all.
+        window.set_focus(page._display_row)
+        assert window.get_focus() is not None
+        page._display_row.select_region(0, -1)
+        assert page._display_row.get_selection_bounds() != ()
+        before = page._display_row.get_text()
+
+        page._on_mapped(page)
+        _pump_main_loop()
+
+        assert window.get_focus() is None
+        assert page._display_row.get_selection_bounds() == ()
+        assert page._display_row.get_text() == before
+    finally:
+        with contextlib.suppress(Exception):
+            page._stop_session_poll()
+            window.destroy()
+
+
+def test_initial_focus_keeps_unrelated_focus(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The one-shot reset never steals an intentional focus elsewhere."""
+    from gi.repository import Gtk
+
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    (tmp_path / "game").mkdir(exist_ok=True)
+    window = Gtk.Window()
+    window.set_child(page)
+    try:
+        window.set_focus(page._add_file_button)
+
+        assert page._drop_initial_focus() is False
+
+        assert window.get_focus() is page._add_file_button
+
+        # Without any focus there is nothing to hand back either.
+        window.set_focus(None)
+        assert page._drop_initial_focus() is False
+        assert window.get_focus() is None
+    finally:
+        with contextlib.suppress(Exception):
+            page._stop_session_poll()
+            window.destroy()
+
+
+def test_detail_refresh_missing_folder_blocks_without_dialog(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Removing the folder with the detail open blocks instead of alerting."""
+    page, library, _entry = _make_page(monkeypatch, tmp_path)
+    presented = _capture_alerts(monkeypatch)
+    (tmp_path / "game").rmdir()
+    workers_module = sys.modules["box_gui.gtk.workers"]
+    inspects: list[Any] = []
+    original = workers_module.run_inspect
+
+    def _counting(path: Any, on_done: Any, on_error: Any) -> Any:
+        inspects.append(path)
+        return original(path, on_done, on_error)
+
+    monkeypatch.setattr(workers_module, "run_inspect", _counting)
+
+    page.refresh()
+
+    assert inspects == []
+    assert presented == []
+    assert page._inspection is None
+    assert library.load()[0].missing_streak == 1
+    assert page._launch_button.get_sensitive() is False
+    assert page._launch_button.get_tooltip_text() == _GHOST_REASON
+    assert page._diagnose_button.get_sensitive() is False
+    assert page._locate_button.get_visible() is True
+    assert page._status.get_text() == _GHOST_REASON
+
+
+def test_detail_launch_missing_folder_blocks_without_launch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Launching after the folder vanished records a sighting, then blocks."""
+    page, library, _entry = _make_page(monkeypatch, tmp_path)
+    presented = _capture_alerts(monkeypatch)
+    calls = _capture_launch_version(monkeypatch, page)
+    (tmp_path / "game").rmdir()
+
+    page._on_launch_clicked(page._launch_button)
+
+    assert calls == {}
+    assert presented == []
+    assert library.load()[0].missing_streak == 1
+    assert page._launch_button.get_sensitive() is False
+    assert page._locate_button.get_visible() is True
+
+
+def test_detail_diagnose_missing_folder_blocks_without_dialog(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Diagnosing after the folder vanished blocks instead of failing raw."""
+    page, library, _entry = _make_page(monkeypatch, tmp_path)
+    presented = _capture_alerts(monkeypatch)
+    (tmp_path / "game").rmdir()
+
+    page._on_diagnose_clicked(page._diagnose_button)
+
+    assert presented == []
+    assert library.load()[0].missing_streak == 1
+    assert page._diagnose_button.get_sensitive() is False
+
+
+def test_detail_missing_folder_restores_on_return(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A folder that comes back resets the streak and re-inspects."""
+    page, library, _entry = _make_page(monkeypatch, tmp_path)
+    (tmp_path / "game").rmdir()
+    page.refresh()
+    assert library.load()[0].missing_streak == 1
+
+    (tmp_path / "game").mkdir()
+    workers_module = sys.modules["box_gui.gtk.workers"]
+    inspects: list[Any] = []
+    original = workers_module.run_inspect
+
+    def _counting(path: Any, on_done: Any, on_error: Any) -> Any:
+        inspects.append(path)
+        return original(path, on_done, on_error)
+
+    monkeypatch.setattr(workers_module, "run_inspect", _counting)
+    page.refresh()
+
+    assert inspects != []
+    assert library.load()[0].missing_streak == 0
+    assert page._inspection is not None
+    assert page._launch_button.get_sensitive() is True
+    assert page._launch_button.get_tooltip_text() == "Launch"
+    assert page._locate_button.get_visible() is False
+
+
+def test_detail_refresh_tolerates_library_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A broken library file falls back to the legacy inspect attempt."""
+    from box_gui.core.library import LibraryError
+
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    workers_module = sys.modules["box_gui.gtk.workers"]
+    inspects: list[Any] = []
+    original = workers_module.run_inspect
+
+    def _counting(path: Any, on_done: Any, on_error: Any) -> Any:
+        inspects.append(path)
+        return original(path, on_done, on_error)
+
+    monkeypatch.setattr(workers_module, "run_inspect", _counting)
+
+    def _broken(_entry: Any) -> Any:
+        raise LibraryError("unreadable")
+
+    monkeypatch.setattr(page._library, "note_missing_entry", _broken)
+    page.refresh()
+
+    assert inspects != []

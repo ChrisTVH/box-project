@@ -29,7 +29,7 @@ Frontend-owned persistence lives under `AppPaths.config_root` without touching t
 
 ## Internationalization
 
-- Runtime UI strings use English msgids via `_()` (and `ngettext()` for plurals) in domain `box-rpg-app`; the Spanish catalog lives in `src/box_gui/locale/es/LC_MESSAGES/`. Load the frontend catalog at startup and then `box.utils.i18n.configure()` for backend strings shown by the UI.
+- Runtime UI strings use English msgids via `_()` (and `ngettext()` for plurals) in domain `box-rpg-maker`; the Spanish catalog lives in `src/box_gui/locale/es/LC_MESSAGES/`. Load the frontend catalog at startup and then `box.utils.i18n.configure()` for backend strings shown by the UI.
 - Preserve placeholders, commands, options, selectors, JSON keys, product and file names, paths, and literal tokens, including but not limited to `box-rpg-maker`, `box-rpg`, RPG Maker, NW.js, EasyRPG Player, Chromium, X11, and SDK. Do not translate documentation or JSON file formats.
 - Workflow: regenerate the template (`xgettext`), translate (`translator-es` subagent), review (`spell-checker-es` subagent), compile (`msgfmt --check`), then run the suite. Full commands live in `../docs/box-gui/translations.md`; terms in `../glossary.md`; translator rules in `../guidelines.md`; track the work in `../task.md`.
 - The catalog must compile cleanly with zero untranslated or fuzzy entries (`msgattrib --untranslated` prints nothing), except the documented legacy entry covered by `test_i18n_app.py`.

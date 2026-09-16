@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-15 09:33-0400\n"
+"POT-Creation-Date: 2026-09-15 19:29-0400\n"
 "PO-Revision-Date: 2026-09-08 00:00+0000\n"
 "Last-Translator: Christopher Herasme <5632734-"
 "christvh@users.noreply.gitlab.com>\n"
@@ -18,67 +18,67 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: install.py:676
+#: install.py:678
 msgid "error: refusing to run as root"
 msgstr "error: se rechaza ejecutar como root"
 
-#: install.py:692
+#: install.py:694
 #, python-brace-format
 msgid "warning: completion source missing: {source}"
 msgstr "advertencia: falta el origen del autocompletado: {source}"
 
-#: install.py:700
+#: install.py:702
 #, python-brace-format
 msgid "error: cannot install completion {target}: {error}"
 msgstr "error: no se pudo instalar el autocompletado en {target}: {error}"
 
-#: install.py:708
+#: install.py:710
 #, python-brace-format
 msgid "installed {count} shell completions"
 msgstr "se instalaron {count} autocompletados del shell"
 
-#: install.py:738
+#: install.py:740
 #, python-brace-format
 msgid "warning: GUI source missing: {source}"
 msgstr "advertencia: falta el origen de la GUI: {source}"
 
-#: install.py:746
+#: install.py:748
 #, python-brace-format
 msgid "error: cannot install GUI file {target}: {error}"
 msgstr "error: no se pudo instalar el archivo de la GUI en {target}: {error}"
 
-#: install.py:754
+#: install.py:756
 #, python-brace-format
 msgid "installed {count} GUI files"
 msgstr "se instalaron {count} archivos de la GUI"
 
-#: install.py:774 install.py:784
+#: install.py:776 install.py:786
 msgid ""
 "error: uninstall requires a verified user-site package and a non-root user"
 msgstr ""
 "error: la desinstalación requiere un paquete verificado de user-site y un "
 "usuario no root"
 
-#: install.py:789
+#: install.py:791
 msgid "error: pip uninstall failed"
 msgstr "error: falló la desinstalación con pip"
 
-#: install.py:802
+#: install.py:804
 #, python-brace-format
 msgid "error: failed to remove managed file {target}: {error}"
 msgstr "error: no se pudo eliminar el archivo gestionado {target}: {error}"
 
-#: install.py:810
+#: install.py:812
 #, python-brace-format
 msgid "removed {count} managed files"
 msgstr "se eliminaron {count} archivos gestionados"
 
-#: install.py:825 install.py:933 install.py:1070 install.py:1076
-#: install.py:1082
+#: install.py:827 install.py:935 install.py:1072 install.py:1078
+#: install.py:1084
 msgid "Aborted."
 msgstr "Se canceló."
 
-#: install.py:834
+#: install.py:836
 msgid ""
 "Install box-rpg on the system.\n"
 "\n"
@@ -103,70 +103,69 @@ msgstr ""
 "escritorio y sus iconos.\n"
 "No se necesita sudo. De forma predeterminada, solo verifica los requisitos "
 "previos,\n"
-"informa las versiones instaladas y las del repositorio y muestra los comandos "
-"exactos; pasa --"
-"install\n"
+"informa las versiones instaladas y las del repositorio y muestra los "
+"comandos exactos; pasa --install\n"
 "para ejecutarlos realmente (con una solicitud de confirmación) y --yes para\n"
 "omitir la solicitud. Pasa --uninstall para eliminar los paquetes "
 "seleccionados y sus archivos.\n"
 "Pasa --target {cli,gui,all} para seleccionar qué distribuciones gestionar."
 
-#: install.py:849
+#: install.py:851
 msgid "actually install (default is a dry run)"
 msgstr "instala realmente (de forma predeterminada, se hace una simulación)"
 
-#: install.py:854
+#: install.py:856
 msgid "uninstall the selected packages and their files"
 msgstr "desinstala los paquetes seleccionados y sus archivos"
 
-#: install.py:859
+#: install.py:861
 msgid "skip the confirmation prompts"
 msgstr "omite las solicitudes de confirmación"
 
-#: install.py:869
+#: install.py:871
 msgid "reinstall the package even when the same version is installed"
 msgstr "reinstala el paquete incluso cuando ya está instalada la misma versión"
 
-#: install.py:875
+#: install.py:877
 msgid "select which distributions to manage: cli, gui, or all"
 msgstr "selecciona qué distribuciones gestionar: cli, gui o all"
 
-#: install.py:880
+#: install.py:882
 msgid "show the exact commands that would run"
 msgstr "muestra los comandos exactos que se ejecutarían"
 
-#: install.py:887
+#: install.py:889
 msgid "error: --install and --uninstall are mutually exclusive"
 msgstr "error: --install y --uninstall son mutuamente excluyentes"
 
-#: install.py:891
+#: install.py:893
 msgid "error: this script requires Linux"
 msgstr "error: este script requiere Linux"
 
-#: install.py:893
+#: install.py:895
 msgid "OK: Linux system detected."
 msgstr "OK: se detectó un sistema Linux."
 
-#: install.py:897
+#: install.py:899
 #, python-brace-format
 msgid "error: Python 3.14+ required, found {major}.{minor}"
 msgstr ""
 "error: se requiere Python 3.14 o posterior; se encontró {major}.{minor}"
 
-#: install.py:904
+#: install.py:906
 #, python-brace-format
 msgid "OK: Python {major}.{minor} found."
 msgstr "OK: se encontró Python {major}.{minor}."
 
-#: install.py:910
+#: install.py:912
 msgid "error: pip is required for the system Python"
 msgstr "error: se requiere pip para el Python del sistema"
 
-#: install.py:912
+#: install.py:914
 msgid "OK: pip found for the system Python."
 msgstr "OK: se encontró pip para el Python del sistema."
 
-#: install.py:916
+#: install.py:918
 #, python-brace-format
 msgid ""
 "\n"
@@ -175,12 +174,12 @@ msgstr ""
 "\n"
 "Instalado:   {installed}"
 
-#: install.py:917
+#: install.py:919
 #, python-brace-format
 msgid "Repo:      {repo}"
 msgstr "Repositorio: {repo}"
 
-#: install.py:919
+#: install.py:921
 #, python-brace-format
 msgid ""
 "\n"
@@ -189,21 +188,21 @@ msgstr ""
 "\n"
 "GUI instalada:   {installed}"
 
-#: install.py:920
+#: install.py:922
 #, python-brace-format
 msgid "Repo GUI:      {repo}"
 msgstr "Repositorio GUI: {repo}"
 
-#: install.py:925
+#: install.py:927
 #, python-brace-format
 msgid "error: {package} is not installed"
 msgstr "error: {package} no está instalado"
 
-#: install.py:928
+#: install.py:930
 msgid "Uninstall commands that would be run:"
 msgstr "Comandos de desinstalación que se ejecutarían:"
 
-#: install.py:930
+#: install.py:932
 msgid ""
 "\n"
 "Proceed with uninstall? [y/N] "
@@ -211,17 +210,17 @@ msgstr ""
 "\n"
 "¿Continuar con la desinstalación? [y/N] "
 
-#: install.py:941
+#: install.py:943
 #, python-brace-format
 msgid "error: Bubblewrap ({bwrap}) is required to launch games"
 msgstr "error: se requiere Bubblewrap ({bwrap}) para iniciar juegos"
 
-#: install.py:947
+#: install.py:949
 #, python-brace-format
 msgid "error: Bubblewrap ({bwrap}) is installed but does not run"
 msgstr "error: Bubblewrap ({bwrap}) está instalado pero no se ejecuta"
 
-#: install.py:954
+#: install.py:956
 msgid ""
 "error: user namespaces are blocked, so the game sandbox cannot start (check: "
 "sysctl kernel.unprivileged_userns_clone)"
@@ -230,27 +229,27 @@ msgstr ""
 "entorno aislado del juego no puede iniciarse (comprueba: sysctl "
 "kernel.unprivileged_userns_clone)"
 
-#: install.py:960
+#: install.py:962
 msgid "OK: Bubblewrap is ready to launch games."
 msgstr "OK: Bubblewrap está listo para iniciar juegos."
 
-#: install.py:964
+#: install.py:966
 #, python-brace-format
 msgid "error: GnuPG ({gpg}) is required to install verified runtimes"
 msgstr ""
 "error: se requiere GnuPG ({gpg}) para instalar entornos de ejecución "
 "verificados"
 
-#: install.py:970
+#: install.py:972
 #, python-brace-format
 msgid "error: GnuPG ({gpg}) is installed but does not run"
 msgstr "error: GnuPG ({gpg}) está instalado pero no se ejecuta"
 
-#: install.py:974
+#: install.py:976
 msgid "OK: GnuPG found."
 msgstr "OK: se encontró GnuPG."
 
-#: install.py:980
+#: install.py:982
 msgid ""
 "error: GTK 4 and libadwaita typelibs are required to install the GUI (needs "
 "PyGObject with Gtk 4.0 and Adw 1)"
@@ -258,42 +257,44 @@ msgstr ""
 "error: se requieren los typelibs de GTK 4 y libadwaita para instalar la GUI "
 "(se necesita PyGObject con Gtk 4.0 y Adw 1)"
 
-#: install.py:986
+#: install.py:988
 msgid "OK: GTK 4 and libadwaita found."
 msgstr "OK: se encontraron GTK 4 y libadwaita."
 
-#: install.py:990
+#: install.py:992
 msgid "Install commands that would be run:"
 msgstr "Comandos de instalación que se ejecutarían:"
 
-#: install.py:992
+#: install.py:994
 msgid "Install plan:"
 msgstr "Plan de instalación:"
 
-#: install.py:995 install.py:1003
+#: install.py:997 install.py:1005
 #, python-brace-format
 msgid "  - Build {package} {repo} in a private directory."
 msgstr "  - Compila {package} {repo} en un directorio privado."
 
-#: install.py:999
+#: install.py:1001
 msgid "  - Install it for your user."
 msgstr "  - Se instala solo para tu usuario."
 
-#: install.py:1000
+#: install.py:1002
 #, python-brace-format
 msgid "  - Install {count} shell completions."
 msgstr "  - Instala {count} autocompletados del shell."
 
-#: install.py:1007
+#: install.py:1009
 msgid "  - Install it for your user with its runtime dependencies."
-msgstr "  - Se instala solo para tu usuario con sus dependencias del entorno de ejecución."
+msgstr ""
+"  - Se instala solo para tu usuario con sus dependencias del entorno de "
+"ejecución."
 
-#: install.py:1008
+#: install.py:1010
 #, python-brace-format
 msgid "  - Install {count} GUI files."
 msgstr "  - Instala {count} archivos de la GUI."
 
-#: install.py:1024
+#: install.py:1026
 #, python-brace-format
 msgid ""
 "\n"
@@ -303,7 +304,7 @@ msgstr ""
 "Hay una actualización disponible (instalado: {installed}, repositorio: "
 "{repo})."
 
-#: install.py:1032
+#: install.py:1034
 #, python-brace-format
 msgid ""
 "\n"
@@ -313,7 +314,7 @@ msgstr ""
 "La versión instalada ({installed}) es más reciente que la del repositorio "
 "({repo})."
 
-#: install.py:1038
+#: install.py:1040
 #, python-brace-format
 msgid ""
 "\n"
@@ -322,7 +323,7 @@ msgstr ""
 "\n"
 "Reinstalando la misma versión ({installed}) según lo solicitado."
 
-#: install.py:1045
+#: install.py:1047
 #, python-brace-format
 msgid ""
 "\n"
@@ -331,7 +332,7 @@ msgstr ""
 "\n"
 "Ya está instalada la misma versión ({installed})."
 
-#: install.py:1051
+#: install.py:1053
 msgid ""
 "\n"
 "Run with --install to actually install."
@@ -339,11 +340,11 @@ msgstr ""
 "\n"
 "Ejecuta con --install para instalar realmente."
 
-#: install.py:1053
+#: install.py:1055
 msgid "To remove it instead, run with --uninstall."
 msgstr "Para eliminarlo, ejecuta con --uninstall."
 
-#: install.py:1062
+#: install.py:1064
 #, python-brace-format
 msgid ""
 "\n"
@@ -354,7 +355,7 @@ msgstr ""
 "{package} ya está instalado. [r] Reinstalar/actualizar, [u] Desinstalar, [c] "
 "Cancelar [r/u/c] "
 
-#: install.py:1067
+#: install.py:1069
 msgid ""
 "\n"
 "Confirm uninstall? [y/N] "
@@ -362,7 +363,7 @@ msgstr ""
 "\n"
 "¿Confirmar la desinstalación? [y/N] "
 
-#: install.py:1079
+#: install.py:1081
 msgid ""
 "\n"
 "Proceed with installation? [y/N] "
@@ -370,7 +371,7 @@ msgstr ""
 "\n"
 "¿Continuar con la instalación? [y/N] "
 
-#: install.py:1090
+#: install.py:1092
 #, python-brace-format
 msgid "warning: {bindir} is not on PATH; add it to run {prog} from anywhere"
 msgstr ""
@@ -515,23 +516,6 @@ msgstr "(desconocido)"
 msgid "plugins"
 msgstr "complementos"
 
-#: box-rpg/src/box/cli/main.py:39
-msgid ""
-"error: no supported RPG Maker game was found here; run box-rpg from the game "
-"directory."
-msgstr ""
-"error: no se encontró aquí ningún juego de RPG Maker compatible; ejecuta box-"
-"rpg desde el directorio del juego."
-
-#: box-rpg/src/box/cli/main.py:58
-msgid "error"
-msgstr "error"
-
-#: box-rpg/src/box/cli/main.py:124
-#, python-brace-format
-msgid "unsupported command: {command}"
-msgstr "comando no compatible: {command}"
-
 #: box-rpg/src/box/cli/menu.py:32
 msgid "(no entries)"
 msgstr "(sin entradas)"
@@ -560,6 +544,107 @@ msgstr ", o [q] salir: "
 #: box-rpg/src/box/cli/runtime.py:249
 msgid "Selection cancelled."
 msgstr "Selección cancelada."
+
+#: box-rpg/src/box/cli/runtime.py:31
+msgid "no NW.js runtimes installed"
+msgstr "no hay entornos de ejecución de NW.js instalados"
+
+#: box-rpg/src/box/cli/runtime.py:44
+#, python-brace-format
+msgid "installed {version} ({flavor}) at {path}"
+msgstr "se instaló {version} ({flavor}) en {path}"
+
+#: box-rpg/src/box/cli/runtime.py:81 box-rpg/src/box/cli/runtime.py:214
+#, python-brace-format
+msgid "Could not load the version list: {error}"
+msgstr "No se pudo cargar la lista de versiones: {error}"
+
+#: box-rpg/src/box/cli/runtime.py:83 box-rpg/src/box/cli/runtime.py:216
+msgid "[r]etry this page, or [q]uit: "
+msgstr "[r] Reintentar esta página o [q] salir: "
+
+#: box-rpg/src/box/cli/runtime.py:93 box-rpg/src/box/cli/runtime.py:226
+msgid "Select 1-10, [n]ext, [p]revious, or [q]uit: "
+msgstr "Selecciona 1-10, [n] siguiente, [p] anterior o [q] salir: "
+
+#: box-rpg/src/box/cli/runtime.py:116
+#, python-brace-format
+msgid "Install NW.js {version} for {architecture}? [y/N] "
+msgstr "¿Instalar NW.js {version} para {architecture}? [y/N] "
+
+#: box-rpg/src/box/cli/runtime.py:127 box-rpg/src/box/cli/runtime.py:259
+msgid "Installation cancelled."
+msgstr "Instalación cancelada."
+
+#: box-rpg/src/box/cli/runtime.py:142
+#, python-brace-format
+msgid "Available NW.js versions (page {page}, {architecture}, {flavor}):"
+msgstr ""
+"Versiones disponibles de NW.js (página {page}, {architecture}, {flavor}):"
+
+#: box-rpg/src/box/cli/runtime.py:147
+msgid "  (no stable versions on this page)"
+msgstr "  (no hay versiones estables en esta página)"
+
+#: box-rpg/src/box/cli/runtime.py:153
+#, python-brace-format
+msgid "Install with: {command}"
+msgstr "Instala con: {command}"
+
+#: box-rpg/src/box/cli/runtime.py:163 box-rpg/src/box/api/cleanup.py:133
+#: box-rpg/src/box/api/launch.py:328
+msgid "standard"
+msgstr "estándar"
+
+#: box-rpg/src/box/cli/runtime.py:169
+#, python-brace-format
+msgid "removed {version}"
+msgstr "se eliminó {version}"
+
+#: box-rpg/src/box/cli/runtime.py:179
+msgid "no EasyRPG Player runtimes installed"
+msgstr "no hay entornos de ejecución de EasyRPG Player instalados"
+
+#: box-rpg/src/box/cli/runtime.py:186 box-rpg/src/box/cli/runtime.py:254
+#, python-brace-format
+msgid "installed EasyRPG Player {version} at {path}"
+msgstr "se instaló EasyRPG Player {version} en {path}"
+
+#: box-rpg/src/box/cli/runtime.py:193
+#, python-brace-format
+msgid "removed EasyRPG Player {version}"
+msgstr "se eliminó EasyRPG Player {version}"
+
+#: box-rpg/src/box/cli/runtime.py:244
+#, python-brace-format
+msgid "Install EasyRPG Player {version} for x64? [y/N] "
+msgstr "¿Instalar EasyRPG Player {version} para x64? [y/N] "
+
+#: box-rpg/src/box/cli/runtime.py:264
+#, python-brace-format
+msgid "Available EasyRPG Player versions (page {page}, x64):"
+msgstr "Versiones disponibles de EasyRPG Player (página {page}, x64):"
+
+#: box-rpg/src/box/cli/runtime.py:266
+msgid "  (no versions on this page)"
+msgstr "  (no hay versiones en esta página)"
+
+#: box-rpg/src/box/cli/main.py:39
+msgid ""
+"error: no supported RPG Maker game was found here; run box-rpg from the game "
+"directory."
+msgstr ""
+"error: no se encontró aquí ningún juego de RPG Maker compatible; ejecuta box-"
+"rpg desde el directorio del juego."
+
+#: box-rpg/src/box/cli/main.py:59
+msgid "error"
+msgstr "error"
+
+#: box-rpg/src/box/cli/main.py:126
+#, python-brace-format
+msgid "unsupported command: {command}"
+msgstr "comando no compatible: {command}"
 
 #: box-rpg/src/box/cli/parser.py:27
 msgid "Launch RPG Maker games with managed NW.js or EasyRPG Player runtimes."
@@ -652,7 +737,7 @@ msgid "override the detected NW.js architecture"
 msgstr "anula la arquitectura de NW.js detectada"
 
 #: box-rpg/src/box/cli/parser.py:129 box-rpg/src/box/cli/parser.py:139
-#: box-rpg/src/box/cli/parser.py:189 box-rpg/src/box/cli/parser.py:254
+#: box-rpg/src/box/cli/parser.py:189 box-rpg/src/box/cli/parser.py:259
 msgid "use the NW.js SDK build"
 msgstr "usa la compilación SDK de NW.js"
 
@@ -700,7 +785,7 @@ msgstr "inicia un juego permitido en una sesión aislada"
 msgid "game directory to launch (default: current directory)"
 msgstr "directorio del juego para iniciar (predeterminado: directorio actual)"
 
-#: box-rpg/src/box/cli/parser.py:187 box-rpg/src/box/cli/parser.py:252
+#: box-rpg/src/box/cli/parser.py:187 box-rpg/src/box/cli/parser.py:257
 msgid "runtime version to use (NW.js or EasyRPG Player, autodetected)"
 msgstr ""
 "versión del entorno de ejecución para usar (NW.js o EasyRPG Player, "
@@ -722,125 +807,45 @@ msgid "use the local X11 display for this launch only (weaker isolation)"
 msgstr ""
 "usa la pantalla X11 local solo para este inicio (aislamiento más débil)"
 
-#: box-rpg/src/box/cli/parser.py:210
+#: box-rpg/src/box/cli/parser.py:208
+msgid "run the game with GameMode for this launch only"
+msgstr "ejecuta el juego con GameMode solo para este inicio"
+
+#: box-rpg/src/box/cli/parser.py:215
 msgid "copy a direct game-root file into the isolated NW.js session"
 msgstr ""
 "copia un archivo ubicado directamente en la raíz del juego en la sesión "
 "aislada de NW.js"
 
-#: box-rpg/src/box/cli/parser.py:216
+#: box-rpg/src/box/cli/parser.py:221
 msgid "show or update launcher configuration"
 msgstr "muestra o actualiza la configuración del iniciador"
 
-#: box-rpg/src/box/cli/parser.py:222
+#: box-rpg/src/box/cli/parser.py:227
 msgid "show current configuration"
 msgstr "muestra la configuración actual"
 
-#: box-rpg/src/box/cli/parser.py:227
+#: box-rpg/src/box/cli/parser.py:232
 msgid "set an allowed game root or preferred runtime"
 msgstr ""
 "establece una raíz de juego permitida o un entorno de ejecución preferido"
 
-#: box-rpg/src/box/cli/parser.py:232
+#: box-rpg/src/box/cli/parser.py:237
 msgid "configuration key: allowed-game-root or preferred-runtime"
 msgstr "clave de configuración: allowed-game-root o preferred-runtime"
 
-#: box-rpg/src/box/cli/parser.py:237
+#: box-rpg/src/box/cli/parser.py:242
 msgid "directory for allowed-game-root, version or none for preferred-runtime"
 msgstr ""
 "directorio para allowed-game-root, versión o none para preferred-runtime"
 
-#: box-rpg/src/box/cli/parser.py:243
+#: box-rpg/src/box/cli/parser.py:248
 msgid "print a local diagnostic report"
 msgstr "imprime un informe de diagnóstico local"
 
-#: box-rpg/src/box/cli/parser.py:246
+#: box-rpg/src/box/cli/parser.py:251
 msgid "game directory to diagnose"
 msgstr "directorio del juego para diagnosticar"
-
-#: box-rpg/src/box/cli/runtime.py:31
-msgid "no NW.js runtimes installed"
-msgstr "no hay entornos de ejecución de NW.js instalados"
-
-#: box-rpg/src/box/cli/runtime.py:44
-#, python-brace-format
-msgid "installed {version} ({flavor}) at {path}"
-msgstr "se instaló {version} ({flavor}) en {path}"
-
-#: box-rpg/src/box/cli/runtime.py:81 box-rpg/src/box/cli/runtime.py:214
-#, python-brace-format
-msgid "Could not load the version list: {error}"
-msgstr "No se pudo cargar la lista de versiones: {error}"
-
-#: box-rpg/src/box/cli/runtime.py:83 box-rpg/src/box/cli/runtime.py:216
-msgid "[r]etry this page, or [q]uit: "
-msgstr "[r] Reintentar esta página o [q] salir: "
-
-#: box-rpg/src/box/cli/runtime.py:93 box-rpg/src/box/cli/runtime.py:226
-msgid "Select 1-10, [n]ext, [p]revious, or [q]uit: "
-msgstr "Selecciona 1-10, [n] siguiente, [p] anterior o [q] salir: "
-
-#: box-rpg/src/box/cli/runtime.py:116
-#, python-brace-format
-msgid "Install NW.js {version} for {architecture}? [y/N] "
-msgstr "¿Instalar NW.js {version} para {architecture}? [y/N] "
-
-#: box-rpg/src/box/cli/runtime.py:127 box-rpg/src/box/cli/runtime.py:259
-msgid "Installation cancelled."
-msgstr "Instalación cancelada."
-
-#: box-rpg/src/box/cli/runtime.py:142
-#, python-brace-format
-msgid "Available NW.js versions (page {page}, {architecture}, {flavor}):"
-msgstr ""
-"Versiones disponibles de NW.js (página {page}, {architecture}, {flavor}):"
-
-#: box-rpg/src/box/cli/runtime.py:147
-msgid "  (no stable versions on this page)"
-msgstr "  (no hay versiones estables en esta página)"
-
-#: box-rpg/src/box/cli/runtime.py:153
-#, python-brace-format
-msgid "Install with: {command}"
-msgstr "Instala con: {command}"
-
-#: box-rpg/src/box/cli/runtime.py:163 box-rpg/src/box/api/launch.py:221
-#: box-rpg/src/box/api/cleanup.py:133
-msgid "standard"
-msgstr "estándar"
-
-#: box-rpg/src/box/cli/runtime.py:169
-#, python-brace-format
-msgid "removed {version}"
-msgstr "se eliminó {version}"
-
-#: box-rpg/src/box/cli/runtime.py:179
-msgid "no EasyRPG Player runtimes installed"
-msgstr "no hay entornos de ejecución de EasyRPG Player instalados"
-
-#: box-rpg/src/box/cli/runtime.py:186 box-rpg/src/box/cli/runtime.py:254
-#, python-brace-format
-msgid "installed EasyRPG Player {version} at {path}"
-msgstr "se instaló EasyRPG Player {version} en {path}"
-
-#: box-rpg/src/box/cli/runtime.py:193
-#, python-brace-format
-msgid "removed EasyRPG Player {version}"
-msgstr "se eliminó EasyRPG Player {version}"
-
-#: box-rpg/src/box/cli/runtime.py:244
-#, python-brace-format
-msgid "Install EasyRPG Player {version} for x64? [y/N] "
-msgstr "¿Instalar EasyRPG Player {version} para x64? [y/N] "
-
-#: box-rpg/src/box/cli/runtime.py:264
-#, python-brace-format
-msgid "Available EasyRPG Player versions (page {page}, x64):"
-msgstr "Versiones disponibles de EasyRPG Player (página {page}, x64):"
-
-#: box-rpg/src/box/cli/runtime.py:266
-msgid "  (no versions on this page)"
-msgstr "  (no hay versiones en esta página)"
 
 #: box-rpg/src/box/config/reader.py:36
 msgid "configuration has unsafe type, ownership or permissions"
@@ -1231,45 +1236,6 @@ msgstr "la ruta de sesión cambió antes de la limpieza: {path}"
 msgid "cannot remove launch session {path}: {error}"
 msgstr "no se puede eliminar la sesión de inicio {path}: {error}"
 
-#: box-rpg/src/box/launch/links.py:24 box-rpg/src/box/launch/links.py:59
-#, python-brace-format
-msgid "game root is missing or unsafe: {root}"
-msgstr "la raíz del juego no existe o no es segura: {root}"
-
-#: box-rpg/src/box/launch/links.py:71
-msgid "cannot resolve the open game directory"
-msgstr "no se puede resolver el directorio abierto del juego"
-
-#: box-rpg/src/box/launch/links.py:73
-msgid "game root disappeared before launch"
-msgstr "la raíz del juego desapareció antes del inicio"
-
-#: box-rpg/src/box/launch/links.py:88
-#, python-brace-format
-msgid "cannot link game into session: {error}"
-msgstr "no se puede enlazar el juego a la sesión: {error}"
-
-#: box-rpg/src/box/launch/links.py:102
-msgid "invalid game-root filename: {filename!r}"
-msgstr "nombre de archivo de raíz de juego no válido: {filename!r}"
-
-#: box-rpg/src/box/launch/links.py:117 box-rpg/src/box/launch/links.py:123
-#, python-brace-format
-msgid "game-root file is missing or unsafe: {filename}"
-msgstr "el archivo de la raíz del juego no existe o no es seguro: {filename}"
-
-#: box-rpg/src/box/launch/links.py:127 box-rpg/src/box/launch/links.py:149
-#, python-brace-format
-msgid "game-root file exceeds byte limit: {filename}"
-msgstr "el archivo de la raíz del juego supera el límite de bytes: {filename}"
-
-#: box-rpg/src/box/launch/links.py:138 box-rpg/src/box/launch/links.py:159
-#: box-rpg/src/box/launch/links.py:167
-#, python-brace-format
-msgid "cannot copy game-root file into session: {error}"
-msgstr ""
-"no se puede copiar el archivo de la raíz del juego a la sesión: {error}"
-
 #: box-rpg/src/box/launch/manifest.py:105
 msgid "a NW.js launch session requires a web game manifest and entrypoint"
 msgstr ""
@@ -1302,11 +1268,16 @@ msgid "game manifest is not a JSON object: {manifest}"
 msgstr "el manifiesto del juego no es un objeto JSON: {manifest}"
 
 #: box-rpg/src/box/launch/process.py:33
+#: box-rpg/src/box/launch/supervisor.py:579
+#: box-rpg/src/box/launch/supervisor.py:604
+#: box-rpg/src/box/launch/supervisor.py:751
+#: box-rpg/src/box/launch/supervisor.py:757
 #, python-brace-format
 msgid "cannot start game runtime: {error}"
 msgstr "no se puede iniciar el entorno de ejecución del juego: {error}"
 
-#: box-rpg/src/box/launch/profiles.py:33 box-rpg/src/box/launch/session.py:192
+#: box-rpg/src/box/launch/profiles.py:33 box-rpg/src/box/launch/session.py:215
+#: box-rpg/src/box/api/launch.py:406
 #, python-brace-format
 msgid "cannot identify game root {root}: {error}"
 msgstr "no se puede identificar la raíz del juego {root}: {error}"
@@ -1336,20 +1307,144 @@ msgstr "se rechaza gestionar una ruta inesperada del perfil del juego: {path}"
 msgid "cannot securely open managed profiles: {error}"
 msgstr "no se pueden abrir de forma segura los perfiles gestionados: {error}"
 
-#: box-rpg/src/box/launch/session.py:137
+#: box-rpg/src/box/launch/gamemode.py:48
+msgid ""
+"GameMode requires gamemoderun (/usr/bin/gamemoderun); install GameMode or "
+"retry without --gamemode"
+msgstr ""
+"GameMode requiere gamemoderun (/usr/bin/gamemoderun); instala GameMode o "
+"reintenta sin --gamemode"
+
+#: box-rpg/src/box/launch/gamemode.py:55
+msgid ""
+"GameMode requires xdg-dbus-proxy (/usr/bin/xdg-dbus-proxy); install xdg-dbus-"
+"proxy or retry without --gamemode"
+msgstr ""
+"GameMode requiere xdg-dbus-proxy (/usr/bin/xdg-dbus-proxy); instala xdg-dbus-"
+"proxy o reintenta sin --gamemode"
+
+#: box-rpg/src/box/launch/gamemode.py:72
+msgid ""
+"GameMode requires a session bus address ($DBUS_SESSION_BUS_ADDRESS or "
+"$XDG_RUNTIME_DIR/bus); retry without --gamemode"
+msgstr ""
+"GameMode requiere una dirección del bus de sesión ($DBUS_SESSION_BUS_ADDRESS o "
+"$XDG_RUNTIME_DIR/bus); reintenta sin --gamemode"
+
+#: box-rpg/src/box/launch/gamemode.py:101
+msgid ""
+"GameMode requires busctl (/usr/bin/busctl); install systemd or retry without "
+"--gamemode"
+msgstr ""
+"GameMode requiere busctl (/usr/bin/busctl); instala systemd o reintenta sin "
+"--gamemode"
+
+#: box-rpg/src/box/launch/gamemode.py:168
+#: box-rpg/src/box/launch/gamemode.py:172
+#: box-rpg/src/box/launch/gamemode.py:175
+msgid "cannot register game with GameMode; retry without --gamemode"
+msgstr "no se puede registrar el juego con GameMode; reintenta sin --gamemode"
+
+#: box-rpg/src/box/launch/links.py:26 box-rpg/src/box/launch/links.py:61
+#, python-brace-format
+msgid "game root is missing or unsafe: {root}"
+msgstr "la raíz del juego no existe o no es segura: {root}"
+
+#: box-rpg/src/box/launch/links.py:73
+msgid "cannot resolve the open game directory"
+msgstr "no se puede resolver el directorio abierto del juego"
+
+#: box-rpg/src/box/launch/links.py:75
+msgid "game root disappeared before launch"
+msgstr "la raíz del juego desapareció antes del inicio"
+
+#: box-rpg/src/box/launch/links.py:90
+#, python-brace-format
+msgid "cannot link game into session: {error}"
+msgstr "no se puede enlazar el juego a la sesión: {error}"
+
+#: box-rpg/src/box/launch/links.py:104
+msgid "invalid game-root filename: {filename!r}"
+msgstr "nombre de archivo de raíz de juego no válido: {filename!r}"
+
+#: box-rpg/src/box/launch/links.py:119 box-rpg/src/box/launch/links.py:125
+#, python-brace-format
+msgid "game-root file is missing or unsafe: {filename}"
+msgstr "el archivo de la raíz del juego no existe o no es seguro: {filename}"
+
+#: box-rpg/src/box/launch/links.py:129 box-rpg/src/box/launch/links.py:151
+#, python-brace-format
+msgid "game-root file exceeds byte limit: {filename}"
+msgstr "el archivo de la raíz del juego supera el límite de bytes: {filename}"
+
+#: box-rpg/src/box/launch/links.py:140 box-rpg/src/box/launch/links.py:161
+#: box-rpg/src/box/launch/links.py:169
+#, python-brace-format
+msgid "cannot copy game-root file into session: {error}"
+msgstr ""
+"no se puede copiar el archivo de la raíz del juego a la sesión: {error}"
+
+#: box-rpg/src/box/launch/session.py:160
+#: box-rpg/src/box/launch/supervisor.py:309
+#: box-rpg/src/box/launch/supervisor.py:321
 #, python-brace-format
 msgid "cannot create launch session: {error}"
 msgstr "no se puede crear la sesión de inicio: {error}"
 
-#: box-rpg/src/box/launch/session.py:205
+#: box-rpg/src/box/launch/session.py:228
 #, python-brace-format
 msgid "cannot create launch session directory: {error}"
 msgstr "no se puede crear el directorio de sesión de inicio: {error}"
 
-#: box-rpg/src/box/launch/session.py:210 box-rpg/src/box/launch/session.py:215
+#: box-rpg/src/box/launch/session.py:233 box-rpg/src/box/launch/session.py:238
 msgid "launch session directory has unsafe ownership or permissions"
 msgstr ""
 "el directorio de sesión de inicio tiene propiedad o permisos no seguros"
+
+#: box-rpg/src/box/launch/supervisor.py:64
+#: box-rpg/src/box/launch/supervisor.py:66
+#: box-rpg/src/box/launch/supervisor.py:84
+#: box-rpg/src/box/launch/supervisor.py:86
+msgid "refusing to manage invalid session path"
+msgstr "se rechaza gestionar una ruta de sesión no válida"
+
+#: box-rpg/src/box/launch/supervisor.py:116
+#: box-rpg/src/box/launch/supervisor.py:123
+#, python-brace-format
+msgid "cannot check launch session: {error}"
+msgstr "no se puede comprobar la sesión de inicio: {error}"
+
+#: box-rpg/src/box/launch/supervisor.py:197
+#: box-rpg/src/box/launch/supervisor.py:200
+msgid "cannot stop launch session without supervisor status"
+msgstr "no se puede detener la sesión de inicio sin el estado del supervisor"
+
+#: box-rpg/src/box/launch/supervisor.py:213
+#: box-rpg/src/box/launch/supervisor.py:215
+#, python-brace-format
+msgid "cannot stop launch session: {error}"
+msgstr "no se puede detener la sesión de inicio: {error}"
+
+#: box-rpg/src/box/launch/supervisor.py:287
+#: box-rpg/src/box/launch/supervisor.py:522
+msgid "game already running"
+msgstr "el juego ya está en ejecución"
+
+#: box-rpg/src/box/launch/supervisor.py:326
+msgid "launch session directory has unsafe ownership"
+msgstr "el directorio de sesión de inicio tiene propiedad no segura"
+
+#: box-rpg/src/box/launch/supervisor.py:341
+msgid "cannot create launch session: name collision"
+msgstr "no se puede crear la sesión de inicio: colisión de nombres"
+
+#: box-rpg/src/box/launch/supervisor.py:350
+msgid "cannot record launch status"
+msgstr "no se puede registrar el estado de inicio"
+
+#: box-rpg/src/box/launch/supervisor.py:775
+msgid "cannot start game runtime"
+msgstr "no se puede iniciar el entorno de ejecución del juego"
 
 #: box-rpg/src/box/utils/i18n.py:55
 #, python-format
@@ -1486,8 +1581,8 @@ msgstr "{sdk} solo está disponible para juegos de NW.js"
 msgid "Add {path} to allowed game roots? [y/N] "
 msgstr "¿Agregar {path} a los juegos permitidos? [y/N] "
 
-#: box-rpg/src/box/api/interaction.py:79 box-rpg/src/box/api/launch.py:271
-#: box-rpg/src/box/api/launch.py:273
+#: box-rpg/src/box/api/interaction.py:79 box-rpg/src/box/api/launch.py:378
+#: box-rpg/src/box/api/launch.py:380
 msgid "game root was not authorized"
 msgstr "la raíz del juego no fue autorizada"
 
@@ -1504,16 +1599,16 @@ msgstr ""
 msgid "Continue with X11? [y/N] "
 msgstr "¿Continuar con X11? [y/N] "
 
-#: box-rpg/src/box/api/interaction.py:92 box-rpg/src/box/api/launch.py:48
-#: box-rpg/src/box/api/launch.py:50
+#: box-rpg/src/box/api/interaction.py:92 box-rpg/src/box/api/launch.py:82
+#: box-rpg/src/box/api/launch.py:84
 msgid "X11 launch was not confirmed"
 msgstr "el inicio con X11 no fue confirmado"
 
 #: box-rpg/src/box/api/interaction.py:98 box-rpg/src/box/api/interaction.py:104
-#: box-rpg/src/box/api/interaction.py:113 box-rpg/src/box/api/launch.py:198
-#: box-rpg/src/box/api/launch.py:200 box-rpg/src/box/api/launch.py:202
-#: box-rpg/src/box/api/launch.py:228 box-rpg/src/box/api/launch.py:230
-#: box-rpg/src/box/api/launch.py:232
+#: box-rpg/src/box/api/interaction.py:113 box-rpg/src/box/api/launch.py:305
+#: box-rpg/src/box/api/launch.py:307 box-rpg/src/box/api/launch.py:309
+#: box-rpg/src/box/api/launch.py:335 box-rpg/src/box/api/launch.py:337
+#: box-rpg/src/box/api/launch.py:339
 msgid "runtime selection was cancelled"
 msgstr "se canceló la selección del entorno de ejecución"
 
@@ -1531,22 +1626,22 @@ msgstr ""
 "Selecciona un entorno de ejecución de NW.js 1-{count} (predeterminado 1) o "
 "[q] salir: "
 
-#: box-rpg/src/box/api/launch.py:40
+#: box-rpg/src/box/api/launch.py:74
 msgid "explicit consent is required for X11; run interactively to continue"
 msgstr ""
 "se requiere consentimiento explícito para X11; ejecuta de forma interactiva "
 "para continuar"
 
-#: box-rpg/src/box/api/launch.py:110
+#: box-rpg/src/box/api/launch.py:151
 #, python-brace-format
 msgid "{sdk} and {copy_root_file} are only available for NW.js games"
 msgstr "{sdk} y {copy_root_file} solo están disponibles para juegos de NW.js"
 
-#: box-rpg/src/box/api/launch.py:194
+#: box-rpg/src/box/api/launch.py:301
 msgid "Installed EasyRPG Player runtimes (x64):"
 msgstr "Entornos de ejecución de EasyRPG Player instalados (x64):"
 
-#: box-rpg/src/box/api/launch.py:222
+#: box-rpg/src/box/api/launch.py:329
 #, python-brace-format
 msgid "Installed NW.js runtimes ({architecture}, {flavor}):"
 msgstr "Entornos de ejecución de NW.js instalados ({architecture}, {flavor}):"

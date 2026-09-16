@@ -26,7 +26,7 @@ Key files:
 - `src/box_gui/pages/diagnose_dialog.py`: `Adw.Dialog` with environment and version groups. Requires libadwaita 1.5 or newer.
 - `src/box_gui/gtk/workers.py`: threading only. `run_in_thread` with daemon thread plus `GLib.idle_add` marshaling, `ProgressReporter` forwarding `(completed, total)` to the main loop, and thin `run_inspect`, `run_launch`, and `run_diagnose` wrappers.
 - `src/box_gui/gtk/interaction.py`: `GtkInteraction`, the `Interaction` bridge for launch-time prompts. Uses a nested `MainLoop` on the main thread with `idle_add` plus `threading.Event` on workers. Not reused by the runtime manager dialogs.
-- `src/box_gui/i18n.py`: gettext loading for domain `box-rpg-app` from `src/box_gui/locale`, exposing `configure`, `_`, and `ngettext`.
+- `src/box_gui/i18n.py`: gettext loading for domain `box-rpg-maker` from `src/box_gui/locale`, exposing `configure`, `_`, and `ngettext`.
 - `src/box_gui/gtk/icons.py`: themed icon names. The app icon is full-color, while NW.js and EasyRPG tab icons are `-symbolic` so GTK recolors them for light and dark themes.
 - `src/box_gui/core/game_icon.py`: game icon discovery without `Gtk`/`Adw` (`GdkPixbuf` decoding is allowed). Lists `.exe` files through `list_root_files`, converts `.ico` to PNG with `icoextract` and `GdkPixbuf`, and builds the app-owned cache path. Executables are only read, never run. Failures return `False` instead of raising.
 - `src/box_gui/widgets/exe_picker.py`: single-choice executable dialog in the `choose_runtime` shape with `Adw.AlertDialog` plus `Gtk.DropDown`.
@@ -86,3 +86,11 @@ Game icons are opt-in through the detail Change action. Adding a game never extr
 - Backend calls are stubbed with no network: pager and cancel paths, confirm accept, cancel, and close, remove-then-refresh, main-loop progress delivery, architecture-error fallback, and missing-helper fallback with zero dialogs.
 - `LibraryRepository` is tested standalone with `tmp_path`: load and save round-trip, missing file as empty tuple, corrupt JSON as `LibraryError`, reorder semantics, and no partial file on failure.
 - Checks are `pytest`, `ruff check`, `ruff format --check` with line-length 100, and strict `pyright`. Code, identifiers, and comments stay in English. No `print()` or `input()` in `box_gui`. Dialogs are exercised headless or with stubs only; flag the missing visual pass in pull requests.
+
+Strict `pyright` runs from `box-gui/` with the project interpreter, mirroring the backend form in `../box-rpg/development.md` (Node.js on `PATH`, no automatic downloads):
+
+```sh
+../.venv/bin/python -m pyright --pythonpath ../.venv/bin/python
+```
+
+The `.venv` interpreter carries the `gi`/`cairo` bindings plus pytest, and `extraPaths` in `pyproject.toml` covers both `src` trees. A `box`/`box_gui` copy installed in user site shadows the checkouts if it takes precedence; the checkout roots above must win — if stale-version errors (`No parameter named ...` on fresh APIs) ever appear, check `python -c "import box; print(box.__file__)"` first.

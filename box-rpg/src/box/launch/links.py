@@ -12,7 +12,9 @@ from box.games.files import MAX_GAME_FILE_BYTES
 from box.paths import open_directory_without_symlinks
 from box.utils.i18n import _
 
-_RESERVED_ROOT_NAMES = frozenset({"", ".", "..", "game", "package.json"})
+_RESERVED_ROOT_NAMES = frozenset(
+    {"", ".", "..", "game", "package.json", "session.lock", "status.json"}
+)
 
 
 def open_game_root(game_root: Path) -> int:

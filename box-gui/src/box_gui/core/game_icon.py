@@ -25,6 +25,7 @@ __all__ = [
     "find_game_executables",
     "icon_path_for_game",
     "install_image_as_icon",
+    "rekey_cached_icon",
 ]
 
 MAX_ICON_SIDE: int = 256
@@ -47,6 +48,27 @@ def icon_path_for_game(config_root: Path, game_path: Path) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     slug = hashlib.sha256(str(game_path).encode("utf-8")).hexdigest()[:16]
     return cache_dir / f"{slug}.png"
+
+
+def rekey_cached_icon(config_root: Path, old_icon: Path | None, new_game_path: Path) -> Path | None:
+    """Move a cached icon onto the relocated game-path key, tolerating failures.
+
+    The icon cache is keyed by game path, so relocating a library entry
+    must move the cached file to the new key. Returns the icon path the
+    relocated entry should store: the new key when the move worked (or
+    there was nothing to move), otherwise the previous path, which stays
+    valid for display.
+    """
+    new_key = icon_path_for_game(config_root, new_game_path)
+    if old_icon is None or old_icon == new_key:
+        return new_key if old_icon is not None else None
+    try:
+        if not old_icon.is_file():
+            return new_key
+        old_icon.rename(new_key)
+    except OSError:
+        return old_icon
+    return new_key
 
 
 def extract_icon_png(exe: Path, dest: Path) -> bool:

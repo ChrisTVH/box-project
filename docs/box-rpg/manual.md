@@ -13,6 +13,8 @@ Other RPG Maker generations are not supported. You need Python 3.14 or newer.
 
 Games always run inside an isolated sandbox. This requires Linux with Bubblewrap at `/usr/bin/bwrap` and working user namespaces. Wayland is recommended. X11 and XWayland sessions work with per-launch consent (`--x11` or interactive confirmation).
 
+`--gamemode` additionally requires `/usr/bin/gamemoderun`, `/usr/bin/xdg-dbus-proxy`, and `/usr/bin/busctl` plus a host `gamemoded`, which D-Bus-activates on demand with no manual enable step. Unlike the mandatory Bubblewrap dependency, these are only needed for GameMode launches.
+
 There is no unsandboxed mode. If Bubblewrap or user namespaces are missing, games will not start. See [security and compatibility limits](security.md) for details.
 
 ## Launch a game

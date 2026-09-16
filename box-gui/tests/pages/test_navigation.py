@@ -15,6 +15,8 @@ from typing import Any
 
 import pytest
 
+from box_gui import gtk
+
 try:
     import gi
 
@@ -27,7 +29,6 @@ try:
     from box.models import EngineName, GameInfo
     from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
-    import box_gui.gtk
     import box_gui.pages.library_page as library_page_module
     from box_gui.core.library import LibraryEntry, LibraryRepository
     from box_gui.pages.game_detail_page import GameDetailPage
@@ -35,7 +36,6 @@ try:
 
     _navigation_available = True
 except Exception:
-    box_gui: Any = None
     library_page_module: Any = None
     AppPaths: Any = None
     ConfigRepository: Any = None
@@ -130,7 +130,7 @@ def _install_fake_inspect(monkeypatch: pytest.MonkeyPatch, factory: Any) -> Any:
     module.run_inspect = _run_inspect  # type: ignore[attr-defined]
     module.run_in_thread = _run_in_thread  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "box_gui.gtk.workers", module)
-    monkeypatch.setattr(box_gui.gtk, "workers", module, raising=False)
+    monkeypatch.setattr(gtk, "workers", module, raising=False)
     return calls
 
 
@@ -167,6 +167,7 @@ def _install_fake_launch_workers(
         allow_network: bool = False,
         allow_game_writes: bool = False,
         x11: bool = False,
+        gamemode: bool = False,
     ) -> None:
         launch_calls.append(
             {
@@ -180,6 +181,7 @@ def _install_fake_launch_workers(
                 "allow_network": allow_network,
                 "allow_game_writes": allow_game_writes,
                 "x11": x11,
+                "gamemode": gamemode,
             }
         )
         if launch_error is not None:
@@ -201,7 +203,7 @@ def _install_fake_launch_workers(
     module.run_launch = _run_launch  # type: ignore[attr-defined]
     module.run_in_thread = _run_in_thread  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "box_gui.gtk.workers", module)
-    monkeypatch.setattr(box_gui.gtk, "workers", module, raising=False)
+    monkeypatch.setattr(gtk, "workers", module, raising=False)
     return inspect_calls
 
 
@@ -211,6 +213,32 @@ def _row_launch_button(row: Any) -> Any:
         if isinstance(widget, Gtk.Button) and widget.get_tooltip_text() == "Launch":
             return widget
     raise AssertionError("library row has no launch button")
+
+
+def _row_rocket_button(row: Any) -> Any:
+    """Return the rocket button inside a row regardless of its tooltip."""
+    for widget in _row_widgets(row):
+        if isinstance(widget, Gtk.Button):
+            child = widget.get_first_child()
+            if isinstance(child, Gtk.Image) and child.get_icon_name() in (
+                "box-rpg-rocket-symbolic",
+                "box-rpg-rocket-off-symbolic",
+            ):
+                return widget
+    raise AssertionError("library row has no rocket button")
+
+
+def _row_folder_buttons(row: Any) -> list[Any]:
+    """Collect the folder shortcut buttons inside a library row."""
+    from box_gui.gtk.icons import FOLDER_ICON_NAME
+
+    found: list[Any] = []
+    for widget in _row_widgets(row):
+        if isinstance(widget, Gtk.Button):
+            child = widget.get_first_child()
+            if isinstance(child, Gtk.Image) and child.get_icon_name() == FOLDER_ICON_NAME:
+                found.append(widget)
+    return found
 
 
 def _make_repository(tmp_path: Path) -> Any:
@@ -255,6 +283,8 @@ def test_push_pop_keeps_list_intact(monkeypatch: pytest.MonkeyPatch, tmp_path: P
         Adw.init()
     _capture_alerts(monkeypatch)
     repository = _make_repository(tmp_path)
+    (tmp_path / "alpha").mkdir()
+    (tmp_path / "beta").mkdir()
     first = repository.add(tmp_path / "alpha", "Alpha")
     repository.add(tmp_path / "beta", "Beta")
     _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, path.name))
@@ -305,6 +335,7 @@ def test_back_navigation_refreshes_renamed_entries(
     from box_gui.app import BoxRpgApplication
 
     repository = _make_repository(tmp_path)
+    (tmp_path / "alpha").mkdir()
     repository.add(tmp_path / "alpha", "Alpha")
     navigation = Adw.NavigationView()
     page = LibraryPage(library=repository, on_open_game=lambda entry: None)
@@ -375,6 +406,8 @@ def test_move_action_reorders_and_refreshes(
         Adw.init()
     _capture_alerts(monkeypatch)
     repository = _make_repository(tmp_path)
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
     repository.add(tmp_path / "a", "A")
     second = repository.add(tmp_path / "b", "B")
     page = LibraryPage(library=repository)
@@ -478,6 +511,7 @@ def test_library_with_entries_hides_hint(tmp_path: Path) -> None:
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir()
     repository.add(tmp_path / "game", "Game")
     page = LibraryPage(library=repository, on_open_game=lambda entry: None)
 
@@ -624,6 +658,8 @@ def test_single_row_hides_reorder_menu(tmp_path: Path) -> None:
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
+    (tmp_path / "solo").mkdir()
+    (tmp_path / "second").mkdir()
     repository.add(tmp_path / "solo", "Solo")
     first = LibraryPage(library=repository, on_open_game=lambda entry: None)
     repository.add(tmp_path / "second", "Second")
@@ -657,11 +693,14 @@ def test_bundled_tabler_icons_resolve(tmp_path: Path) -> None:
         "box-rpg-settings-symbolic",
         "box-rpg-dots-symbolic",
         "box-rpg-rocket-symbolic",
+        "box-rpg-rocket-off-symbolic",
         "box-rpg-x-symbolic",
         "box-rpg-trash-symbolic",
         "box-rpg-nwjs-symbolic",
         "box-rpg-easyrpg-symbolic",
         "box-rpg-box-symbolic",
+        "box-rpg-warning-symbolic",
+        "box-rpg-folder-symbolic",
     ):
         assert theme.has_icon(name), f"unresolved bundled icon {name}"
 
@@ -745,6 +784,7 @@ def test_launch_button_uses_saved_options(monkeypatch: pytest.MonkeyPatch, tmp_p
         Adw.init()
     presented = _capture_alerts(monkeypatch)
     repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir()
     created = repository.add(tmp_path / "game", "Game")
     entry = repository.update(
         LibraryEntry(
@@ -788,6 +828,7 @@ def test_launch_button_uses_saved_options(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert launch_calls[0]["allow_network"] is True
     assert launch_calls[0]["allow_game_writes"] is False
     assert launch_calls[0]["x11"] is True
+    assert launch_calls[0]["gamemode"] is False
     assert launch_calls[0]["game_path"] == entry.path
     assert opened == []
     assert presented == []
@@ -803,6 +844,7 @@ def test_launch_button_drops_sdk_and_files_for_easyrpg(
         Adw.init()
     presented = _capture_alerts(monkeypatch)
     repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir()
     created = repository.add(tmp_path / "game", "Game")
     repository.update(
         LibraryEntry(
@@ -813,6 +855,7 @@ def test_launch_button_drops_sdk_and_files_for_easyrpg(
             preferred_sdk=True,
             copy_root_files=("extra.txt",),
             engine="rpg-maker-2000-2003",
+            use_gamemode=True,
         )
     )
     paths = _make_paths(tmp_path)
@@ -843,6 +886,7 @@ def test_launch_button_drops_sdk_and_files_for_easyrpg(
     assert launch_calls[0]["version"] == "0.8.1"
     assert launch_calls[0]["sdk"] is False
     assert launch_calls[0]["copy_root_files"] == ()
+    assert launch_calls[0]["gamemode"] is True
     assert presented == []
     assert button.get_sensitive() is True
 
@@ -856,6 +900,7 @@ def test_launch_button_uses_options_edited_in_detail(
         Adw.init()
     _capture_alerts(monkeypatch)
     repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir()
     created = repository.add(tmp_path / "game", "Game")
     paths = _make_paths(tmp_path)
     config_repository = ConfigRepository(paths)
@@ -897,6 +942,7 @@ def test_launch_button_inspect_error_alerts_without_launch(
         Adw.init()
     presented = _capture_alerts(monkeypatch)
     repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir()
     repository.add(tmp_path / "game", "Game")
     paths = _make_paths(tmp_path)
     launch_calls: list[Any] = []
@@ -934,6 +980,7 @@ def test_launch_button_error_alerts_and_reenables(
         Adw.init()
     presented = _capture_alerts(monkeypatch)
     repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir()
     repository.add(tmp_path / "game", "Game")
     paths = _make_paths(tmp_path)
     launch_calls: list[Any] = []
@@ -1010,6 +1057,9 @@ def test_inspect_and_add_prefills_runtime_per_engine(
         defaults_repository=defaults_repository,
     )
 
+    (tmp_path / "mv-game").mkdir()
+    (tmp_path / "mz-game").mkdir()
+    (tmp_path / "easy-game").mkdir()
     page._on_inspect_done(_make_inspection(tmp_path / "mv-game", "MV Game"))
     page._on_inspect_done(_make_mz_inspection(tmp_path / "mz-game", "MZ Game"))
     page._on_inspect_done(_make_easyrpg_inspection(tmp_path / "easy-game", "Easy Game"))
@@ -1044,6 +1094,8 @@ def test_inspect_and_add_keeps_none_without_globals(
         defaults_repository=DefaultsRepository(paths),
     )
 
+    (tmp_path / "mv-game").mkdir()
+    (tmp_path / "easy-game").mkdir()
     page._on_inspect_done(_make_inspection(tmp_path / "mv-game", "MV Game"))
     page._on_inspect_done(_make_easyrpg_inspection(tmp_path / "easy-game", "Easy Game"))
 
@@ -1080,6 +1132,8 @@ def test_inspect_and_add_tolerates_broken_globals(
         defaults_repository=defaults_repository,
     )
 
+    (tmp_path / "mv-game").mkdir()
+    (tmp_path / "easy-game").mkdir()
     page._on_inspect_done(_make_inspection(tmp_path / "mv-game", "MV Game"))
     page._on_inspect_done(_make_easyrpg_inspection(tmp_path / "easy-game", "Easy Game"))
 
@@ -1099,6 +1153,7 @@ def test_launch_button_falls_back_to_easyrpg_global(
     from box_gui.core.defaults import DefaultsRepository
 
     repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir()
     created = repository.add(tmp_path / "game", "Game", "rpg-maker-2000-2003")
     assert created.preferred_runtime is None
     paths = _make_paths(tmp_path)
@@ -1131,6 +1186,7 @@ def test_launch_button_keeps_none_without_easyrpg_global(
     _capture_alerts(monkeypatch)
 
     repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir()
     repository.add(tmp_path / "game", "Game", "rpg-maker-2000-2003")
     paths = _make_paths(tmp_path)
     launch_calls: list[Any] = []
@@ -1157,6 +1213,7 @@ def test_launch_button_keeps_none_for_nwjs(monkeypatch: pytest.MonkeyPatch, tmp_
     _capture_alerts(monkeypatch)
 
     repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir()
     repository.add(tmp_path / "game", "Game", "rpg-maker-mv")
     paths = _make_paths(tmp_path)
     ConfigRepository(paths).set_preferred_runtime("0.83.0")
@@ -1218,6 +1275,7 @@ def test_library_row_shows_extracted_icon(tmp_path: Path) -> None:
     with contextlib.suppress(Exception):
         Adw.init()
     game = tmp_path / "game"
+    game.mkdir()
     repository = _make_repository(tmp_path)
     created = repository.add(game, "Game", "rpg-maker-mv")
     repository.update(
@@ -1236,6 +1294,9 @@ def test_library_row_falls_back_per_engine(tmp_path: Path) -> None:
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
+    (tmp_path / "mv").mkdir()
+    (tmp_path / "2k3").mkdir()
+    (tmp_path / "mystery").mkdir()
     repository.add(tmp_path / "mv", "MV", "rpg-maker-mv")
     repository.add(tmp_path / "2k3", "2k3", "rpg-maker-2000-2003")
     repository.add(tmp_path / "mystery", "Mystery")
@@ -1298,3 +1359,758 @@ def test_file_icon_bakes_rounded_corners(tmp_path: Path) -> None:
     assert _alpha(47, 47) == 0
     assert _alpha(24, 0) == 255
     assert _alpha(24, 24) == 255
+
+
+def test_launch_button_forwards_gamemode_flag(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Quick-launch passes the persisted GameMode flag to run_launch."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    game = tmp_path / "game"
+    game.mkdir()
+    created = repository.add(game, "Game")
+    repository.update(replace(created, use_gamemode=True, engine="rpg-maker-mv"))
+    paths = _make_paths(tmp_path)
+    launch_calls: list[Any] = []
+    _install_fake_launch_workers(
+        monkeypatch, lambda path: _make_inspection(path, "Game"), launch_calls
+    )
+    page = LibraryPage(
+        library=repository,
+        on_open_game=lambda entry: None,
+        paths=paths,
+        repository=ConfigRepository(paths),
+    )
+
+    button = _row_launch_button(page._list_box.get_first_child())
+    button.emit("clicked")
+
+    assert len(launch_calls) == 1
+    assert launch_calls[0]["gamemode"] is True
+    assert button.get_sensitive() is True
+
+
+def _row_by_title(page: Any, title: str) -> Any:
+    """Return the library row matching one display title."""
+    child = page._list_box.get_first_child()
+    while child is not None:
+        if isinstance(child, Adw.ActionRow) and str(child.get_title()) == title:
+            return child
+        child = child.get_next_sibling()
+    raise AssertionError(f"no library row titled {title}")
+
+
+def _row_badges(row: Any, css_class: str) -> list[Any]:
+    """Collect badge labels inside a row carrying one pill class."""
+    return [
+        widget
+        for widget in _row_widgets(row)
+        if isinstance(widget, Gtk.Label) and widget.has_css_class(css_class)
+    ]
+
+
+_GHOST_REASON = "The game folder is missing. Use Locate folder… to point at it again."
+
+
+def test_refresh_keeps_missing_as_streak_without_deletion(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """refresh() keeps vanished folders as streaked rows without dialogs or deletions."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    kept = tmp_path / "kept"
+    kept.mkdir()
+    (kept / "save.dat").write_bytes(b"untouched")
+    repository.add(kept, "Kept")
+    repository.add(tmp_path / "gone", "Gone")
+
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+
+    assert _row_titles(page) == ["Kept", "Gone"]
+    stored = {entry.display_name: entry for entry in repository.load()}
+    assert stored["Kept"].missing_streak == 0
+    assert stored["Gone"].missing_streak == 1
+    assert presented == []
+    assert (kept / "save.dat").read_bytes() == b"untouched"
+    assert not (tmp_path / "gone").exists()
+
+
+def _make_wired_page(tmp_path: Path, repository: Any, **kwargs: Any) -> tuple[Any, Any]:
+    """Build a library page with backend wiring so launch stays sensitive."""
+    paths = _make_paths(tmp_path)
+    page = LibraryPage(
+        library=repository,
+        on_open_game=lambda entry: None,
+        paths=paths,
+        repository=ConfigRepository(paths),
+        **kwargs,
+    )
+    return page, paths
+
+
+def test_below_threshold_row_renders_normal_silent(tmp_path: Path) -> None:
+    """A streak below the threshold renders exactly like a normal row."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir()
+    stored = repository.add(tmp_path / "game", "Game")
+    page, _paths = _make_wired_page(tmp_path, repository)
+
+    row = page._build_row(replace(stored, missing_streak=2))
+
+    assert row.get_tooltip_text() is None
+    assert _row_badges(row, "missing-pill") == []
+    assert row.get_opacity() == 1.0
+    assert not row.has_css_class("ghost-row")
+    assert _row_launch_button(row).get_sensitive() is True
+
+
+def test_ghost_row_shows_badge_and_disables_launch(tmp_path: Path) -> None:
+    """A streak at the threshold dims the row with a badge and no launch."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir()
+    stored = repository.add(tmp_path / "game", "Game")
+    page, _paths = _make_wired_page(tmp_path, repository)
+
+    row = page._build_row(replace(stored, missing_streak=3))
+
+    assert row.get_opacity() == pytest.approx(0.55, abs=0.01)
+    assert row.has_css_class("ghost-row")
+    assert row.get_tooltip_text() == _GHOST_REASON
+    badges = _row_badges(row, "missing-pill")
+    assert [badge.get_text() for badge in badges] == ["Missing"]
+    button = _row_rocket_button(row)
+    assert button.get_sensitive() is False
+    assert button.get_tooltip_text() == _GHOST_REASON
+    assert button.get_first_child().get_icon_name() == "box-rpg-rocket-off-symbolic"
+
+
+def test_missing_accumulates_to_ghost_across_refreshes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Repeated refreshes streak a missing folder until it renders as a ghost."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    (tmp_path / "kept").mkdir()
+    repository.add(tmp_path / "kept", "Kept")
+    repository.add(tmp_path / "gone", "Gone")
+    page, _paths = _make_wired_page(tmp_path, repository)
+
+    assert repository.load()[1].missing_streak == 1
+    assert _row_badges(_row_by_title(page, "Gone"), "missing-pill") == []
+
+    page.refresh()
+    page.refresh()
+
+    assert repository.load()[1].missing_streak == 3
+    ghost = _row_by_title(page, "Gone")
+    assert [badge.get_text() for badge in _row_badges(ghost, "missing-pill")] == ["Missing"]
+    assert _row_titles(page) == ["Kept", "Gone"]
+    assert presented == []
+
+
+def test_reappearing_folder_resets_streak_and_unghosts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A folder that comes back clears its streak and restores the row."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    created = repository.add(tmp_path / "back", "Back")
+    repository.update(replace(created, missing_streak=3))
+    page, _paths = _make_wired_page(tmp_path, repository)
+
+    assert repository.load()[0].missing_streak == 4
+    assert _row_badges(_row_by_title(page, "Back"), "missing-pill") != []
+
+    (tmp_path / "back").mkdir()
+    page.refresh()
+
+    assert repository.load()[0].missing_streak == 0
+    row = _row_by_title(page, "Back")
+    assert _row_badges(row, "missing-pill") == []
+    assert row.get_tooltip_text() is None
+    assert _row_launch_button(row).get_sensitive() is True
+
+
+def test_row_menu_has_no_locate_folder(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The row menu stays reorder/remove only; the folder button owns locate."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir()
+    stored = repository.add(tmp_path / "game", "Game")
+    page, _paths = _make_wired_page(tmp_path, repository)
+
+    assert library_page_module._row_menu_model().get_n_items() == 5
+
+    captured: dict[str, Any] = {}
+
+    class _FakeDialog:
+        def __init__(self, **kwargs: Any) -> None:
+            captured.update(kwargs)
+
+        def select_folder(self, parent: Any, _cancellable: Any, callback: Any) -> None:
+            captured["parent"] = parent
+            captured["callback"] = callback
+
+    monkeypatch.setattr(Gtk, "FileDialog", _FakeDialog)
+    page._on_locate_clicked(None, stored)
+
+    assert captured["title"] == "Select Game Folder"
+    assert page._locate_entry == stored
+    assert callable(captured["callback"])
+
+
+def test_locate_valid_updates_path_and_clears_ghost(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A valid relocation points the entry at the new folder and un-ghosts it."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    from box_gui.core.game_icon import icon_path_for_game
+
+    repository = _make_repository(tmp_path)
+    created = repository.add(tmp_path / "old", "Game", "rpg-maker-mv")
+    old_icon = repository.library_file.parent / "icons" / "old.png"
+    old_icon.parent.mkdir(parents=True, exist_ok=True)
+    old_icon.write_bytes(b"icon-bytes")
+    ghost = repository.update(
+        replace(
+            created,
+            preferred_runtime="0.83.0",
+            use_gamemode=True,
+            copy_root_files=("extra.txt",),
+            icon_path=old_icon,
+            missing_streak=3,
+        )
+    )
+    new_root = tmp_path / "new"
+    new_root.mkdir()
+    _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, path.name))
+    page, _paths = _make_wired_page(tmp_path, repository)
+
+    class _Source:
+        def select_folder_finish(self, _result: Any) -> Any:
+            return Gio.File.new_for_path(str(new_root))
+
+    page._locate_entry = ghost
+    page._on_locate_folder_chosen(_Source(), None)
+
+    stored = repository.load()[0]
+    assert stored.path == new_root
+    assert stored.missing_streak == 0
+    assert stored.order == ghost.order
+    assert stored.display_name == "Game"
+    assert stored.engine == "rpg-maker-mv"
+    assert stored.preferred_runtime == "0.83.0"
+    assert stored.use_gamemode is True
+    assert stored.copy_root_files == ("extra.txt",)
+    expected_icon = icon_path_for_game(repository.library_file.parent, new_root)
+    assert stored.icon_path == expected_icon
+    assert expected_icon.is_file()
+    assert expected_icon.read_bytes() == b"icon-bytes"
+    assert not old_icon.exists()
+    row = _row_by_title(page, "Game")
+    assert _row_badges(row, "missing-pill") == []
+    assert _row_launch_button(row).get_sensitive() is True
+
+
+def test_locate_invalid_stays_ghost_with_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failed relocation inspection alerts and keeps the ghost untouched."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    created = repository.add(tmp_path / "old", "Game")
+    ghost = repository.update(replace(created, missing_streak=3))
+    new_root = tmp_path / "new"
+    new_root.mkdir()
+    _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, path.name))
+    monkeypatch.setattr(
+        sys.modules["box_gui.gtk.workers"],
+        "run_inspect",
+        lambda path, on_done, on_error: on_error(BoxError("not a game")),
+    )
+    page, _paths = _make_wired_page(tmp_path, repository)
+
+    class _Source:
+        def select_folder_finish(self, _result: Any) -> Any:
+            return Gio.File.new_for_path(str(new_root))
+
+    before = repository.load()[0].missing_streak
+    page._locate_entry = ghost
+    page._on_locate_folder_chosen(_Source(), None)
+
+    assert len(presented) == 1
+    assert presented[0].get_heading() == "Inspection Failed"
+    stored = repository.load()[0]
+    assert stored.path == tmp_path / "old"
+    assert stored.missing_streak == before
+    assert _row_badges(_row_by_title(page, "Game"), "missing-pill") != []
+
+
+def test_locate_onto_taken_path_stays_ghost(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Relocating onto another entry alerts and keeps the ghost untouched."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    created = repository.add(tmp_path / "old", "Old")
+    ghost = repository.update(replace(created, missing_streak=3))
+    other = tmp_path / "other"
+    other.mkdir()
+    repository.add(other, "Other")
+    _install_fake_inspect(monkeypatch, lambda path: _make_inspection(other, "Other"))
+    page, _paths = _make_wired_page(tmp_path, repository)
+
+    class _Source:
+        def select_folder_finish(self, _result: Any) -> Any:
+            return Gio.File.new_for_path(str(other))
+
+    before = {entry.display_name: entry.missing_streak for entry in repository.load()}
+    page._locate_entry = ghost
+    page._on_locate_folder_chosen(_Source(), None)
+
+    assert len(presented) == 1
+    assert presented[0].get_heading() == "Library Error"
+    stored = {entry.display_name: entry for entry in repository.load()}
+    assert stored["Old"].path == tmp_path / "old"
+    assert stored["Old"].missing_streak == before["Old"]
+
+
+def test_remove_works_on_ghost(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The existing Remove action still drops a ghost entry."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    (tmp_path / "kept").mkdir()
+    repository.add(tmp_path / "kept", "Kept")
+    ghost = repository.update(replace(repository.add(tmp_path / "gone", "Gone"), missing_streak=3))
+    page, _paths = _make_wired_page(tmp_path, repository)
+    # Construction streaked the ghost once more; removal matches by path either way.
+    assert _row_titles(page) == ["Kept", "Gone"]
+
+    page._on_remove_action(None, None, ghost)
+
+    assert [entry.display_name for entry in repository.load()] == ["Kept"]
+    assert _row_titles(page) == ["Kept"]
+
+
+def test_ghost_launch_guard_never_inspects(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Clicking launch on a ghost alerts without any inspection or launch."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    created = repository.add(tmp_path / "gone", "Gone")
+    ghost = repository.update(replace(created, missing_streak=3))
+    launch_calls: list[Any] = []
+    inspect_calls = _install_fake_launch_workers(
+        monkeypatch, lambda path: _make_inspection(path, "Gone"), launch_calls
+    )
+    page, _paths = _make_wired_page(tmp_path, repository)
+
+    page._on_launch_clicked(page._row_launch_buttons[ghost.path], ghost)
+
+    assert len(presented) == 1
+    assert presented[0].get_heading() == "Folder missing"
+    assert inspect_calls == []
+    assert launch_calls == []
+
+
+def test_ghost_row_shows_locate_button_only_for_ghosts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Only ghost rows carry the folder shortcut to the locate flow."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    from box_gui.core.sessions import game_identifier
+
+    repository = _make_repository(tmp_path)
+    live_root = tmp_path / "live"
+    live_root.mkdir()
+    idle_root = tmp_path / "idle"
+    idle_root.mkdir()
+    repository.add(live_root, "Live")
+    repository.add(idle_root, "Idle")
+    created = repository.add(tmp_path / "gone", "Gone")
+    repository.update(replace(created, missing_streak=3))
+    live_id = game_identifier(live_root)
+    monkeypatch.setattr(
+        "box.api.launch.find_live_sessions",
+        lambda paths, identifier: ["s1"] if identifier == live_id else [],
+        raising=False,
+    )
+    page, _paths = _make_wired_page(tmp_path, repository)
+
+    assert _row_folder_buttons(_row_by_title(page, "Live")) == []
+    assert _row_folder_buttons(_row_by_title(page, "Idle")) == []
+
+    ghost_row = _row_by_title(page, "Gone")
+    folders = _row_folder_buttons(ghost_row)
+    assert len(folders) == 1
+    folder_button = folders[0]
+    assert folder_button.get_sensitive() is True
+    assert folder_button.get_valign() == Gtk.Align.CENTER
+    assert folder_button.has_css_class("flat")
+    assert folder_button.get_tooltip_text() == "Locate folder…"
+    assert (
+        _row_rocket_button(ghost_row).get_first_child().get_icon_name()
+        == "box-rpg-rocket-off-symbolic"
+    )
+    assert (
+        _row_rocket_button(_row_by_title(page, "Live")).get_first_child().get_icon_name()
+        == "box-rpg-rocket-off-symbolic"
+    )
+    assert (
+        _row_rocket_button(_row_by_title(page, "Idle")).get_first_child().get_icon_name()
+        == "box-rpg-rocket-symbolic"
+    )
+
+    widgets = _row_widgets(ghost_row)
+    menu_index = next(
+        index for index, widget in enumerate(widgets) if isinstance(widget, Gtk.MenuButton)
+    )
+    folder_index = next(index for index, widget in enumerate(widgets) if widget is folder_button)
+    rocket_index = next(
+        index for index, widget in enumerate(widgets) if widget is _row_rocket_button(ghost_row)
+    )
+    assert menu_index < folder_index < rocket_index
+
+
+def test_ghost_folder_button_shares_locate_picker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The ghost folder shortcut opens the locate picker."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    created = repository.add(tmp_path / "gone", "Gone")
+    repository.update(replace(created, missing_streak=3))
+    page, _paths = _make_wired_page(tmp_path, repository)
+    entry = next(item for item in page._entries if item.display_name == "Gone")
+
+    captured: dict[str, Any] = {}
+
+    class _FakeDialog:
+        def __init__(self, **kwargs: Any) -> None:
+            captured.setdefault("titles", []).append(kwargs.get("title"))
+
+        def select_folder(self, parent: Any, _cancellable: Any, callback: Any) -> None:
+            captured["callback"] = callback
+
+    monkeypatch.setattr(Gtk, "FileDialog", _FakeDialog)
+    begun: list[Any] = []
+    original = LibraryPage._begin_locate
+
+    def _spy(self: Any, target: Any) -> None:
+        begun.append(target)
+        original(self, target)
+
+    monkeypatch.setattr(LibraryPage, "_begin_locate", _spy)
+
+    folders = _row_folder_buttons(_row_by_title(page, "Gone"))
+    assert len(folders) == 1
+    folders[0].emit("clicked")
+
+    assert begun == [entry]
+    assert captured["titles"] == ["Select Game Folder"]
+    assert callable(captured["callback"])
+    assert page._locate_entry == entry
+
+
+def test_running_badge_for_live_session_at_load(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A backend-reported live session badges the row and disables launch."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    from box_gui.core.sessions import game_identifier
+
+    repository = _make_repository(tmp_path)
+    live_root = tmp_path / "live"
+    live_root.mkdir()
+    idle_root = tmp_path / "idle"
+    idle_root.mkdir()
+    repository.add(live_root, "Live")
+    repository.add(idle_root, "Idle")
+    live_id = game_identifier(live_root)
+    monkeypatch.setattr(
+        "box.api.launch.find_live_sessions",
+        lambda paths, identifier: ["s1"] if identifier == live_id else [],
+        raising=False,
+    )
+    page, _paths = _make_wired_page(tmp_path, repository)
+
+    live_row = _row_by_title(page, "Live")
+    running = _row_badges(live_row, "running-pill")
+    assert [badge.get_text() for badge in running] == ["Running"]
+    assert running[0].get_visible() is True
+    live_button = _row_rocket_button(live_row)
+    assert live_button.get_sensitive() is False
+    assert live_button.get_tooltip_text() == "Game is running"
+    assert live_button.get_first_child().get_icon_name() == "box-rpg-rocket-off-symbolic"
+
+    idle_row = _row_by_title(page, "Idle")
+    idle_badges = _row_badges(idle_row, "running-pill")
+    assert len(idle_badges) == 1
+    assert idle_badges[0].get_visible() is False
+    assert _row_rocket_button(idle_row).get_sensitive() is True
+    assert (
+        _row_rocket_button(idle_row).get_first_child().get_icon_name() == "box-rpg-rocket-symbolic"
+    )
+
+
+def test_launching_running_entry_resyncs_silently(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Clicking launch on a just-started session resyncs without any dialog."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    live_root = tmp_path / "live"
+    live_root.mkdir()
+    live = repository.add(live_root, "Live")
+    launch_calls: list[Any] = []
+    inspect_calls = _install_fake_launch_workers(
+        monkeypatch, lambda path: _make_inspection(path, "Live"), launch_calls
+    )
+    page, _paths = _make_wired_page(tmp_path, repository)
+
+    # The row rendered while idle: badge hidden, launch sensitive.
+    live_row = _row_by_title(page, "Live")
+    assert _row_badges(live_row, "running-pill")[0].get_visible() is False
+    assert _row_rocket_button(live_row).get_sensitive() is True
+    assert (
+        _row_rocket_button(live_row).get_first_child().get_icon_name() == "box-rpg-rocket-symbolic"
+    )
+
+    # The session starts after render; the click converges badge and
+    # button silently instead of alerting.
+    monkeypatch.setattr(
+        "box.api.launch.find_live_sessions", lambda paths, identifier: ["s1"], raising=False
+    )
+    page._on_launch_clicked(page._row_launch_buttons[live.path], live)
+
+    assert presented == []
+    assert inspect_calls == []
+    assert launch_calls == []
+    live_row = _row_by_title(page, "Live")
+    running = _row_badges(live_row, "running-pill")
+    assert [badge.get_text() for badge in running] == ["Running"]
+    assert running[0].get_visible() is True
+    live_button = _row_rocket_button(live_row)
+    assert live_button.get_sensitive() is False
+    assert live_button.get_tooltip_text() == "Game is running"
+    assert live_button.get_first_child().get_icon_name() == "box-rpg-rocket-off-symbolic"
+
+
+def test_session_poll_tracks_visibility(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The poll timer runs while the probe exists and stops off-screen."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir()
+    repository.add(tmp_path / "game", "Game")
+
+    plain = LibraryPage(library=repository, on_open_game=lambda entry: None)
+    assert plain._session_poll_id is None
+
+    monkeypatch.setattr(
+        "box.api.launch.find_live_sessions", lambda paths, identifier: [], raising=False
+    )
+    page, _paths = _make_wired_page(tmp_path, repository)
+    assert page._session_poll_id is not None
+
+    page._on_unmapped(page)
+    assert page._session_poll_id is None
+    # Off-screen the tick stops itself instead of rescheduling work.
+    assert page._on_session_poll() is False
+    assert page._session_poll_id is None
+
+
+def _make_detail_navigation_page(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, ghost: bool = False
+) -> tuple[Any, Any, Any, dict[str, Any], list[Any]]:
+    """Build a detail page on a navigation stack with stubbed workers."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    state: dict[str, Any] = {"stops": []}
+    module = types.ModuleType("box_gui.gtk.workers")
+
+    def _run_inspect(path: Any, on_done: Any, on_error: Any) -> None:
+        on_done(_make_inspection(path, path.name))
+        return None
+
+    def _run_in_thread(fn: Any, on_done: Any, on_error: Any) -> None:
+        try:
+            result = fn()
+        except BaseException as exc:
+            on_error(exc)
+        else:
+            on_done(result)
+        return None
+
+    def _run_stop(paths: Any, entry: Any, name: Any, on_done: Any, on_error: Any) -> None:
+        state["stops"].append((entry.path, name))
+        on_done(None)
+        return None
+
+    module.run_inspect = _run_inspect  # type: ignore[attr-defined]
+    module.run_in_thread = _run_in_thread  # type: ignore[attr-defined]
+    module.run_stop = _run_stop  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "box_gui.gtk.workers", module)
+    from box_gui import gtk as _gtk
+
+    monkeypatch.setattr(_gtk, "workers", module, raising=False)
+    paths = _make_paths(tmp_path)
+    repository = _make_repository(tmp_path)
+    (tmp_path / "game").mkdir(exist_ok=True)
+    created = repository.add(tmp_path / "game", "Game")
+    entry = created
+    if ghost:
+        entry = repository.update(replace(created, missing_streak=3))
+        # A ghost entry's folder stays missing: streak alone would
+        # passively restore on the first refresh sighting.
+        (tmp_path / "game").rmdir()
+    detail = GameDetailPage(
+        entry=entry,
+        paths=paths,
+        repository=ConfigRepository(paths),
+        library=repository,
+    )
+    return detail, repository, entry, state, presented
+
+
+def test_detail_ghost_header_in_navigation(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A pushed ghost detail shows the folder header and a deduped alert."""
+    detail, _repository, _entry, state, presented = _make_detail_navigation_page(
+        monkeypatch, tmp_path, ghost=True
+    )
+    try:
+        from box_gui.gtk.icons import FOLDER_ICON_NAME
+
+        navigation = Adw.NavigationView()
+        navigation.push(detail)
+
+        assert detail._locate_button.get_visible() is True
+        assert detail._locate_button.get_icon_name() == FOLDER_ICON_NAME
+        assert detail._locate_button.get_tooltip_text() == "Locate folder…"
+        assert detail._launch_button.get_sensitive() is False
+        assert detail._stop_button.get_visible() is False
+
+        detail._on_launch_clicked(detail._launch_button)
+
+        assert len(presented) == 1
+        assert presented[0].get_heading() == "Folder missing"
+        assert presented[0].get_body() == _GHOST_REASON
+        assert not presented[0].get_body().startswith("Folder missing")
+        assert state["stops"] == []
+    finally:
+        with contextlib.suppress(Exception):
+            detail._stop_session_poll()
+            detail.destroy()
+
+
+def test_detail_running_in_navigation_never_surprise_stops(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A pushed running detail disables Launch and needs explicit Stop."""
+    detail, _repository, entry, state, _presented = _make_detail_navigation_page(
+        monkeypatch, tmp_path, ghost=False
+    )
+    try:
+        live: dict[str, Any] = {"names": ["s1"]}
+        monkeypatch.setattr(
+            "box.api.launch.find_live_sessions",
+            lambda paths, identifier: list(live["names"]),
+            raising=False,
+        )
+        navigation = Adw.NavigationView()
+        navigation.push(detail)
+        detail._sync_running_state()
+
+        assert detail._launch_button.get_sensitive() is False
+        assert detail._launch_button.get_tooltip_text() == "Game is running"
+        assert detail._stop_button.get_visible() is True
+        assert detail._stop_button.get_sensitive() is True
+
+        detail._launch_button.emit("clicked")
+
+        assert state["stops"] == []
+
+        detail._stop_button.emit("clicked")
+
+        assert state["stops"] == [(entry.path, "s1")]
+    finally:
+        with contextlib.suppress(Exception):
+            detail._stop_session_poll()
+            detail.destroy()
+
+
+def test_detail_poll_lifecycle_in_navigation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A pushed detail polls while mapped and drops the timer when unmapped."""
+    detail, _repository, _entry, _state, _presented = _make_detail_navigation_page(
+        monkeypatch, tmp_path, ghost=False
+    )
+    try:
+        monkeypatch.setattr(
+            "box.api.launch.find_live_sessions", lambda paths, identifier: [], raising=False
+        )
+        detail._ensure_session_poll()
+
+        assert detail._session_poll_id is not None
+
+        detail._on_unmapped(detail)
+
+        assert detail._session_poll_id is None
+        assert detail._on_session_poll() is False
+    finally:
+        with contextlib.suppress(Exception):
+            detail._stop_session_poll()
+            detail.destroy()

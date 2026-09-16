@@ -10,10 +10,50 @@ from box.config.repository import ConfigRepository
 from box.engines.registry import EngineRegistry
 from box.errors import GameValidationError, LaunchError, RuntimeError
 from box.launch.sandbox import Sandbox
+from box.launch.supervisor import LaunchedSession
 from box.models import EngineName, GameInfo, RuntimeInfo, RuntimeSpec
 from box.paths import AppPaths
 from box.runtime.easyrpg import EasyRPGRuntime
 from box.runtime.platform import current_architecture
+
+
+def _patch_run_as_detached(
+    monkeypatch: pytest.MonkeyPatch,
+    run: Callable[..., int],
+    poll_code: int | None = None,
+) -> None:
+    """Adapt a legacy blocking run mock to the detached supervisor contract.
+
+    Calls the legacy run(command, cwd=None, pass_fds) for its assertions and
+    captures, returns a fake handle from spawn, and makes the CLI foreground
+    poll return the same exit code.
+    """
+
+    codes: list[int] = []
+
+    def fake_spawn(
+        paths: AppPaths,
+        identifier: str,
+        name: str,
+        command: list[str],
+        pass_fds: tuple[int, ...] = (),
+        *,
+        parent_descriptor: int,
+        session_descriptor: int,
+        use_gamemode: bool = False,
+        gamemode_proxy: Path | None = None,
+    ) -> LaunchedSession:
+        code = run(command, None, pass_fds)
+        codes.append(code)
+        return LaunchedSession(identifier, name, paths.sessions_root / identifier / name)
+
+    def fake_poll(paths: AppPaths, identifier: str, name: str) -> int | None:
+        if poll_code is not None:
+            return poll_code
+        return codes[0] if codes else 0
+
+    monkeypatch.setattr("box.api.launch.spawn_detached", fake_spawn)
+    monkeypatch.setattr("box.cli.launch.api_poll_status", fake_poll)
 
 
 def test_authorize_game_registers_the_detected_game_root_after_confirmation(
@@ -334,7 +374,7 @@ def test_execute_launches_rpg_rt_projects_with_easyrpg_fullscreen(
         return repository.load()
 
     monkeypatch.setattr("box.api.launch.authorize_game", authorize)
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
 
     def desktop(_: Sandbox) -> None:
         pass
@@ -418,7 +458,7 @@ def test_execute_passes_network_policy_to_nwjs(
     monkeypatch.setattr(Sandbox, "display_probe", probe)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
     assert execute(paths, repository, root, None, False, allow_network=allow_network) == 0
 
 
@@ -482,7 +522,7 @@ def test_execute_rejects_relocation_during_authorization(
     monkeypatch.setattr("box.api.launch.detect_game", detect)
     monkeypatch.setattr("box.api.launch.select_runtime", select)
     monkeypatch.setattr("box.api.launch.authorize_game", authorize)
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
 
     with pytest.raises(GameValidationError, match="changed since detection"):
         execute(paths, repository, game_root, None, False)
@@ -754,7 +794,7 @@ def test_execute_forwards_sandbox_flags(
     monkeypatch.setattr(Sandbox, "__init__", spy)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
 
     assert (
         execute(
@@ -808,7 +848,7 @@ def test_execute_easyrpg_game_writable_bind(
     monkeypatch.setattr(Sandbox, "game_writable", fake_writable)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
 
     assert (
         execute(paths, repository, game.root, None, False, allow_game_writes=allow_game_writes) == 0
@@ -880,7 +920,7 @@ def test_execute_nwjs_forwards_game_writes_flag(
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
 
     assert execute(paths, repository, root, None, False, allow_game_writes=True) == 0
     assert seen == {"allow_network": False, "allow_game_writes": True}
@@ -939,7 +979,7 @@ def test_execute_nwjs_starts_inside_the_game_view(
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
 
     assert execute(paths, repository, root, None, False) == 0
     assert len(commands) == 1
@@ -977,7 +1017,7 @@ def test_execute_calls_devices_and_audio_in_both_branches(
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
     if engine == "easyrpg":
         paths, repository, game = _prepare_easyrpg_game(tmp_path, monkeypatch)
         assert execute(paths, repository, game.root, None, False) == 0
@@ -1070,7 +1110,7 @@ def test_execute_nwjs_uses_x11_ozone_command(
         commands.append(command)
         return 0
 
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
 
     assert execute(paths, repository, root, None, False) == 0
     assert any("--ozone-platform=x11" in command for command in commands)
@@ -1133,7 +1173,7 @@ def test_execute_nwjs_forced_x11_skips_prompt(
         commands.append(command)
         return 0
 
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
 
     assert execute(paths, repository, root, None, False, x11=True) == 0
     assert len(x11_calls) == 1
@@ -1198,7 +1238,7 @@ def test_execute_easyrpg_extra_x11_consent(
     monkeypatch.setattr(Sandbox, "x11", use_x11)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
 
     def stdin_is_tty() -> bool:
         return True
@@ -1272,7 +1312,7 @@ def test_execute_easyrpg_forced_x11_skips_prompt(
     monkeypatch.setattr(Sandbox, "x11", use_x11)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
     monkeypatch.setattr("builtins.input", forbidden)
 
     assert execute(paths, repository, game_root, None, False, x11=True) == 0
@@ -1341,7 +1381,7 @@ def _prepare_runtime_choice_game(
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
     monkeypatch.setattr("sys.stdin.isatty", stdin_is_tty)
     monkeypatch.setattr("builtins.input", confirm)
     return paths, repository, game, binaries
@@ -1523,7 +1563,7 @@ def _prepare_easyrpg_choice_game(
     monkeypatch.setattr(Sandbox, "desktop", desktop)
     monkeypatch.setattr(Sandbox, "devices", devices)
     monkeypatch.setattr(Sandbox, "audio", audio)
-    monkeypatch.setattr("box.api.launch.run_process", run)
+    _patch_run_as_detached(monkeypatch, run)
     monkeypatch.setattr("sys.stdin.isatty", stdin_is_tty)
     monkeypatch.setattr("builtins.input", confirm)
     # Hermetic display: the extra-X11 consent reads the real DISPLAY.

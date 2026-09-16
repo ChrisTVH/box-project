@@ -1,0 +1,835 @@
+# Spanish translation for box-rpg-maker.
+# Copyright (C) 2026 Christopher Herasme
+# This file is distributed under the same license as the box-rpg-maker package.
+# Christopher Herasme <5632734-christvh@users.noreply.gitlab.com>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: box-rpg-maker 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-15 19:28-0400\n"
+"PO-Revision-Date: 2026-09-14 00:00+0000\n"
+"Last-Translator: Christopher Herasme <5632734-"
+"christvh@users.noreply.gitlab.com>\n"
+"Language-Team: Spanish\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: box-gui/src/box_gui/core/sessions.py:154
+msgid "Stopping is not supported by the installed backend."
+msgstr "Detener no es compatible con el backend instalado."
+
+#: box-gui/src/box_gui/core/sessions.py:160
+msgid "There is no running session to stop."
+msgstr "No hay ninguna sesión en ejecución que detener."
+
+#: box-gui/src/box_gui/gtk/interaction.py:154
+msgid "Continue with X11?"
+msgstr "¿Continuar con X11?"
+
+#: box-gui/src/box_gui/gtk/interaction.py:156
+#, python-brace-format
+msgid ""
+"Display {display} is insecure; X11 clients can capture input and screen "
+"contents (keylogging)."
+msgstr ""
+"La pantalla {display} es insegura; los clientes X11 pueden capturar la "
+"entrada y el contenido de la pantalla (keylogging)."
+
+#: box-gui/src/box_gui/gtk/interaction.py:160
+#: box-gui/src/box_gui/gtk/interaction.py:173
+#: box-gui/src/box_gui/gtk/interaction.py:193
+#: box-gui/src/box_gui/pages/settings_dialog.py:767
+#: box-gui/src/box_gui/pages/settings_dialog.py:879
+#: box-gui/src/box_gui/pages/settings_dialog.py:982
+#: box-gui/src/box_gui/pages/game_detail_page.py:840
+#: box-gui/src/box_gui/widgets/exe_picker.py:40
+msgid "Cancel"
+msgstr "Cancelar"
+
+#: box-gui/src/box_gui/gtk/interaction.py:161
+msgid "Continue"
+msgstr "Continuar"
+
+#: box-gui/src/box_gui/gtk/interaction.py:170
+msgid "Add game root?"
+msgstr "¿Añadir raíz de juego?"
+
+#: box-gui/src/box_gui/gtk/interaction.py:171
+#, python-brace-format
+msgid "Add {path} to allowed game roots?"
+msgstr "¿Añadir {path} a las raíces de juego permitidas?"
+
+#: box-gui/src/box_gui/gtk/interaction.py:174
+#: box-gui/src/box_gui/pages/game_detail_page.py:843
+msgid "Add"
+msgstr "Añadir"
+
+#: box-gui/src/box_gui/gtk/interaction.py:185
+msgid "Select an EasyRPG Player runtime."
+msgstr "Selecciona un entorno de EasyRPG Player."
+
+#: box-gui/src/box_gui/gtk/interaction.py:187
+msgid "Select an NW.js runtime."
+msgstr "Selecciona un entorno de NW.js."
+
+#: box-gui/src/box_gui/gtk/interaction.py:194
+#: box-gui/src/box_gui/widgets/exe_picker.py:41
+msgid "Select"
+msgstr "Seleccionar"
+
+#: box-gui/src/box_gui/gtk/workers.py:146
+msgid "GameMode is not supported by the installed backend."
+msgstr "GameMode no es compatible con el backend instalado."
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:25
+msgid "Diagnose Failed"
+msgstr "Diagnóstico fallido"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:26
+#: box-gui/src/box_gui/pages/settings_dialog.py:87
+#: box-gui/src/box_gui/pages/game_detail_page.py:76
+#: box-gui/src/box_gui/pages/game_detail_page.py:83
+#: box-gui/src/box_gui/pages/game_detail_page.py:684
+#: box-gui/src/box_gui/pages/game_detail_page.py:725
+#: box-gui/src/box_gui/pages/game_detail_page.py:758
+#: box-gui/src/box_gui/pages/game_detail_page.py:763
+#: box-gui/src/box_gui/pages/game_detail_page.py:773
+#: box-gui/src/box_gui/pages/game_detail_page.py:1017
+#: box-gui/src/box_gui/pages/game_detail_page.py:1022
+#: box-gui/src/box_gui/pages/game_detail_page.py:1029
+#: box-gui/src/box_gui/pages/library_page.py:74
+#: box-gui/src/box_gui/pages/library_page.py:214
+#: box-gui/src/box_gui/pages/library_page.py:488
+#: box-gui/src/box_gui/pages/library_page.py:505
+#: box-gui/src/box_gui/pages/library_page.py:631
+#: box-gui/src/box_gui/pages/library_page.py:650
+#: box-gui/src/box_gui/pages/library_page.py:664
+#: box-gui/src/box_gui/pages/library_page.py:702
+#: box-gui/src/box_gui/pages/library_page.py:707
+#: box-gui/src/box_gui/pages/library_page.py:714
+#: box-gui/src/box_gui/pages/library_page.py:742
+#: box-gui/src/box_gui/pages/library_page.py:770
+#: box-gui/src/box_gui/pages/library_page.py:775
+#: box-gui/src/box_gui/pages/library_page.py:798
+msgid "Unexpected Error"
+msgstr "Error inesperado"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:39
+#: box-gui/src/box_gui/pages/game_detail_page.py:126
+msgid "Diagnose"
+msgstr "Diagnosticar"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:44
+msgid "Collecting diagnostics …"
+msgstr "Recopilando diagnósticos …"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:48
+msgid "Environment"
+msgstr "Entorno"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:49
+msgid "Versions"
+msgstr "Versiones"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:50
+msgid "System"
+msgstr "Sistema"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:51
+msgid "Release"
+msgstr "Versión"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:52
+msgid "Machine"
+msgstr "Máquina"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:53
+#: box-gui/src/box_gui/pages/game_detail_page.py:152
+msgid "Engine"
+msgstr "Motor"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:120
+msgid "Engine Version"
+msgstr "Versión del motor"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:121
+#: box-gui/src/box_gui/pages/settings_dialog.py:645
+msgid "NW.js"
+msgstr "NW.js"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:122
+msgid "EasyRPG Player"
+msgstr "EasyRPG Player"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:127
+msgid "Diagnose failed."
+msgstr "Diagnóstico fallido."
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:130
+#: box-gui/src/box_gui/pages/settings_dialog.py:90
+#: box-gui/src/box_gui/pages/game_detail_page.py:993
+#: box-gui/src/box_gui/pages/game_detail_page.py:1069
+#: box-gui/src/box_gui/pages/game_detail_page.py:1086
+#: box-gui/src/box_gui/pages/library_page.py:817 box-gui/src/box_gui/app.py:120
+msgid "Close"
+msgstr "Cerrar"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:85
+#, python-brace-format
+msgid "{operation} Failed"
+msgstr "{operation} ha fallado"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:137
+msgid "General"
+msgstr "General"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:149
+msgid "Allowed game roots"
+msgstr "Raíces de juego permitidas"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:152
+#: box-gui/src/box_gui/pages/settings_dialog.py:291
+msgid "No game roots configured."
+msgstr "No hay raíces de juego configuradas."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:155
+msgid "Add root"
+msgstr "Añadir raíz"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:159
+msgid "Preferred NW.js runtime"
+msgstr "Entorno NW.js preferido"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:160
+msgid "NW.js version"
+msgstr "Versión de NW.js"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:161
+#: box-gui/src/box_gui/pages/settings_dialog.py:166
+#: box-gui/src/box_gui/pages/settings_dialog.py:205
+#: box-gui/src/box_gui/pages/settings_dialog.py:232
+#: box-gui/src/box_gui/pages/game_detail_page.py:416
+msgid "Undefined"
+msgstr "No definido"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:164
+msgid "Preferred EasyRPG runtime"
+msgstr "Entorno EasyRPG preferido"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:165
+msgid "EasyRPG version"
+msgstr "Versión de EasyRPG"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:180
+msgid "Load Roots"
+msgstr "Cargar raíces"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:194
+#: box-gui/src/box_gui/pages/settings_dialog.py:221
+#: box-gui/src/box_gui/pages/settings_dialog.py:486
+msgid "Load Runtimes"
+msgstr "Cargar entornos"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:199
+#: box-gui/src/box_gui/pages/settings_dialog.py:226
+msgid "Load Settings"
+msgstr "Cargar ajustes"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:249
+#: box-gui/src/box_gui/pages/settings_dialog.py:256
+msgid "Add Root"
+msgstr "Añadir raíz"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:276
+#: box-gui/src/box_gui/pages/settings_dialog.py:706
+#: box-gui/src/box_gui/pages/settings_dialog.py:850
+#: box-gui/src/box_gui/pages/settings_dialog.py:983
+#: box-gui/src/box_gui/pages/settings_dialog.py:1047
+msgid "Remove"
+msgstr "Eliminar"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:285
+#, python-brace-format
+msgid "{count} root configured."
+msgid_plural "{count} roots configured."
+msgstr[0] "{count} raíz configurada."
+msgstr[1] "{count} raíces configuradas."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:300
+msgid "Remove Root"
+msgstr "Quitar raíz"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:321
+#: box-gui/src/box_gui/pages/settings_dialog.py:339
+msgid "Set Runtime"
+msgstr "Fijar entorno"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:344
+msgid "Add game root"
+msgstr "Añadir raíz de juego"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:358
+#: box-gui/src/box_gui/pages/settings_dialog.py:363
+msgid "Select Folder"
+msgstr "Elegir carpeta"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:363
+msgid "Cannot resolve the selected folder."
+msgstr "No se puede resolver la carpeta seleccionada."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:385
+#: box-gui/src/box_gui/pages/settings_dialog.py:506
+msgid "No versions available."
+msgstr "No hay versiones disponibles."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:388
+msgid "Previous"
+msgstr "Anterior"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:389
+msgid "Next"
+msgstr "Siguiente"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:392
+#: box-gui/src/box_gui/pages/settings_dialog.py:503
+#, python-brace-format
+msgid "Page {page}"
+msgstr "Página {page}"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:397
+msgid "Loading runtimes."
+msgstr "Cargando entornos de ejecución."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:451
+#, python-brace-format
+msgid "Loading installed {noun} runtimes …"
+msgstr "Cargando entornos {noun} instalados …"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:480
+#, python-brace-format
+msgid "No {noun} runtimes installed."
+msgstr "No hay entornos {noun} instalados."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:485
+msgid "Loading installed runtimes failed."
+msgstr "Error al cargar los entornos instalados."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:496
+#: box-gui/src/box_gui/pages/settings_dialog.py:768
+#: box-gui/src/box_gui/pages/settings_dialog.py:880
+msgid "Install"
+msgstr "Instalar"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:511
+msgid "Loading versions failed."
+msgstr "Error al cargar las versiones."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:512
+msgid "Load Versions"
+msgstr "Cargar versiones"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:539
+#: box-gui/src/box_gui/pages/settings_dialog.py:1113
+msgid "Removal failed."
+msgstr "Eliminación fallida."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:540
+msgid "Remove Runtime"
+msgstr "Quitar entorno"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:586
+msgid "Install complete."
+msgstr "Instalación completa."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:593
+msgid "Install failed."
+msgstr "Instalación fallida."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:594
+#: box-gui/src/box_gui/pages/settings_dialog.py:762
+#: box-gui/src/box_gui/pages/settings_dialog.py:876
+msgid "Install Runtime"
+msgstr "Instalar entorno de ejecución"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:653
+msgid "Installed NW.js runtimes"
+msgstr "Entornos NW.js instalados"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:657
+msgid "Available NW.js versions"
+msgstr "Versiones NW.js disponibles"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:669
+msgid "Architecture"
+msgstr "Arquitectura"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:675
+#: box-gui/src/box_gui/pages/game_detail_page.py:159
+msgid "SDK"
+msgstr "SDK"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:699
+msgid "standard"
+msgstr "estándar"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:700
+#, python-brace-format
+msgid "NW.js {version} for {architecture} ({flavor})"
+msgstr "NW.js {version} para {architecture} ({flavor})"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:730
+#, python-brace-format
+msgid "Removing NW.js {version} …"
+msgstr "Eliminando NW.js {version} …"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:763
+#, python-brace-format
+msgid "Install NW.js {version} for {architecture}?"
+msgstr "¿Instalar NW.js {version} para {architecture}?"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:796
+#, python-brace-format
+msgid "Installing NW.js {version} …"
+msgstr "Instalando NW.js {version} …"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:807
+msgid "Detect Architecture"
+msgstr "Detectar arquitectura"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:819
+msgid "EasyRPG"
+msgstr "EasyRPG"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:827
+msgid "Installed EasyRPG runtimes"
+msgstr "Entornos EasyRPG instalados"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:831
+msgid "Available EasyRPG versions"
+msgstr "Versiones EasyRPG disponibles"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:848
+#, python-brace-format
+msgid "EasyRPG Player {version} for x64"
+msgstr "EasyRPG Player {version} para x64"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:867
+#, python-brace-format
+msgid "Removing EasyRPG Player {version} …"
+msgstr "Eliminando EasyRPG Player {version} …"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:877
+#, python-brace-format
+msgid "Install EasyRPG Player {version} for x64?"
+msgstr "¿Instalar EasyRPG Player {version} para x64?"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:906
+#, python-brace-format
+msgid "Installing EasyRPG Player {version} …"
+msgstr "Instalando EasyRPG Player {version} …"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:924
+msgid "Data"
+msgstr "Datos"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:942
+#: box-gui/src/box_gui/pages/settings_dialog.py:962
+msgid "Loading cleanup items …"
+msgstr "Cargando elementos de limpieza …"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:944
+#: box-gui/src/box_gui/pages/settings_dialog.py:1059
+msgid "No items."
+msgstr "No hay elementos."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:979
+#: box-gui/src/box_gui/pages/settings_dialog.py:1114
+msgid "Remove Item"
+msgstr "Eliminar elemento"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:980
+#, python-brace-format
+msgid "Remove {label}?"
+msgstr "¿Eliminar {label}?"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:1003
+msgid "Loading cleanup items failed."
+msgstr "Error al cargar los elementos de limpieza."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:1004
+msgid "Load Items"
+msgstr "Cargar elementos"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:1038
+msgid "Unknown game"
+msgstr "Juego desconocido"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:1056
+#, python-brace-format
+msgid "{count} item"
+msgid_plural "{count} items"
+msgstr[0] "{count} elemento"
+msgstr[1] "{count} elementos"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:1087
+#, python-brace-format
+msgid "Removing {label} …"
+msgstr "Eliminando {label} …"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:1154
+#: box-gui/src/box_gui/pages/library_page.py:134
+msgid "Settings"
+msgstr "Ajustes"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:1180
+msgid "Authorized game roots"
+msgstr "Raíces de juego autorizadas"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:1181
+msgid "Managed runtimes"
+msgstr "Entornos gestionados"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:1182
+msgid "Download archives"
+msgstr "Archivos descargados"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:1183
+msgid "Game profiles"
+msgstr "Perfiles de juego"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:1191
+msgid "Additional runtime settings or cache are stored here."
+msgstr "Se guardan configuraciones adicionales o cache de los entornos."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:69
+#: box-gui/src/box_gui/pages/library_page.py:60
+msgid "The game folder is missing. Use Locate folder… to point at it again."
+msgstr ""
+"Falta la carpeta del juego. Usa Localizar carpeta… para apuntar a ella de "
+"nuevo."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:75
+#: box-gui/src/box_gui/pages/library_page.py:73
+msgid "Inspection Failed"
+msgstr "Inspección fallida"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:82
+#: box-gui/src/box_gui/pages/library_page.py:630
+msgid "Launch Failed"
+msgstr "Inicio fallido"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:99
+msgid "Game Detail"
+msgstr "Detalle del juego"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:117
+#: box-gui/src/box_gui/pages/game_detail_page.py:336
+#: box-gui/src/box_gui/pages/library_page.py:277
+#: box-gui/src/box_gui/pages/library_page.py:285
+#: box-gui/src/box_gui/pages/library_page.py:406
+msgid "Launch"
+msgstr "Iniciar"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:122
+msgid "Stop"
+msgstr "Detener"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:130
+#: box-gui/src/box_gui/pages/library_page.py:90
+#: box-gui/src/box_gui/pages/library_page.py:295
+msgid "Locate folder…"
+msgstr "Localizar carpeta…"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:139
+msgid "Name"
+msgstr "Nombre"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:143
+msgid "Icon"
+msgstr "Icono"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:147
+msgid "Change…"
+msgstr "Cambiar…"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:153
+msgid "Root"
+msgstr "Raíz"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:154
+msgid "Entrypoint"
+msgstr "Punto de entrada"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:155
+msgid "Title"
+msgstr "Título"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:156
+msgid "Plugins"
+msgstr "Complementos"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:157
+msgid "Preferred runtime"
+msgstr "Entorno de ejecución preferido"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:162
+msgid "GameMode"
+msgstr "GameMode"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:163
+msgid "Boost performance with GameMode when available."
+msgstr "Mejora el rendimiento con GameMode cuando esté disponible."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:168
+#: box-gui/src/box_gui/pages/game_detail_page.py:847
+msgid "Additional files"
+msgstr "Archivos adicionales"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:170
+msgid ""
+"Some games keep language or settings files in the game root. Selected files "
+"are copied alongside the game on launch."
+msgstr ""
+"Algunos juegos guardan sus archivos de idioma o de configuración en la raíz "
+"del juego. Los seleccionados se copian junto al juego al iniciar."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:177
+#: box-gui/src/box_gui/pages/game_detail_page.py:838
+msgid "Add file"
+msgstr "Añadir archivo"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:179
+msgid "Allow network usage"
+msgstr "Permitir uso de red"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:182
+msgid "Allow modifying the game"
+msgstr "Permitir modificar en el juego"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:183
+msgid "For games with automatic updates."
+msgstr "Para juegos con actualizaciones automáticas."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:186
+msgid "Allow X11 or XWayland sessions"
+msgstr "Permitir sesiones de X11 o XWayland"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:225
+msgid "Display name"
+msgstr "Nombre visible"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:230
+msgid "Game info"
+msgstr "Información del juego"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:238
+msgid "Runtime"
+msgstr "Entorno de ejecución"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:240
+msgid ""
+"By default it uses the version defined in Settings; otherwise the most "
+"recently downloaded one."
+msgstr ""
+"Por defecto usa la versión definida en Ajustes; si no hay ninguna, la más "
+"reciente descargada."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:254
+msgid "Sandbox permissions"
+msgstr "Permisos de la caja"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:255
+msgid "Permissions apply when mounting the game in the sandbox."
+msgstr "Los permisos se aplican al montar el juego en la caja."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:290
+#, python-brace-format
+msgid "Inspecting {path} …"
+msgstr "Inspeccionando {path} …"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:329
+#: box-gui/src/box_gui/pages/game_detail_page.py:547
+#: box-gui/src/box_gui/pages/game_detail_page.py:644
+#: box-gui/src/box_gui/pages/game_detail_page.py:646
+#: box-gui/src/box_gui/pages/library_page.py:283
+#: box-gui/src/box_gui/pages/library_page.py:403
+msgid "Game is running"
+msgstr "El juego está en ejecución"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:388
+msgid "Inspection failed."
+msgstr "Inspección fallida."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:416
+msgid "Default"
+msgstr "Por defecto"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:513
+msgid "This feature is not available on your system."
+msgstr "Esta función no está disponible en tu sistema."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:682
+#: box-gui/src/box_gui/pages/library_page.py:183
+#: box-gui/src/box_gui/pages/library_page.py:647
+#: box-gui/src/box_gui/pages/library_page.py:661
+#: box-gui/src/box_gui/pages/library_page.py:739
+#: box-gui/src/box_gui/pages/library_page.py:795
+msgid "Library Error"
+msgstr "Error de biblioteca"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:732
+msgid "Choose Icon Image"
+msgstr "Elige una imagen para el icono"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:734
+msgid "Images"
+msgstr "Imágenes"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:764
+#: box-gui/src/box_gui/pages/game_detail_page.py:1023
+#: box-gui/src/box_gui/pages/library_page.py:708
+#: box-gui/src/box_gui/pages/library_page.py:776
+msgid "Cannot resolve a local path for the selection."
+msgstr "No se puede resolver una ruta local para la selección."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:774
+msgid "Cannot use that file as the game icon."
+msgstr "Ese archivo no sirve como icono del juego."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:822
+msgid "Remove file"
+msgstr "Quitar archivo"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:855
+msgid "No eligible files."
+msgstr "No existen archivos elegibles."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:902
+#: box-gui/src/box_gui/pages/game_detail_page.py:951
+#: box-gui/src/box_gui/pages/library_page.py:478
+msgid "Folder missing"
+msgstr "Carpeta ausente"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:931
+#, python-brace-format
+msgid "Launching {path} …"
+msgstr "Iniciando {path} …"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:974
+#, python-brace-format
+msgid "Stopping {path} …"
+msgstr "Deteniendo {path} …"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:990
+msgid "Stop failed."
+msgstr "Detención fallida."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:1000
+#: box-gui/src/box_gui/pages/library_page.py:680
+#: box-gui/src/box_gui/pages/library_page.py:753
+msgid "Select Game Folder"
+msgstr "Seleccionar carpeta del juego"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:1066
+msgid "Launch failed."
+msgstr "Inicio fallido."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:1071
+msgid "Open Runtimes"
+msgstr "Abrir entornos"
+
+#: box-gui/src/box_gui/pages/library_page.py:84
+msgid "Latest"
+msgstr "Más reciente"
+
+#: box-gui/src/box_gui/pages/library_page.py:91
+msgid "Move up"
+msgstr "Subir"
+
+#: box-gui/src/box_gui/pages/library_page.py:92
+msgid "Move down"
+msgstr "Bajar"
+
+#: box-gui/src/box_gui/pages/library_page.py:93
+msgid "Move to top"
+msgstr "Mover al principio"
+
+#: box-gui/src/box_gui/pages/library_page.py:94
+msgid "Move to bottom"
+msgstr "Mover al final"
+
+#: box-gui/src/box_gui/pages/library_page.py:95
+msgid "Remove from list"
+msgstr "Quitar de la lista"
+
+#: box-gui/src/box_gui/pages/library_page.py:113
+msgid "Library"
+msgstr "Biblioteca"
+
+#: box-gui/src/box_gui/pages/library_page.py:131
+msgid "Add game"
+msgstr "Añadir juego"
+
+#: box-gui/src/box_gui/pages/library_page.py:139
+msgid "Your library is empty. Click + to add your first game."
+msgstr "Tu biblioteca está vacía. Haz clic en + para añadir tu primer juego."
+
+#: box-gui/src/box_gui/pages/library_page.py:247
+msgid "Missing"
+msgstr "Ausente"
+
+#: box-gui/src/box_gui/pages/library_page.py:252
+msgid "Running"
+msgstr "En ejecución"
+
+#: box-gui/src/box_gui/pages/library_page.py:264
+msgid "Reorder or remove"
+msgstr "Reordenar o quitar"
+
+#: box-gui/src/box_gui/widgets/exe_picker.py:32
+msgid "Select the game executable."
+msgstr "Selecciona el ejecutable del juego."
+
+#: box-gui/src/box_gui/widgets/exe_picker.py:33
+msgid "Choose which executable provides the library icon."
+msgstr "Elige qué ejecutable aporta el icono de la biblioteca."
+
+#: box-gui/src/box_gui/widgets/exe_picker.py:35
+msgid "Engine default"
+msgstr "Icono del motor"
+
+#: box-gui/src/box_gui/app.py:116 box-gui/src/box_gui/app.py:146
+msgid "Box RPG Maker"
+msgstr "Box RPG Maker"
+
+#: box-gui/src/box_gui/app.py:119
+msgid "Configuration Error"
+msgstr "Error de configuración"
+
+#~ msgid "Folder missing. Locate the game folder to continue."
+#~ msgstr "Falta la carpeta. Localiza la carpeta del juego para continuar."
+
+#~ msgid "Another session of this game is already running."
+#~ msgstr "Ya hay otra sesión de este juego en ejecución."
+
+#, python-brace-format
+#~ msgid "Loading {noun} versions (page {page}) …"
+#~ msgstr "Cargando versiones de {noun} (página {page}) …"
+
+#, python-brace-format
+#~ msgid "{count} {noun} runtime installed."
+#~ msgid_plural "{count} {noun} runtimes installed."
+#~ msgstr[0] "{count} entorno {noun} instalado."
+#~ msgstr[1] "{count} entornos {noun} instalados."
+
+#, python-brace-format
+msgid "Removed {removed} game; {failed} failed."
+msgid_plural "Removed {removed} games; {failed} failed."
+msgstr[0] "Se eliminó {removed} juego; fallos: {failed}."
+msgstr[1] "Se eliminaron {removed} juegos; fallos: {failed}."
+# Legacy entry without a current source call site, kept because
+# test_i18n_app.py still covers it. See docs/box-gui/translations.md.

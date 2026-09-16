@@ -29,8 +29,19 @@ from box_gui.core.game_icon import (  # noqa: E402
     find_game_executables,
     icon_path_for_game,
     install_image_as_icon,
+    rekey_cached_icon,
 )
-from box_gui.core.library import LibraryEntry, LibraryError, LibraryRepository  # noqa: E402
+from box_gui.core.library import (  # noqa: E402
+    LibraryEntry,
+    LibraryError,
+    LibraryRepository,
+    is_ghost,
+)
+from box_gui.core.sessions import (  # noqa: E402
+    is_session_running,
+    live_session_names,
+)
+from box_gui.gtk.icons import FOLDER_ICON_NAME, WARNING_ICON_NAME  # noqa: E402
 from box_gui.gtk.interaction import AllowX11Interaction as AllowX11Interaction  # noqa: E402
 from box_gui.i18n import _  # noqa: E402
 from box_gui.pages.diagnose_dialog import DiagnoseDialog  # noqa: E402
@@ -48,6 +59,14 @@ __all__ = [
 _SKIPPED_ROOT_SUFFIXES: frozenset[str] = frozenset(
     {".pak", ".bin", ".exe", ".dll", ".dat", ".html", ".png", ".jpg", ".webp"}
 )
+
+# Seconds between live-session checks while the detail page is visible.
+_SESSION_POLL_INTERVAL_S = 5
+
+
+def _ghost_reason() -> str:
+    """Return the shared explanation for disabled ghost actions."""
+    return _("The game folder is missing. Use Locate folder… to point at it again.")
 
 
 def inspection_error_heading(error: BaseException) -> str:
@@ -90,20 +109,39 @@ class GameDetailPage(Adw.NavigationPage):
         self._shown_runtime_options: tuple[str, ...] = ()
         self._file_options: tuple[str, ...] = ()
         self._loading = True
+        self._busy = False
+        self._running = False
+        self._missing = False
+        self._initial_focus_cleared = False
+        self._session_poll_id: int | None = None
         self._title_label = Gtk.Label(label=entry.display_name)
         self._launch_button = Gtk.Button.new_from_icon_name("box-rpg-rocket-symbolic")
         self._launch_button.set_tooltip_text(_("Launch"))
         self._launch_button.add_css_class("suggested-action")
         self._launch_button.set_sensitive(False)
         self._launch_button.connect("clicked", self._on_launch_clicked)
+        self._stop_button = Gtk.Button.new_from_icon_name("box-rpg-x-symbolic")
+        self._stop_button.set_tooltip_text(_("Stop"))
+        self._stop_button.set_visible(False)
+        self._stop_button.set_sensitive(False)
+        self._stop_button.connect("clicked", self._on_stop_clicked)
         self._diagnose_button = Gtk.Button(label=_("Diagnose"))
         self._diagnose_button.set_sensitive(False)
         self._diagnose_button.connect("clicked", self._on_diagnose_clicked)
+        self._locate_button = Gtk.Button.new_from_icon_name(FOLDER_ICON_NAME)
+        self._locate_button.set_tooltip_text(_("Locate folder…"))
+        self._locate_button.set_visible(is_ghost(entry))
+        self._locate_button.connect("clicked", self._on_locate_clicked)
+        self._locate_file_dialog: Gtk.FileDialog | None = None
         self._spinner = Gtk.Spinner()
         self._status = Gtk.Label(label="")
         self._status.set_xalign(0.0)
         self._status.set_hexpand(True)
-        self._status.set_ellipsize(Pango.EllipsizeMode.END)
+        # Ellipsize must stay NONE: any other mode pins the label to one
+        # line and silently disables wrapping in GTK4.
+        self._status.set_ellipsize(Pango.EllipsizeMode.NONE)
+        self._status.set_wrap(True)
+        self._status.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
         self._display_row = Adw.EntryRow(title=_("Name"))
         self._display_row.set_max_length(64)
         self._display_row.set_text(entry.display_name)
@@ -126,6 +164,12 @@ class GameDetailPage(Adw.NavigationPage):
         self._runtime_row.connect("notify::selected", self._on_runtime_changed)
         self._sdk_row = Adw.SwitchRow(title=_("SDK"))
         self._sdk_row.connect("notify::active", self._on_sdk_toggled)
+        self._gamemode_row = Adw.SwitchRow(
+            title=_("GameMode"),
+            subtitle=_("Boost performance with GameMode when available."),
+        )
+        self._gamemode_row.connect("notify::active", self._on_gamemode_toggled)
+        self._gamemode_warning: Gtk.Image | None = None
         self._files_group = Adw.PreferencesGroup(
             title=_("Additional files"),
             description=_(
@@ -154,6 +198,10 @@ class GameDetailPage(Adw.NavigationPage):
         self._writes_switch.set_active(entry.allow_game_writes)
         self._x11_switch.set_active(entry.allow_x11)
         self._loading = False
+        self._sync_gamemode_availability()
+        self.connect("map", self._on_mapped)
+        self.connect("unmap", self._on_unmapped)
+        self.connect("destroy", self._on_unmapped)
         self.refresh()
 
     @property
@@ -170,6 +218,9 @@ class GameDetailPage(Adw.NavigationPage):
         header = Adw.HeaderBar()
         header.set_title_widget(self._title_label)
         header.pack_end(self._launch_button)
+        header.pack_end(self._stop_button)
+        header.pack_end(self._locate_button)
+        self._header_bar = header
         view.add_top_bar(header)
         status_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         status_box.append(self._spinner)
@@ -198,6 +249,7 @@ class GameDetailPage(Adw.NavigationPage):
         )
         runtime_group.add(self._runtime_row)
         runtime_group.add(self._sdk_row)
+        runtime_group.add(self._gamemode_row)
         content.append(runtime_group)
         files_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         files_box.append(self._chips)
@@ -227,14 +279,95 @@ class GameDetailPage(Adw.NavigationPage):
         return view
 
     def refresh(self) -> None:
-        """Re-inspect the stored path so the page never shows stale data."""
+        """Re-inspect the stored path so the page never shows stale data.
+
+        A missing folder records one advisory sighting first: ghosts
+        (and any unreachable folder) show the blocked state with its
+        reason instead of a doomed re-inspection and its raw backend
+        dialog. Each visit therefore feeds the same missing streak
+        the library page maintains.
+        """
+        present = self._record_sighting()
+        if is_ghost(self._entry) or not present:
+            self._show_ghost_blocked()
+            self._ensure_session_poll()
+            return
         try:
             from box_gui.gtk.workers import run_inspect
         except ImportError as exc:
             self._on_inspect_error(exc)
             return
         self._set_busy(True, _("Inspecting {path} …").format(path=self._entry.path))
+        self._ensure_session_poll()
         run_inspect(self._entry.path, self._on_inspect_done, self._on_inspect_error)
+
+    def _record_sighting(self) -> bool:
+        """Persist one advisory missing-folder sighting; True means reachable.
+
+        Refreshes the entry snapshot from the library as a side effect
+        and remembers a miss so the buttons stay blocked even below the
+        ghost threshold. Library failures degrade to reachable so the
+        page falls back to its legacy inspect-and-report behavior
+        instead of crashing.
+        """
+        try:
+            self._entry, present = self._library.note_missing_entry(self._entry)
+        except LibraryError, OSError:
+            return True
+        self._missing = not present
+        return present
+
+    def _show_ghost_blocked(self) -> None:
+        """Show the blocked state for an unreachable folder without inspecting."""
+        self._inspection = None
+        self._running = False
+        self._set_busy(False, _ghost_reason())
+
+    def _update_action_states(self) -> None:
+        """Derive button sensitivity, tooltips, and visibility from one state.
+
+        Launch stays sensitive only while an inspection exists without
+        busy, blocked, or running states; running shows the explicit
+        Stop button instead of repurposing Launch. Blocked covers both
+        ghosts and freshly confirmed missing folders: the folder
+        shortcut shows with the shared reason while Launch and
+        Diagnose stay disabled. Any insensitive Launch button shows
+        the rocket-off icon; only an enabled Launch button shows
+        the rocket icon.
+        """
+        ghost = is_ghost(self._entry)
+        blocked = ghost or self._missing
+        running = self._running and not blocked
+        busy = self._busy
+        has_inspection = self._inspection is not None
+        self._locate_button.set_visible(blocked)
+        self._stop_button.set_visible(running)
+        self._stop_button.set_sensitive(running and not busy)
+        if blocked:
+            self._launch_button.set_icon_name("box-rpg-rocket-off-symbolic")
+            self._launch_button.remove_css_class("suggested-action")
+            self._launch_button.set_sensitive(False)
+            self._launch_button.set_tooltip_text(_ghost_reason())
+            self._diagnose_button.set_sensitive(False)
+            self._diagnose_button.set_tooltip_text(_ghost_reason())
+            return
+        if running:
+            self._launch_button.set_icon_name("box-rpg-rocket-off-symbolic")
+            self._launch_button.remove_css_class("suggested-action")
+            self._launch_button.set_sensitive(False)
+            self._launch_button.set_tooltip_text(_("Game is running"))
+            self._diagnose_button.set_sensitive(has_inspection and not busy)
+            self._diagnose_button.set_tooltip_text(None)
+            return
+        sensitive = has_inspection and not busy
+        self._launch_button.set_icon_name(
+            "box-rpg-rocket-symbolic" if sensitive else "box-rpg-rocket-off-symbolic"
+        )
+        self._launch_button.add_css_class("suggested-action")
+        self._launch_button.set_sensitive(sensitive)
+        self._launch_button.set_tooltip_text(_("Launch"))
+        self._diagnose_button.set_sensitive(has_inspection and not busy)
+        self._diagnose_button.set_tooltip_text(None)
 
     def _set_busy(self, busy: bool, message: str) -> None:
         """Toggle the spinner and button sensitivity with a status message."""
@@ -242,11 +375,11 @@ class GameDetailPage(Adw.NavigationPage):
             self._spinner.start()
         else:
             self._spinner.stop()
+        self._busy = busy
         self._status.set_text(message)
+        self._status.set_tooltip_text(message or None)
         self._status_box.set_visible(bool(message))
-        sensitive = self._inspection is not None and not busy
-        self._launch_button.set_sensitive(sensitive)
-        self._diagnose_button.set_sensitive(sensitive)
+        self._update_action_states()
 
     def _on_inspect_done(self, inspection: Inspection) -> None:
         """Populate read-only rows and runtime choices without renaming."""
@@ -278,7 +411,10 @@ class GameDetailPage(Adw.NavigationPage):
             self._refresh_icon_preview()
         finally:
             self._loading = False
+        self._missing = False
+        self._sync_gamemode_availability()
         self._set_busy(False, "")
+        self._sync_running_state()
 
     def _on_inspect_error(self, error: BaseException) -> None:
         """Show inspection failures with an Adw.AlertDialog."""
@@ -356,6 +492,210 @@ class GameDetailPage(Adw.NavigationPage):
         if active == self._entry.preferred_sdk:
             return
         self._persist(replace(self._entry, preferred_sdk=active))
+
+    @staticmethod
+    def _is_gamemode_available() -> bool:
+        """Return True when the backend reports a usable GameMode wrapper.
+
+        Any failure (old backend without the probe, missing gamemoderun,
+        unexpected errors) means unavailable, never a crash.
+        """
+        try:
+            from box.api import launch as launch_api
+        except ImportError:
+            return False
+        probe = getattr(launch_api, "is_gamemode_available", None)
+        if not callable(probe):
+            return False
+        try:
+            return bool(probe())
+        except Exception:
+            return False
+
+    def _sync_gamemode_availability(self) -> None:
+        """Reflect GameMode support on the switch, warning when unavailable.
+
+        Unavailable forces the switch off and persists use_gamemode=False
+        so a stale True can never reach launch; available restores the
+        persisted choice and drops the warning icon.
+        """
+        if self._is_gamemode_available():
+            self._clear_gamemode_warning()
+            self._gamemode_row.set_sensitive(True)
+            if self._gamemode_row.get_active() != self._entry.use_gamemode:
+                self._loading = True
+                try:
+                    self._gamemode_row.set_active(self._entry.use_gamemode)
+                finally:
+                    self._loading = False
+            return
+        self._loading = True
+        try:
+            self._gamemode_row.set_active(False)
+        finally:
+            self._loading = False
+        self._gamemode_row.set_sensitive(False)
+        if self._entry.use_gamemode:
+            self._persist(replace(self._entry, use_gamemode=False))
+        self._ensure_gamemode_warning()
+
+    def _ensure_gamemode_warning(self) -> None:
+        """Attach the unavailable-feature warning icon exactly once."""
+        if self._gamemode_warning is not None:
+            return
+        warning = Gtk.Image.new_from_icon_name(WARNING_ICON_NAME)
+        warning.set_tooltip_text(_("This feature is not available on your system."))
+        self._gamemode_row.add_suffix(warning)
+        self._gamemode_warning = warning
+
+    def _clear_gamemode_warning(self) -> None:
+        """Detach the warning icon now that GameMode is available."""
+        if self._gamemode_warning is None:
+            return
+        self._gamemode_row.remove(self._gamemode_warning)
+        self._gamemode_warning = None
+
+    def _on_gamemode_toggled(self, row: Adw.SwitchRow, _pspec: object) -> None:
+        """Persist GameMode picks without touching other fields."""
+        if self._loading:
+            return
+        active = row.get_active()
+        if active == self._entry.use_gamemode:
+            return
+        self._persist(replace(self._entry, use_gamemode=active))
+
+    def _sync_running_state(self) -> None:
+        """Reflect a live backend session with an explicit Stop button.
+
+        Running disables Launch with the running tooltip and shows the
+        separate Stop action; idle restores the Launch affordance.
+        Blocked entries (ghosts or freshly confirmed missing folders)
+        stay blocked with the shared reason. The status
+        label stays reserved for transient busy messages: the Stop
+        button and the Launch tooltip already communicate running.
+        """
+        if is_ghost(self._entry) or self._missing:
+            self._running = False
+            self._update_action_states()
+            return
+        self._running = bool(is_session_running(self._paths, self._entry))
+        self._update_action_states()
+
+    @staticmethod
+    def _session_probe_available() -> bool:
+        """Return True when the backend offers the live-session listing."""
+        try:
+            from box.api import launch as launch_api
+        except ImportError:
+            return False
+        return callable(getattr(launch_api, "find_live_sessions", None))
+
+    def _ensure_session_poll(self) -> None:
+        """Poll the single-entry session every few seconds while visible.
+
+        Pages without configured paths have inert probes, so they never
+        start the timer.
+        """
+        if self._session_poll_id is not None:
+            return
+        if not self._session_probe_available():
+            return
+        self._session_poll_id = GLib.timeout_add_seconds(
+            _SESSION_POLL_INTERVAL_S, self._on_session_poll
+        )
+
+    def _stop_session_poll(self) -> None:
+        """Drop the live-session poll timer, if one is active."""
+        if self._session_poll_id is not None:
+            GLib.source_remove(self._session_poll_id)
+            self._session_poll_id = None
+
+    def _on_mapped(self, _widget: Gtk.Widget) -> None:
+        """Restart polling and resync once the page becomes visible."""
+        self._ensure_session_poll()
+        self._resync_running_async()
+        if not self._initial_focus_cleared:
+            self._initial_focus_cleared = True
+            GLib.idle_add(self._drop_initial_focus)
+
+    def _drop_initial_focus(self) -> bool:
+        """Hand back the autofocus GTK leaves in the display-name field.
+
+        One-shot idle source: opening the page otherwise lands keyboard
+        focus (plus a full text selection) in the Name row before the
+        user touches anything. Only acts when the focus sits inside
+        that row, so an intentional focus elsewhere is never stolen.
+        Collapsing the selection hides the leftover highlight; the
+        text itself is untouched, so no rename is persisted.
+        """
+        root = self.get_root()
+        focus = root.get_focus() if isinstance(root, Gtk.Window) else None
+        if focus is not None and (
+            focus is self._display_row or focus.is_ancestor(self._display_row)
+        ):
+            root.set_focus(None)
+            self._display_row.select_region(0, 0)
+        return False
+
+    def _on_unmapped(self, _widget: Gtk.Widget) -> None:
+        """Stop polling once the page leaves the visible navigation stack."""
+        self._stop_session_poll()
+
+    def _resync_running_async(self) -> None:
+        """Re-check the session off the main loop; ghosts just re-apply."""
+        if is_ghost(self._entry):
+            self._running = False
+            self._update_action_states()
+            return
+        if not self._session_probe_available():
+            return
+        try:
+            from box_gui.gtk.workers import run_in_thread
+        except ImportError:
+            return
+        paths = self._paths
+        entry = self._entry
+        expected = entry.path
+        run_in_thread(
+            lambda: bool(is_session_running(paths, entry)),
+            lambda running: self._on_poll_result(running, expected),
+            lambda _error: None,
+        )
+
+    def _on_session_poll(self) -> bool:
+        """Re-check the session off the main loop; True keeps polling."""
+        if not self.get_mapped():
+            self._session_poll_id = None
+            return False
+        if not self._session_probe_available():
+            self._session_poll_id = None
+            return False
+        if is_ghost(self._entry):
+            return True
+        try:
+            from box_gui.gtk.workers import run_in_thread
+        except ImportError:
+            return True
+        paths = self._paths
+        entry = self._entry
+        expected = entry.path
+        run_in_thread(
+            lambda: bool(is_session_running(paths, entry)),
+            lambda running: self._on_poll_result(running, expected),
+            lambda _error: None,
+        )
+        return True
+
+    def _on_poll_result(self, running: bool, expected: Path) -> None:
+        """Apply a poll result for the entry probed, ignoring stale ticks."""
+        if self._entry.path != expected:
+            return
+        if is_ghost(self._entry):
+            running = False
+        if running == self._running:
+            return
+        self._running = running
+        self._update_action_states()
 
     def _on_network_toggled(self, row: Adw.SwitchRow, _pspec: object) -> None:
         """Persist network permission picks without touching other fields."""
@@ -602,8 +942,25 @@ class GameDetailPage(Adw.NavigationPage):
         self._rebuild_chips()
 
     def _on_launch_clicked(self, _button: Gtk.Button) -> None:
-        """Launch with the persisted options, including sandbox permissions."""
+        """Launch with the persisted options, including sandbox permissions.
+
+        Ghost entries stay blocked with their reason, and a click while
+        running only resyncs the buttons: stopping needs the explicit
+        Stop action, never a surprise kill from Launch. A folder that
+        vanished while the page was open records a sighting and shows
+        the blocked state instead of launching into a doomed backend.
+        """
+        if is_ghost(self._entry):
+            self._show_alert(_("Folder missing"), _ghost_reason())
+            return
+        if not self._record_sighting() or is_ghost(self._entry):
+            self._show_ghost_blocked()
+            return
         if self._inspection is None:
+            return
+        if self._running or is_session_running(self._paths, self._entry):
+            self._running = True
+            self._update_action_states()
             return
         try:
             from box_gui.gtk.workers import run_launch
@@ -640,16 +997,127 @@ class GameDetailPage(Adw.NavigationPage):
             allow_network=allow_network,
             allow_game_writes=allow_game_writes,
             x11=use_x11,
+            gamemode=self._entry.use_gamemode,
         )
 
     def _on_diagnose_clicked(self, _button: Gtk.Button) -> None:
         """Present per-game diagnostics for the inspected root."""
+        if is_ghost(self._entry):
+            self._show_alert(_("Folder missing"), _ghost_reason())
+            return
+        if not self._record_sighting() or is_ghost(self._entry):
+            self._show_ghost_blocked()
+            return
         dialog = DiagnoseDialog(self._paths, self._repository, self.game_path)
         dialog.present(self)
 
-    def _on_launch_done(self, _code: int) -> None:
-        """Reactivate the page after a clean launch exit."""
+    def _on_stop_clicked(self, _button: Gtk.Button) -> None:
+        """Stop the live session through the explicit Stop action."""
+        self._stop_running_session()
+
+    def _stop_running_session(self) -> None:
+        """Stop the live backend session for this entry off the main loop."""
+        try:
+            from box_gui.gtk.workers import run_stop
+        except ImportError as exc:
+            self._on_stop_error(exc)
+            return
+        names = live_session_names(self._paths, self._entry)
+        if not names:
+            # The session exited on its own; just resync instead of erroring.
+            self._set_busy(False, "")
+            self._sync_running_state()
+            return
+        game_path = self.game_path
+        self._set_busy(True, _("Stopping {path} …").format(path=game_path))
+        run_stop(
+            self._paths,
+            self._entry,
+            names[0],
+            self._on_stop_done,
+            self._on_stop_error,
+        )
+
+    def _on_stop_done(self, _result: None) -> None:
+        """Restore the launch action after the session stopped."""
         self._set_busy(False, "")
+        self._sync_running_state()
+
+    def _on_stop_error(self, error: BaseException) -> None:
+        """Show stop failures without leaving the page busy."""
+        self._set_busy(False, _("Stop failed."))
+        message = str(error) or error.__class__.__name__
+        dialog = Adw.AlertDialog(heading=launch_error_heading(error), body=message)
+        dialog.add_response("close", _("Close"))
+        dialog.set_default_response("close")
+        dialog.set_close_response("close")
+        dialog.present(self)
+
+    def _on_locate_clicked(self, _button: Gtk.Button) -> None:
+        """Point this entry at a new folder through the same picker as +."""
+        dialog = Gtk.FileDialog(title=_("Select Game Folder"))
+        self._locate_file_dialog = dialog
+        parent = self.get_root()
+        dialog.select_folder(
+            parent if isinstance(parent, Gtk.Window) else None,
+            None,
+            self._on_locate_folder_chosen,
+        )
+
+    def _on_locate_folder_chosen(self, source: Gtk.FileDialog, result: Gio.AsyncResult) -> None:
+        """Start re-inspection for the folder chosen as the new location."""
+        self._locate_file_dialog = None
+        try:
+            folder = source.select_folder_finish(result)
+        except GLib.Error as exc:
+            if exc.matches(Gtk.dialog_error_quark(), Gtk.DialogError.DISMISSED):
+                return
+            self._show_alert(_("Unexpected Error"), exc.message)
+            return
+        path = folder.get_path()
+        if path is None:
+            self._show_alert(
+                _("Unexpected Error"),
+                _("Cannot resolve a local path for the selection."),
+            )
+            return
+        try:
+            from box_gui.gtk.workers import run_inspect
+        except ImportError as exc:
+            self._show_alert(_("Unexpected Error"), str(exc) or exc.__class__.__name__)
+            return
+        run_inspect(Path(path), self._on_locate_inspect_done, self._on_locate_inspect_error)
+
+    def _on_locate_inspect_done(self, inspection: Inspection) -> None:
+        """Relocate this entry onto the inspected folder, clearing its ghost streak."""
+        new_icon = rekey_cached_icon(
+            self._paths.config_root,
+            self._entry.icon_path,
+            inspection.game.root,
+        )
+        relocated = replace(
+            self._entry,
+            path=inspection.game.root,
+            engine=inspection.game.engine.value,
+            icon_path=new_icon,
+            missing_streak=0,
+        )
+        self._persist(relocated)
+        if is_ghost(self._entry):
+            self._show_ghost_blocked()
+            return
+        self._refresh_icon_preview()
+        self.refresh()
+
+    def _on_locate_inspect_error(self, error: BaseException) -> None:
+        """Show relocation inspection failures; the entry stays a ghost."""
+        message = str(error) or error.__class__.__name__
+        self._show_alert(inspection_error_heading(error), message)
+
+    def _on_launch_done(self, _result: object) -> None:
+        """Reflect the detached session after spawn, not a game exit."""
+        self._set_busy(False, "")
+        self._sync_running_state()
 
     def _on_launch_error(self, error: BaseException) -> None:
         """Show launch failures, offering runtimes for missing runtimes."""

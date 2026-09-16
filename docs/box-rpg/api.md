@@ -25,7 +25,7 @@ The only blessed extras are `box.runtime.catalog`, `box.runtime.easyrpg`, and `b
 - `box.api.diagnose`: `diagnose(paths, repository, game_path, version, sdk)` returns a frozen `DiagnoseResult(environment, versions)`. Format it with `box.diagnostics.report.render_report` only in the CLI.
 - `box.api.runtime`: `default_architecture`, `list_nwjs`, `install_nwjs`, `remove_nwjs`, `fetch_nwjs_available`, `list_easyrpg`, `install_easyrpg`, `remove_easyrpg`, `fetch_easyrpg_available`. Install functions accept an optional `ProgressReporter(completed, total | None)`. Pass a real reporter in a GUI to stay silent; `None` enables the terminal progress bar. No prompting.
 - `box.api.cleanup`: `CleanupCatalog.list` and `CleanupCatalog.remove`, plus `CleanupItem`, `RemovalResult`, and `CATEGORIES`. Same roots, runtimes, downloads, and profiles enumeration as the CLI, without printing or prompting.
-- `box.api.launch`: `launch(paths, repository, game_path, version, sdk, copy_root_files, allow_network, allow_game_writes, x11, interaction)` returns the exit code. Same validation, sandbox, and session order as the CLI, without terminal I/O. Also exposes `authorize_game` and `list_root_files(game)`.
+- `box.api.launch`: `launch(paths, repository, game_path, version, sdk, copy_root_files, allow_network, allow_game_writes, x11, use_gamemode, interaction)` returns a `LaunchedSession(identifier, name, root)` once the detached supervisor confirms startup, not on game exit. Same validation, sandbox, and session order as the CLI, without terminal I/O. Also exposes `authorize_game`, `list_root_files(game)`, `is_gamemode_available()`, `is_session_running(paths, identifier, name)`, `find_live_sessions(paths, identifier) -> list[str]`, `poll_launch_status(paths, identifier, name) -> int | None`, and `stop_session(paths, identifier, name)`. One session per game entry is firm: a live session raises `LaunchError("game already running")`.
 
 Configuration needs no wrapper: call `ConfigRepository.load`, `add_allowed_root`, or `set_preferred_runtime` directly.
 
@@ -33,7 +33,7 @@ Configuration needs no wrapper: call `ConfigRepository.load`, `add_allowed_root`
 
 `box.api` stays synchronous and dependency-free. These calls block, so run them on a worker thread in a GUI and send results back to the main loop:
 
-- `launch` blocks until the game exits.
+- `launch` returns after detached startup; poll `poll_launch_status` until it returns an exit code (`None` while running). `box-rpg launch` keeps foreground behavior by polling in a loop.
 - `install_nwjs` and `install_easyrpg` block on network and extraction.
 - `fetch_*_available` blocks on network.
 - `diagnose` blocks on a sandboxed `--version` probe with a 10-second timeout.

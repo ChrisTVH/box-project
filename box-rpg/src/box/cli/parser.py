@@ -203,6 +203,11 @@ def build_parser() -> argparse.ArgumentParser:
         help=_("use the local X11 display for this launch only (weaker isolation)"),
     )
     launch.add_argument(
+        "--gamemode",
+        action="store_true",
+        help=_("run the game with GameMode for this launch only"),
+    )
+    launch.add_argument(
         "--copy-root-file",
         action="append",
         default=[],
