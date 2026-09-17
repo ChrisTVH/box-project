@@ -16,6 +16,7 @@ Supported games, and nothing else by decision:
 - Bubblewrap (`/usr/bin/bwrap`) with working user namespaces. There is no unsandboxed mode.
 - The GUI additionally needs GTK 4 and libadwaita typelibs.
 - Wayland is recommended. X11 and XWayland sessions work with per-launch consent. On Wayland, EasyRPG still asks once per launch when it runs through XWayland.
+- Running the AppImage additionally needs `libfuse3` with `/dev/fuse`; `libfuse2` is never required. `box-rpg` already needs `libfuse3` for `--ci-mount`, so this is nothing new.
 
 The installer checks these tools but does not install them.
 
@@ -31,6 +32,18 @@ The installer shows what it would do without changing anything; add `--yes` to s
 ```
 
 `--target` selects `cli`, `gui`, or `all` (default) for both `--install` and `--uninstall`. A GUI install also publishes the desktop entry and icons. The installer refuses root execution. On externally managed Pythons, user-site installation needs the separate `--break-system-packages` consent; `--yes` does not grant it. Installing overwrites the managed shell completions with the current copies. Use `box-rpg --help` after installation.
+
+### AppImage
+
+The AppImage ships only the `box-rpg-maker` GUI; the `box-rpg` backend stays on the host so the sandbox keeps working. Install the backend first, then run the artifact:
+
+```sh
+./install.py --install --target cli
+chmod +x box-rpg-maker.appimage
+./box-rpg-maker.appimage
+```
+
+It needs Linux with system Python 3.14+, GTK 4 with libadwaita 1.5+, and `libfuse3`. The AppImage runs `/usr/bin/python3` and resolves `box.api` from your user install; it never bundles Python or the backend. Artifacts are built manually from tagged releases (see the frontend notes); each one carries its build tag.
 
 ## Quick start
 

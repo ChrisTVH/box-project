@@ -80,6 +80,23 @@ Artwork uses the Microsoft Fluent UI color set for the application icon and Tabl
 
 Game icons are opt-in through the detail Change action. Adding a game never extracts. The first icon of a game `.exe` is extracted into an app-owned cache file under `paths.config_root / "icons" / "<slug>.png"`, so game folders are never written to. Any executable count opens the picker, whose first row reverts to the engine default. With no executable an image file picker is offered instead. Executable listing goes through `box.api.launch.list_root_files`, the same trust boundary as the extra-root-files picker.
 
+## AppImage distribution
+
+`tools/build_appimage.py` (with the `tools/appimage_tag.py` fallback reader) builds `box-rpg-maker.appimage` as a Python-pure, CI-reusable step with no shell scripts. The artifact packs only the frontend: the `box_gui` sources with the in-package `locale/`, plus the `res/` icons, the desktop entry, and the app icon. The `box-rpg` backend and the Python interpreter are never bundled; the generated `AppRun` runs on `/usr/bin/python3` and imports `box.api` from the host install, so install the backend first (`./install.py --install --target cli`). On externally managed Pythons the one-click setup surfaces the installer error verbatim; when pip refuses with an externally-managed-environment error, run the cloned `install.py` manually with the separate `--break-system-packages` consent (`--yes` never implies it).
+
+The payload mirrors the checkout (`payload/src/box_gui` beside `payload/res`), which keeps `_register_bundled_icons` and `i18n` working with no GUI changes. Conversion uses a recent `appimagetool` (continuous build) with a modern type 2 runtime: hosts run the artifact with `libfuse3`, never `libfuse2` (already required for `--ci-mount`). Extraction is the default tool mode so FUSE-less CI containers can still build; only running the artifact needs `/dev/fuse`.
+
+Releases are tag-driven. The builder computes the `year.month.commit-count` tag from git history (same count as the version-standard script, aligned with the `chore(release)` commits), creates the annotated tag at HEAD, and then verifies `git describe --exact-match` plus the tag/HEAD SHAs before staging anything; any mismatch fails closed. The tag is baked into `AppRun` (`BOX_RPG_MAKER_APPIMAGE_TAG`) and a generated `box_gui/appimage_tag.txt` inside the payload (never committed).
+
+Reader contract for the release screen: implement `box_gui.appimage_tag.get_appimage_tag() -> str | None`, checking the environment variable first and the sibling `appimage_tag.txt` second.
+
+Builds trigger manually only: `workflow_dispatch` in `.github/workflows/appimage.yml`, `when: manual` in `.gitlab-ci.yml`. Inspect locally without creating tags or downloading tools:
+
+```sh
+python3 -m tools.build_appimage --check
+python3 -m tools.build_appimage --yes --appdir-only --output dist/AppDir
+```
+
 ## Tests and checks
 
 - `tests/conftest.py` provides `_install_auto_answer` for `AlertDialog.present` and `_run_from_worker` as a `MainLoop` stand-in with safeguards. Display tests gate on a display check. Import-surface, icon, and gettext coverage checks stay headless-safe.
