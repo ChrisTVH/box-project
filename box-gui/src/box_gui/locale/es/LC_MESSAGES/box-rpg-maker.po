@@ -132,6 +132,10 @@ msgid ""
 msgstr ""
 "El box-rpg instalado {installed} no coincide con la versión esperada {tag}."
 
+#: box-gui/src/box_gui/core/backend_install.py:250
+msgid "Retrying with --break-system-packages …"
+msgstr "Reintentando con --break-system-packages …"
+
 #: box-gui/src/box_gui/gtk/interaction.py:154
 msgid "Continue with X11?"
 msgstr "¿Continuar con X11?"

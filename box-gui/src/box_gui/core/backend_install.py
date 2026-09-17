@@ -4,8 +4,9 @@ Clones the monorepo at the embedded tag (never HEAD) into a temporary
 directory, then runs its ``install.py --install --yes --target cli`` with
 the same interpreter running the GUI, streaming every install.py
 stdout/stderr line to the caller. Tool output is surfaced verbatim without
-reinterpretation; only the flow control (clone fallback, exit-code and
-version verification) lives here.
+reinterpretation; only the flow control lives here (clone fallback, a single
+--break-system-packages retry on PEP 668 refusal, exit-code and version
+verification).
 
 Nothing here touches Gtk/Adw or the network beyond the git clone the user
 explicitly started with the Install button.
@@ -35,6 +36,7 @@ __all__ = [
     "build_install_command",
     "install_backend",
     "install_button_label",
+    "is_externally_managed_failure",
     "query_installed_version",
     "run_command_streaming",
 ]
@@ -48,6 +50,7 @@ INSTALL_TARGET = "cli"
 _BACKEND_DISTRIBUTION = "box-rpg"
 _INSTALL_SCRIPT_NAME = "install.py"
 _COMMAND_TIMEOUT_S = 3600
+_EXTERNALLY_MANAGED_MARKER = "externally-managed-environment"
 
 
 class BackendInstallError(Exception):
@@ -88,9 +91,23 @@ def build_clone_command(url: str, tag: str, destination: Path) -> list[str]:
     return ["git", "clone", "--branch", tag, "--depth", "1", url, str(destination)]
 
 
-def build_install_command(python: str, install_script: Path) -> list[str]:
+def build_install_command(
+    python: str, install_script: Path, *, break_system_packages: bool = False
+) -> list[str]:
     """Build the backend-owned installer invocation for the CLI target."""
-    return [python, str(install_script), "--install", "--yes", "--target", INSTALL_TARGET]
+    command = [python, str(install_script), "--install", "--yes", "--target", INSTALL_TARGET]
+    if break_system_packages:
+        command.append("--break-system-packages")
+    return command
+
+
+def is_externally_managed_failure(lines: Sequence[str]) -> bool:
+    """Return True when pip refused with a PEP 668 external-management error.
+
+    Matches only pip's stable machine-readable token, never the localized
+    human-readable explanation around it.
+    """
+    return any(_EXTERNALLY_MANAGED_MARKER in line.lower() for line in lines)
 
 
 def run_command_streaming(
@@ -219,7 +236,22 @@ def install_backend(
             )
         script = repository / _INSTALL_SCRIPT_NAME
         notify(_("Installing box-rpg {tag} …").format(tag=tag))
-        code = run_command_streaming(build_install_command(python, script), on_line)
+        install_lines: list[str] = []
+
+        def _stream(line: str) -> None:
+            install_lines.append(line)
+            on_line(line)
+
+        code = run_command_streaming(build_install_command(python, script), _stream)
+        if code != 0 and is_externally_managed_failure(install_lines):
+            # Externally managed Pythons (PEP 668) need the separate
+            # --break-system-packages consent install.py requires; retry
+            # exactly once with it, streaming the second attempt too.
+            notify(_("Retrying with --break-system-packages …"))
+            install_lines.clear()
+            code = run_command_streaming(
+                build_install_command(python, script, break_system_packages=True), _stream
+            )
         if code != 0:
             raise BackendInstallError(_("Install failed with exit code {code}.").format(code=code))
         installed = query_installed_version(python)

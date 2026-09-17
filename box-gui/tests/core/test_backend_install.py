@@ -19,6 +19,7 @@ from box_gui.core.backend_install import (
     build_install_command,
     install_backend,
     install_button_label,
+    is_externally_managed_failure,
     query_installed_version,
     run_command_streaming,
 )
@@ -231,6 +232,75 @@ def test_install_backend_reports_clone_failures_verbatim(monkeypatch: Any) -> No
 
     with pytest.raises(BackendInstallError, match="unable to connect"):
         install_backend("26.9.43", python="/usr/bin/python3", on_line=lambda _l: None)
+
+
+def test_install_backend_retries_pep668_with_break_flag(monkeypatch: Any) -> None:
+    """A PEP 668 refusal retries once with --break-system-packages."""
+    install_commands: list[list[str]] = []
+    seen_lines: list[str] = []
+    seen_status: list[str] = []
+
+    def _fake_run(command: list[str], on_line: Any, *, cwd: Any = None) -> int:
+        if command[0] == "git":
+            destination = Path(command[-1])
+            destination.mkdir(parents=True, exist_ok=True)
+            (destination / "install.py").write_text("# fake\n", encoding="utf-8")
+            return 0
+        install_commands.append(command)
+        if len(install_commands) == 1:
+            for line in ("error: externally-managed-environment", "hint: See PEP 668"):
+                on_line(line)
+            return 1
+        on_line("installed 3 shell completions")
+        return 0
+
+    monkeypatch.setattr(backend_install_module, "run_command_streaming", _fake_run)
+    monkeypatch.setattr(backend_install_module, "query_installed_version", lambda _py: "26.9.43")
+
+    outcome = install_backend(
+        "26.9.43",
+        python="/usr/bin/python3",
+        on_line=seen_lines.append,
+        on_status=seen_status.append,
+    )
+
+    assert outcome.installed_version == "26.9.43"
+    assert len(install_commands) == 2
+    assert "--break-system-packages" not in install_commands[0]
+    assert install_commands[1][-1] == "--break-system-packages"
+    assert "error: externally-managed-environment" in seen_lines
+    assert "installed 3 shell completions" in seen_lines
+    assert any("break-system-packages" in message for message in seen_status)
+
+
+def test_install_backend_retries_pep668_only_once(monkeypatch: Any) -> None:
+    """A repeated PEP 668 failure still fails closed after one retry."""
+    install_commands: list[list[str]] = []
+
+    def _fake_run(command: list[str], on_line: Any, *, cwd: Any = None) -> int:
+        if command[0] == "git":
+            destination = Path(command[-1])
+            destination.mkdir(parents=True, exist_ok=True)
+            (destination / "install.py").write_text("# fake\n", encoding="utf-8")
+            return 0
+        install_commands.append(command)
+        on_line("error: externally-managed-environment")
+        return 1
+
+    monkeypatch.setattr(backend_install_module, "run_command_streaming", _fake_run)
+
+    with pytest.raises(BackendInstallError, match="exit code 1"):
+        install_backend("26.9.43", python="/usr/bin/python3", on_line=lambda _l: None)
+
+    assert len(install_commands) == 2
+
+
+def test_externally_managed_marker_matches_token_only() -> None:
+    """Detection keys on pip's stable token, case-insensitively."""
+    assert is_externally_managed_failure(["error: externally-managed-environment"])
+    assert is_externally_managed_failure(["ERROR: EXTERNALLY-MANAGED-ENVIRONMENT"])
+    assert not is_externally_managed_failure(["error: pip install failed"])
+    assert not is_externally_managed_failure([])
 
 
 def test_install_backend_reports_missing_git(monkeypatch: Any) -> None:
