@@ -3,9 +3,11 @@
 # Trigger: run the appimage job manually (never on push, never on tag
 # pipelines). It builds with the Python-pure builder
 # (python3 -m tools.build_appimage), pushes the stable year.month.commit-count
-# tag the builder created at HEAD, and records it in build.env; the publish
-# job then creates the Release (generic title, notes, and artifact link)
-# automatically through its needs on the build.
+# tag with the appimage-push project token (write_repository, stored as the
+# masked GIT_PUSH_TOKEN CI variable; CI_JOB_TOKEN alone gets a 403), and
+# records the tag in build.env; the publish job then creates the Release
+# (generic title, notes, and artifact link) automatically through its needs
+# on the build.
 # The Python-pure builder stages the frontend-only AppDir and converts it
 # with a recent FUSE3-capable appimagetool (no libfuse2).
 # The builder never refuses root, so the default root user of the
@@ -39,7 +41,8 @@ appimage:
     - python3 -m tools.build_appimage --yes --output dist/box-rpg-maker.appimage
     - APPIMAGE_TAG=$(git describe --tags --exact-match HEAD)
     - echo "APPIMAGE_TAG=$APPIMAGE_TAG" > build.env
-    - git push origin "$APPIMAGE_TAG"
+    - 'if [ -z "${GIT_PUSH_TOKEN:-}" ]; then echo "error: missing GIT_PUSH_TOKEN CI variable" >&2; exit 1; fi'
+    - git push "https://oauth2:${GIT_PUSH_TOKEN}@gitlab.com/christvh/box-project.git" "$APPIMAGE_TAG"
   artifacts:
     paths:
       - dist/box-rpg-maker.appimage
