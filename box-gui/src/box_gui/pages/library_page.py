@@ -248,7 +248,7 @@ class LibraryPage(Adw.NavigationPage):
         bar.set_margin_start(12)
         bar.set_margin_end(6)
         # Translators: the credit reads as one sentence
-        # "Created with <heart> love by {author}"; the heart is an
+        # "Created with <heart> by {author}"; the heart is an
         # inline icon, so the text stays split across two labels.
         message = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         message.set_halign(Gtk.Align.CENTER)
@@ -258,7 +258,7 @@ class LibraryPage(Adw.NavigationPage):
         heart.set_pixel_size(16)
         heart.add_css_class("love-heart")
         message.append(heart)
-        message.append(Gtk.Label(label=_("love by {author}").format(author=author)))
+        message.append(Gtk.Label(label=_("by {author}").format(author=author)))
         version_button = Gtk.Button(label=f"v{version}")
         version_button.add_css_class("flat")
         version_button.add_css_class("link")

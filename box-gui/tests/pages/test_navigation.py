@@ -2243,7 +2243,7 @@ def test_footer_contains_version_and_credit(tmp_path: Path) -> None:
     assert button.has_css_class("flat")
     texts = [widget.get_text() for widget in widgets if isinstance(widget, Gtk.Label)]
     assert "Created with" in texts
-    assert any(text.startswith("love by ") for text in texts)
+    assert any(text.startswith("by ") for text in texts)
     hearts = [
         widget
         for widget in widgets
