@@ -1,0 +1,47 @@
+# Manual AppImage distribution build for box-rpg-maker.
+#
+# Trigger: workflow_dispatch only (Actions tab -> Run workflow). Never on
+# push. The Python-pure builder (python3 -m tools.build_appimage) computes
+# the stable year.month.commit-count tag, creates it at HEAD, verifies the
+# checkout is exactly at that tag, stages the frontend-only AppDir, and
+# converts it with a recent FUSE3-capable appimagetool (no libfuse2).
+name: AppImage
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Stable tag to build (default: computed from git history)"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out with full history for tags and version count
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install FUSE3 to run appimagetool and the artifact
+        run: sudo apt-get update && sudo apt-get install -y fuse3
+
+      - name: Build the AppImage
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            python3 -m tools.build_appimage --yes --tag "${{ inputs.tag }}"
+          else
+            python3 -m tools.build_appimage --yes
+          fi
+
+      - name: Upload the artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: box-rpg-maker.appimage
+          path: dist/box-rpg-maker.appimage

@@ -14,6 +14,10 @@
 !/*.toml
 !/*.lock
 
+# CI pipelines (manual AppImage distribution builds)
+!/.github/workflows/*.yml
+!/.gitlab-ci.yml
+
 # Ignore build artifacts (even though whitelisted above)
 /__pycache__/
 /src/**/__pycache__/
