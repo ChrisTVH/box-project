@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -207,12 +208,19 @@ def test_gamemode_probe_degrades_on_probe_errors(monkeypatch: Any) -> None:
     assert backend_check_module._is_gamemode_available() is False
 
 
-def test_gamemode_probe_degrades_without_backend(monkeypatch: Any) -> None:
-    """A missing backend reads as unavailable GameMode, never a crash."""
+def test_gamemode_probe_falls_back_to_host_without_backend(monkeypatch: Any) -> None:
+    """Without a backend the host wrapper binaries decide, never a crash."""
     import box.api as box_api
 
     monkeypatch.delattr(box_api, "launch", raising=False)
     monkeypatch.setitem(sys.modules, "box.api.launch", None)
+    monkeypatch.setattr(Path, "is_file", lambda self: True)
+    monkeypatch.setattr(os, "access", lambda path, mode: True)
+
+    assert backend_check_module._is_gamemode_available() is True
+
+    monkeypatch.setattr(Path, "is_file", lambda self: False)
+    monkeypatch.setattr(backend_check_module.shutil, "which", lambda name: None)
 
     assert backend_check_module._is_gamemode_available() is False
 

@@ -4,7 +4,10 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -56,12 +59,21 @@ def test_threads_import_needs_no_backend(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_probes_survive_missing_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     """Dependency detection degrades per probe without the backend."""
     _block_backend(monkeypatch)
+    monkeypatch.setattr(Path, "is_file", lambda self: True)
+    monkeypatch.setattr(os, "access", lambda path, mode: True)
 
     from box_gui.core.backend_check import probe_dependencies
 
     found = {item.key: item for item in probe_dependencies()}
 
     assert set(found) == {"python", "pip", "bwrap", "gamemode"}
+    assert found["gamemode"].available is True
+
+    monkeypatch.setattr(Path, "is_file", lambda self: False)
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+
+    found = {item.key: item for item in probe_dependencies()}
+
     assert found["gamemode"].available is False
 
 

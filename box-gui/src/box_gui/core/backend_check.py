@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -236,16 +237,37 @@ def _probe_bwrap() -> DependencyStatus:
     )
 
 
+def _is_tool_usable(path: str, name: str) -> bool:
+    """Return True for an executable absolute path or a PATH lookup hit."""
+    candidate = Path(path)
+    if candidate.is_file() and os.access(candidate, os.X_OK):
+        return True
+    return shutil.which(name) is not None
+
+
+def _is_gamemode_available_on_host() -> bool:
+    """Report GameMode support straight from the host wrapper binaries.
+
+    Mirrors box.launch.gamemode availability (gamemoderun plus its D-Bus
+    proxy) for setups where the backend itself is not installed yet, so
+    the setup page never reports a present wrapper as missing.
+    """
+    return _is_tool_usable("/usr/bin/gamemoderun", "gamemoderun") and _is_tool_usable(
+        "/usr/bin/xdg-dbus-proxy", "xdg-dbus-proxy"
+    )
+
+
 def _is_gamemode_available() -> bool:
     """Return True when the backend reports a usable GameMode wrapper.
 
     Any failure (old backend without the probe, missing gamemoderun,
-    unexpected errors) means unavailable, never a crash.
+    unexpected errors) means unavailable, never a crash. Without an
+    installed backend the host binaries are probed directly instead.
     """
     try:
         from box.api import launch as launch_api
     except ImportError:
-        return False
+        return _is_gamemode_available_on_host()
     probe = getattr(launch_api, "is_gamemode_available", None)
     if not callable(probe):
         return False
