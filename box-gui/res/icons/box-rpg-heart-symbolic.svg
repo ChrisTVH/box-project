@@ -1,0 +1,9 @@
+<!-- Tabler Icons "heart" (outline converted to fills for GTK symbolic recoloring), Copyright (c) Tabler, MIT License. Vendored from @tabler/icons 3.34.1. -->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+>
+  <path fill="#2e3436" fill-rule="evenodd" d="M20.2 13.28 L12 21.4 L3.8 13.28 A6 6 0 1 1 12 5 A6 6 0 1 1 20.2 13.28 Z M18.5 11.9 L12 19 L5.5 11.9 A4 4 0 1 1 12 7.3 A4 4 0 1 1 18.5 11.9 Z"/>
+</svg>

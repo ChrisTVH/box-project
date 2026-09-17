@@ -1,0 +1,18 @@
+<!-- Tabler Icons "queue-pop-in" (outline converted to fills for GTK symbolic recoloring), Copyright (c) Tabler, MIT License. Vendored from @tabler/icons 3.34.1. -->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+>
+  <path fill="#2e3436" fill-rule="evenodd" d="M8 5L5 5A3 3 0 0 0 2 8L2 19A3 3 0 0 0 5 22L16 22A3 3 0 0 0 19 19L19 15.643L17 15.643L17 19A1 1 0 0 1 16 20L5 20A1 1 0 0 1 4 19L4 8A1 1 0 0 1 5 7L8 7Z"/>
+  <circle cx="8" cy="6" r="1" fill="#2e3436"/>
+  <circle cx="18" cy="15.643" r="1" fill="#2e3436"/>
+  <path fill="#2e3436" fill-rule="evenodd" d="M15 2L19 2A3 3 0 0 1 22 5L22 9A3 3 0 0 1 19 12L15 12A3 3 0 0 1 12 9L12 5A3 3 0 0 1 15 2Z M15 4L19 4A1 1 0 0 1 20 5L20 9A1 1 0 0 1 19 10L15 10A1 1 0 0 1 14 9L14 5A1 1 0 0 1 15 4Z"/>
+  <path fill="#2e3436" d="M14.207 11.207L12.793 9.793L7.293 15.293L8.707 16.707Z"/>
+  <path fill="#2e3436" d="M7 11L9 11L9 15L13 15L13 17L7 17Z"/>
+  <circle cx="8" cy="16" r="1" fill="#2e3436"/>
+  <circle cx="8" cy="11" r="1" fill="#2e3436"/>
+  <circle cx="13" cy="16" r="1" fill="#2e3436"/>
+  <circle cx="13.5" cy="10.5" r="1" fill="#2e3436"/>
+</svg>

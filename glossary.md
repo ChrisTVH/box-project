@@ -122,3 +122,5 @@ Terms taken from the `box-rpg-maker` catalog; if a msgid contains a backend term
 | Game profiles | Perfiles de juego | Categoría de limpieza de la GUI. |
 | Open Runtimes | Abrir entornos | Respuesta sugerida del diálogo de error. |
 | Add root | Añadir raíz | Acción de autorización; `root` aquí es forma corta de «game root». |
+| external link | enlace externo | En diálogo de confirmación antes de abrir una URL. |
+| project repository | repositorio del proyecto | Enlace del pie de la biblioteca; la URL queda literal. |

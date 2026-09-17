@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg-maker 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-17 09:25-0400\n"
+"POT-Creation-Date: 2026-09-17 12:13-0400\n"
 "PO-Revision-Date: 2026-09-14 00:00+0000\n"
 "Last-Translator: Christopher Herasme <5632734-"
 "christvh@users.noreply.gitlab.com>\n"
@@ -42,11 +42,12 @@ msgstr ""
 #: box-gui/src/box_gui/gtk/interaction.py:160
 #: box-gui/src/box_gui/gtk/interaction.py:173
 #: box-gui/src/box_gui/gtk/interaction.py:193
-#: box-gui/src/box_gui/pages/game_detail_page.py:1001
 #: box-gui/src/box_gui/pages/settings_dialog.py:767
 #: box-gui/src/box_gui/pages/settings_dialog.py:879
 #: box-gui/src/box_gui/pages/settings_dialog.py:982
+#: box-gui/src/box_gui/pages/game_detail_page.py:1001
 #: box-gui/src/box_gui/widgets/exe_picker.py:40
+#: box-gui/src/box_gui/widgets/external_link.py:34
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -83,7 +84,9 @@ msgstr "Seleccionar"
 
 #: box-gui/src/box_gui/gtk/workers.py:158
 msgid "Case-insensitive mount is not supported by the installed backend."
-msgstr "El montaje insensible a mayúsculas y minúsculas no es compatible con el backend instalado."
+msgstr ""
+"El montaje insensible a mayúsculas y minúsculas no es compatible con el "
+"backend instalado."
 
 #: box-gui/src/box_gui/gtk/workers.py:160
 msgid "GameMode is not supported by the installed backend."
@@ -94,6 +97,7 @@ msgid "Diagnose Failed"
 msgstr "Diagnóstico fallido"
 
 #: box-gui/src/box_gui/pages/diagnose_dialog.py:26
+#: box-gui/src/box_gui/pages/settings_dialog.py:87
 #: box-gui/src/box_gui/pages/game_detail_page.py:76
 #: box-gui/src/box_gui/pages/game_detail_page.py:83
 #: box-gui/src/box_gui/pages/game_detail_page.py:845
@@ -104,21 +108,21 @@ msgstr "Diagnóstico fallido"
 #: box-gui/src/box_gui/pages/game_detail_page.py:1189
 #: box-gui/src/box_gui/pages/game_detail_page.py:1194
 #: box-gui/src/box_gui/pages/game_detail_page.py:1201
-#: box-gui/src/box_gui/pages/library_page.py:74
-#: box-gui/src/box_gui/pages/library_page.py:213
-#: box-gui/src/box_gui/pages/library_page.py:495
-#: box-gui/src/box_gui/pages/library_page.py:515
-#: box-gui/src/box_gui/pages/library_page.py:649
-#: box-gui/src/box_gui/pages/library_page.py:668
-#: box-gui/src/box_gui/pages/library_page.py:682
-#: box-gui/src/box_gui/pages/library_page.py:714
-#: box-gui/src/box_gui/pages/library_page.py:719
-#: box-gui/src/box_gui/pages/library_page.py:726
-#: box-gui/src/box_gui/pages/library_page.py:758
-#: box-gui/src/box_gui/pages/library_page.py:786
-#: box-gui/src/box_gui/pages/library_page.py:791
-#: box-gui/src/box_gui/pages/library_page.py:814
-#: box-gui/src/box_gui/pages/settings_dialog.py:87
+#: box-gui/src/box_gui/pages/library_page.py:152
+#: box-gui/src/box_gui/pages/library_page.py:419
+#: box-gui/src/box_gui/pages/library_page.py:542
+#: box-gui/src/box_gui/pages/library_page.py:829
+#: box-gui/src/box_gui/pages/library_page.py:849
+#: box-gui/src/box_gui/pages/library_page.py:983
+#: box-gui/src/box_gui/pages/library_page.py:1002
+#: box-gui/src/box_gui/pages/library_page.py:1016
+#: box-gui/src/box_gui/pages/library_page.py:1048
+#: box-gui/src/box_gui/pages/library_page.py:1053
+#: box-gui/src/box_gui/pages/library_page.py:1060
+#: box-gui/src/box_gui/pages/library_page.py:1092
+#: box-gui/src/box_gui/pages/library_page.py:1120
+#: box-gui/src/box_gui/pages/library_page.py:1125
+#: box-gui/src/box_gui/pages/library_page.py:1148
 msgid "Unexpected Error"
 msgstr "Error inesperado"
 
@@ -174,326 +178,14 @@ msgid "Diagnose failed."
 msgstr "Diagnóstico fallido."
 
 #: box-gui/src/box_gui/pages/diagnose_dialog.py:130
+#: box-gui/src/box_gui/pages/settings_dialog.py:90
 #: box-gui/src/box_gui/pages/game_detail_page.py:1165
 #: box-gui/src/box_gui/pages/game_detail_page.py:1243
 #: box-gui/src/box_gui/pages/game_detail_page.py:1260
-#: box-gui/src/box_gui/pages/library_page.py:833
-#: box-gui/src/box_gui/pages/settings_dialog.py:90
-#: box-gui/src/box_gui/app.py:120
+#: box-gui/src/box_gui/pages/library_page.py:1167
+#: box-gui/src/box_gui/app.py:124
 msgid "Close"
 msgstr "Cerrar"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:69
-#: box-gui/src/box_gui/pages/library_page.py:60
-msgid "The game folder is missing. Use Locate folder… to point at it again."
-msgstr ""
-"Falta la carpeta del juego. Usa Localizar carpeta… para apuntar a ella de "
-"nuevo."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:75
-#: box-gui/src/box_gui/pages/library_page.py:73
-msgid "Inspection Failed"
-msgstr "Inspección fallida"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:82
-#: box-gui/src/box_gui/pages/library_page.py:648
-msgid "Launch Failed"
-msgstr "Inicio fallido"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:99
-msgid "Game Detail"
-msgstr "Detalle del juego"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:119
-#: box-gui/src/box_gui/pages/game_detail_page.py:376
-#: box-gui/src/box_gui/pages/library_page.py:285
-#: box-gui/src/box_gui/pages/library_page.py:291
-#: box-gui/src/box_gui/pages/library_page.py:412
-msgid "Launch"
-msgstr "Iniciar"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:124
-msgid "Stop"
-msgstr "Detener"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:132
-#: box-gui/src/box_gui/pages/library_page.py:301
-msgid "Locate folder…"
-msgstr "Localizar carpeta…"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:145
-msgid "Name"
-msgstr "Nombre"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:149
-msgid "Icon"
-msgstr "Icono"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:153
-msgid "Change…"
-msgstr "Cambiar…"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:159
-msgid "Root"
-msgstr "Raíz"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:160
-msgid "Entrypoint"
-msgstr "Punto de entrada"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:161
-msgid "Title"
-msgstr "Título"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:162
-msgid "Plugins"
-msgstr "Complementos"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:163
-msgid "Preferred runtime"
-msgstr "Entorno de ejecución preferido"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:165
-#: box-gui/src/box_gui/pages/settings_dialog.py:675
-msgid "SDK"
-msgstr "SDK"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:168
-msgid "Case-insensitive mount"
-msgstr "Montaje insensible a mayúsculas y minúsculas"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:169
-msgid "Use a case-insensitive view for this game when available."
-msgstr "Usa una vista insensible a mayúsculas y minúsculas para este juego cuando esté disponible."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:174
-msgid "GameMode"
-msgstr "GameMode"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:175
-msgid "Boost performance with GameMode when available."
-msgstr "Mejora el rendimiento con GameMode cuando esté disponible."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:180
-#: box-gui/src/box_gui/pages/game_detail_page.py:1008
-msgid "Additional files"
-msgstr "Archivos adicionales"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:182
-msgid ""
-"Some games keep language or settings files in the game root. Selected files "
-"are copied alongside the game on launch."
-msgstr ""
-"Algunos juegos guardan sus archivos de idioma o de configuración en la raíz "
-"del juego. Los seleccionados se copian junto al juego al iniciar."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:189
-#: box-gui/src/box_gui/pages/game_detail_page.py:999
-msgid "Add file"
-msgstr "Añadir archivo"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:191
-msgid "Allow network usage"
-msgstr "Permitir uso de red"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:194
-msgid "Allow modifying the game"
-msgstr "Permitir modificar en el juego"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:195
-msgid "For games with automatic updates."
-msgstr "Para juegos con actualizaciones automáticas."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:198
-msgid "Allow X11 or XWayland sessions"
-msgstr "Permitir sesiones de X11 o XWayland"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:238
-msgid "Display name"
-msgstr "Nombre visible"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:243
-msgid "Game info"
-msgstr "Información del juego"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:251
-msgid "Runtime"
-msgstr "Entorno de ejecución"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:253
-msgid ""
-"By default it uses the version defined in Settings; otherwise the most "
-"recently downloaded one."
-msgstr ""
-"Por defecto usa la versión definida en Ajustes; si no hay ninguna, la más "
-"reciente descargada."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:268
-msgid "Sandbox permissions"
-msgstr "Permisos de la caja"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:269
-msgid "Permissions apply when mounting the game in the sandbox."
-msgstr "Los permisos se aplican al montar el juego en la caja."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:308
-#, python-brace-format
-msgid "Inspecting {path} …"
-msgstr "Inspeccionando {path} …"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:366
-#: box-gui/src/box_gui/pages/library_page.py:289
-#: box-gui/src/box_gui/pages/library_page.py:408
-msgid "Game is running"
-msgstr "El juego está en ejecución"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:431
-msgid "Inspection failed."
-msgstr "Inspección fallida."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:468
-msgid "Default"
-msgstr "Por defecto"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:468
-#: box-gui/src/box_gui/pages/settings_dialog.py:161
-#: box-gui/src/box_gui/pages/settings_dialog.py:166
-#: box-gui/src/box_gui/pages/settings_dialog.py:205
-#: box-gui/src/box_gui/pages/settings_dialog.py:232
-msgid "Undefined"
-msgstr "No definido"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:565
-#: box-gui/src/box_gui/pages/game_detail_page.py:650
-msgid "This feature is not available on your system."
-msgstr "Esta función no está disponible en tu sistema."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:630
-msgid "Not available for EasyRPG games."
-msgstr "No disponible para juegos de EasyRPG."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:843
-#: box-gui/src/box_gui/pages/library_page.py:182
-#: box-gui/src/box_gui/pages/library_page.py:665
-#: box-gui/src/box_gui/pages/library_page.py:679
-#: box-gui/src/box_gui/pages/library_page.py:755
-#: box-gui/src/box_gui/pages/library_page.py:811
-msgid "Library Error"
-msgstr "Error de biblioteca"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:893
-msgid "Choose Icon Image"
-msgstr "Elige una imagen para el icono"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:895
-msgid "Images"
-msgstr "Imágenes"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:925
-#: box-gui/src/box_gui/pages/game_detail_page.py:1195
-#: box-gui/src/box_gui/pages/library_page.py:720
-#: box-gui/src/box_gui/pages/library_page.py:792
-msgid "Cannot resolve a local path for the selection."
-msgstr "No se puede resolver una ruta local para la selección."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:935
-msgid "Cannot use that file as the game icon."
-msgstr "Ese archivo no sirve como icono del juego."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:983
-msgid "Remove file"
-msgstr "Quitar archivo"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:1016
-msgid "No eligible files."
-msgstr "No existen archivos elegibles."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:1065
-#: box-gui/src/box_gui/pages/game_detail_page.py:1120
-#: box-gui/src/box_gui/pages/library_page.py:485
-msgid "Folder missing"
-msgstr "Carpeta ausente"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:1099
-#, python-brace-format
-msgid "Launching {path} …"
-msgstr "Iniciando {path} …"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:1146
-#, python-brace-format
-msgid "Stopping {path} …"
-msgstr "Deteniendo {path} …"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:1162
-msgid "Stop failed."
-msgstr "Detención fallida."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:1172
-#: box-gui/src/box_gui/pages/library_page.py:692
-#: box-gui/src/box_gui/pages/library_page.py:769
-msgid "Select Game Folder"
-msgstr "Seleccionar carpeta del juego"
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:1240
-msgid "Launch failed."
-msgstr "Inicio fallido."
-
-#: box-gui/src/box_gui/pages/game_detail_page.py:1245
-msgid "Open Runtimes"
-msgstr "Abrir entornos"
-
-#: box-gui/src/box_gui/pages/library_page.py:84
-msgid "Latest"
-msgstr "Más reciente"
-
-#: box-gui/src/box_gui/pages/library_page.py:90
-msgid "Move up"
-msgstr "Subir"
-
-#: box-gui/src/box_gui/pages/library_page.py:91
-msgid "Move down"
-msgstr "Bajar"
-
-#: box-gui/src/box_gui/pages/library_page.py:92
-msgid "Move to top"
-msgstr "Mover al principio"
-
-#: box-gui/src/box_gui/pages/library_page.py:93
-msgid "Move to bottom"
-msgstr "Mover al final"
-
-#: box-gui/src/box_gui/pages/library_page.py:94
-msgid "Remove from list"
-msgstr "Quitar de la lista"
-
-#: box-gui/src/box_gui/pages/library_page.py:112
-msgid "Library"
-msgstr "Biblioteca"
-
-#: box-gui/src/box_gui/pages/library_page.py:130
-msgid "Add game"
-msgstr "Añadir juego"
-
-#: box-gui/src/box_gui/pages/library_page.py:133
-#: box-gui/src/box_gui/pages/settings_dialog.py:1154
-msgid "Settings"
-msgstr "Ajustes"
-
-#: box-gui/src/box_gui/pages/library_page.py:138
-msgid "Your library is empty. Click + to add your first game."
-msgstr "Tu biblioteca está vacía. Haz clic en + para añadir tu primer juego."
-
-#: box-gui/src/box_gui/pages/library_page.py:250
-msgid "Missing"
-msgstr "Ausente"
-
-#: box-gui/src/box_gui/pages/library_page.py:255
-msgid "Running"
-msgstr "En ejecución"
-
-#: box-gui/src/box_gui/pages/library_page.py:267
-msgid "Reorder or remove"
-msgstr "Reordenar o quitar"
 
 #: box-gui/src/box_gui/pages/settings_dialog.py:85
 #, python-brace-format
@@ -524,6 +216,14 @@ msgstr "Entorno NW.js preferido"
 #: box-gui/src/box_gui/pages/settings_dialog.py:160
 msgid "NW.js version"
 msgstr "Versión de NW.js"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:161
+#: box-gui/src/box_gui/pages/settings_dialog.py:166
+#: box-gui/src/box_gui/pages/settings_dialog.py:205
+#: box-gui/src/box_gui/pages/settings_dialog.py:232
+#: box-gui/src/box_gui/pages/game_detail_page.py:468
+msgid "Undefined"
+msgstr "No definido"
 
 #: box-gui/src/box_gui/pages/settings_dialog.py:164
 msgid "Preferred EasyRPG runtime"
@@ -676,6 +376,11 @@ msgstr "Versiones NW.js disponibles"
 msgid "Architecture"
 msgstr "Arquitectura"
 
+#: box-gui/src/box_gui/pages/settings_dialog.py:675
+#: box-gui/src/box_gui/pages/game_detail_page.py:165
+msgid "SDK"
+msgstr "SDK"
+
 #: box-gui/src/box_gui/pages/settings_dialog.py:699
 msgid "standard"
 msgstr "estándar"
@@ -784,6 +489,11 @@ msgstr[1] "{count} elementos"
 msgid "Removing {label} …"
 msgstr "Eliminando {label} …"
 
+#: box-gui/src/box_gui/pages/settings_dialog.py:1154
+#: box-gui/src/box_gui/pages/library_page.py:211
+msgid "Settings"
+msgstr "Ajustes"
+
 #: box-gui/src/box_gui/pages/settings_dialog.py:1180
 msgid "Authorized game roots"
 msgstr "Raíces de juego autorizadas"
@@ -804,6 +514,323 @@ msgstr "Perfiles de juego"
 msgid "Additional runtime settings or cache are stored here."
 msgstr "Se guardan configuraciones adicionales o cache de los entornos."
 
+#: box-gui/src/box_gui/pages/game_detail_page.py:69
+#: box-gui/src/box_gui/pages/library_page.py:66
+msgid "The game folder is missing. Use Locate folder… to point at it again."
+msgstr ""
+"Falta la carpeta del juego. Usa Localizar carpeta… para apuntar a ella de "
+"nuevo."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:75
+#: box-gui/src/box_gui/pages/library_page.py:151
+msgid "Inspection Failed"
+msgstr "Inspección fallida"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:82
+#: box-gui/src/box_gui/pages/library_page.py:982
+msgid "Launch Failed"
+msgstr "Inicio fallido"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:99
+msgid "Game Detail"
+msgstr "Detalle del juego"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:119
+#: box-gui/src/box_gui/pages/game_detail_page.py:376
+#: box-gui/src/box_gui/pages/library_page.py:619
+#: box-gui/src/box_gui/pages/library_page.py:625
+#: box-gui/src/box_gui/pages/library_page.py:746
+msgid "Launch"
+msgstr "Iniciar"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:124
+msgid "Stop"
+msgstr "Detener"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:132
+#: box-gui/src/box_gui/pages/library_page.py:635
+msgid "Locate folder…"
+msgstr "Localizar carpeta…"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:145
+msgid "Name"
+msgstr "Nombre"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:149
+msgid "Icon"
+msgstr "Icono"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:153
+msgid "Change…"
+msgstr "Cambiar…"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:159
+msgid "Root"
+msgstr "Raíz"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:160
+msgid "Entrypoint"
+msgstr "Punto de entrada"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:161
+msgid "Title"
+msgstr "Título"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:162
+msgid "Plugins"
+msgstr "Complementos"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:163
+msgid "Preferred runtime"
+msgstr "Entorno de ejecución preferido"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:168
+msgid "Case-insensitive mount"
+msgstr "Montaje insensible a mayúsculas y minúsculas"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:169
+msgid "Use a case-insensitive view for this game when available."
+msgstr ""
+"Usa una vista insensible a mayúsculas y minúsculas para este juego cuando "
+"esté disponible."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:174
+msgid "GameMode"
+msgstr "GameMode"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:175
+msgid "Boost performance with GameMode when available."
+msgstr "Mejora el rendimiento con GameMode cuando esté disponible."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:180
+#: box-gui/src/box_gui/pages/game_detail_page.py:1008
+msgid "Additional files"
+msgstr "Archivos adicionales"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:182
+msgid ""
+"Some games keep language or settings files in the game root. Selected files "
+"are copied alongside the game on launch."
+msgstr ""
+"Algunos juegos guardan sus archivos de idioma o de configuración en la raíz "
+"del juego. Los seleccionados se copian junto al juego al iniciar."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:189
+#: box-gui/src/box_gui/pages/game_detail_page.py:999
+msgid "Add file"
+msgstr "Añadir archivo"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:191
+msgid "Allow network usage"
+msgstr "Permitir uso de red"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:194
+msgid "Allow modifying the game"
+msgstr "Permitir modificar en el juego"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:195
+msgid "For games with automatic updates."
+msgstr "Para juegos con actualizaciones automáticas."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:198
+msgid "Allow X11 or XWayland sessions"
+msgstr "Permitir sesiones de X11 o XWayland"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:238
+msgid "Display name"
+msgstr "Nombre visible"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:243
+msgid "Game info"
+msgstr "Información del juego"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:251
+msgid "Runtime"
+msgstr "Entorno de ejecución"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:253
+msgid ""
+"By default it uses the version defined in Settings; otherwise the most "
+"recently downloaded one."
+msgstr ""
+"Por defecto usa la versión definida en Ajustes; si no hay ninguna, la más "
+"reciente descargada."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:268
+msgid "Sandbox permissions"
+msgstr "Permisos de la caja"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:269
+msgid "Permissions apply when mounting the game in the sandbox."
+msgstr "Los permisos se aplican al montar el juego en la caja."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:308
+#, python-brace-format
+msgid "Inspecting {path} …"
+msgstr "Inspeccionando {path} …"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:366
+#: box-gui/src/box_gui/pages/library_page.py:623
+#: box-gui/src/box_gui/pages/library_page.py:742
+msgid "Game is running"
+msgstr "El juego está en ejecución"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:431
+msgid "Inspection failed."
+msgstr "Inspección fallida."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:468
+msgid "Default"
+msgstr "Por defecto"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:565
+#: box-gui/src/box_gui/pages/game_detail_page.py:650
+msgid "This feature is not available on your system."
+msgstr "Esta función no está disponible en tu sistema."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:630
+msgid "Not available for EasyRPG games."
+msgstr "No disponible para juegos de EasyRPG."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:843
+#: box-gui/src/box_gui/pages/library_page.py:509
+#: box-gui/src/box_gui/pages/library_page.py:999
+#: box-gui/src/box_gui/pages/library_page.py:1013
+#: box-gui/src/box_gui/pages/library_page.py:1089
+#: box-gui/src/box_gui/pages/library_page.py:1145
+msgid "Library Error"
+msgstr "Error de biblioteca"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:893
+msgid "Choose Icon Image"
+msgstr "Elige una imagen para el icono"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:895
+msgid "Images"
+msgstr "Imágenes"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:925
+#: box-gui/src/box_gui/pages/game_detail_page.py:1195
+#: box-gui/src/box_gui/pages/library_page.py:420
+#: box-gui/src/box_gui/pages/library_page.py:1054
+#: box-gui/src/box_gui/pages/library_page.py:1126
+msgid "Cannot resolve a local path for the selection."
+msgstr "No se puede resolver una ruta local para la selección."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:935
+msgid "Cannot use that file as the game icon."
+msgstr "Ese archivo no sirve como icono del juego."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:983
+msgid "Remove file"
+msgstr "Quitar archivo"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:1016
+msgid "No eligible files."
+msgstr "No existen archivos elegibles."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:1065
+#: box-gui/src/box_gui/pages/game_detail_page.py:1120
+#: box-gui/src/box_gui/pages/library_page.py:819
+msgid "Folder missing"
+msgstr "Carpeta ausente"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:1099
+#, python-brace-format
+msgid "Launching {path} …"
+msgstr "Iniciando {path} …"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:1146
+#, python-brace-format
+msgid "Stopping {path} …"
+msgstr "Deteniendo {path} …"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:1162
+msgid "Stop failed."
+msgstr "Detención fallida."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:1172
+#: box-gui/src/box_gui/pages/library_page.py:1026
+#: box-gui/src/box_gui/pages/library_page.py:1103
+msgid "Select Game Folder"
+msgstr "Seleccionar carpeta del juego"
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:1240
+msgid "Launch failed."
+msgstr "Inicio fallido."
+
+#: box-gui/src/box_gui/pages/game_detail_page.py:1245
+msgid "Open Runtimes"
+msgstr "Abrir entornos"
+
+#: box-gui/src/box_gui/pages/library_page.py:162
+msgid "Latest"
+msgstr "Más reciente"
+
+#: box-gui/src/box_gui/pages/library_page.py:168
+msgid "Move up"
+msgstr "Subir"
+
+#: box-gui/src/box_gui/pages/library_page.py:169
+msgid "Move down"
+msgstr "Bajar"
+
+#: box-gui/src/box_gui/pages/library_page.py:170
+msgid "Move to top"
+msgstr "Mover al principio"
+
+#: box-gui/src/box_gui/pages/library_page.py:171
+msgid "Move to bottom"
+msgstr "Mover al final"
+
+#: box-gui/src/box_gui/pages/library_page.py:172
+msgid "Remove from list"
+msgstr "Quitar de la lista"
+
+#: box-gui/src/box_gui/pages/library_page.py:190
+msgid "Library"
+msgstr "Biblioteca"
+
+#: box-gui/src/box_gui/pages/library_page.py:208
+msgid "Add game"
+msgstr "Añadir juego"
+
+#: box-gui/src/box_gui/pages/library_page.py:217
+msgid ""
+"Your library is empty. Click + or drop a game folder to add your first game."
+msgstr ""
+"Tu biblioteca está vacía. Haz clic en + o suelta una carpeta del juego para "
+"añadir tu primer juego."
+
+#: box-gui/src/box_gui/pages/library_page.py:256
+msgid "Created with"
+msgstr "Creado con"
+
+#: box-gui/src/box_gui/pages/library_page.py:261
+#, python-brace-format
+msgid "love by {author}"
+msgstr "amor por {author}"
+
+#: box-gui/src/box_gui/pages/library_page.py:266
+msgid "Open project repository"
+msgstr "Abrir repositorio del proyecto"
+
+#: box-gui/src/box_gui/pages/library_page.py:455
+msgid "Drop your game folder to add it to the library."
+msgstr "Suelta la carpeta de tu juego para agregarlo a la biblioteca."
+
+#: box-gui/src/box_gui/pages/library_page.py:584
+msgid "Missing"
+msgstr "Ausente"
+
+#: box-gui/src/box_gui/pages/library_page.py:589
+msgid "Running"
+msgstr "En ejecución"
+
+#: box-gui/src/box_gui/pages/library_page.py:601
+msgid "Reorder or remove"
+msgstr "Reordenar o quitar"
+
 #: box-gui/src/box_gui/widgets/exe_picker.py:32
 msgid "Select the game executable."
 msgstr "Selecciona el ejecutable del juego."
@@ -816,13 +843,33 @@ msgstr "Elige qué ejecutable aporta el icono de la biblioteca."
 msgid "Engine default"
 msgstr "Icono del motor"
 
-#: box-gui/src/box_gui/app.py:116 box-gui/src/box_gui/app.py:146
+#: box-gui/src/box_gui/widgets/external_link.py:31
+msgid "Open external link?"
+msgstr "¿Abrir enlace externo?"
+
+#: box-gui/src/box_gui/widgets/external_link.py:32
+#, python-brace-format
+msgid "You are about to open {url}."
+msgstr "Estás a punto de abrir {url}."
+
+#: box-gui/src/box_gui/widgets/external_link.py:35
+msgid "Open"
+msgstr "Abrir"
+
+#: box-gui/src/box_gui/app.py:120 box-gui/src/box_gui/app.py:150
 msgid "Box RPG Maker"
 msgstr "Box RPG Maker"
 
-#: box-gui/src/box_gui/app.py:119
+#: box-gui/src/box_gui/app.py:123
 msgid "Configuration Error"
 msgstr "Error de configuración"
+
+#~ msgid "Release to inspect and add it to your library."
+#~ msgstr "Suéltala para inspeccionarla y añadirla a tu biblioteca."
+
+#~ msgid "Your library is empty. Click + to add your first game."
+#~ msgstr ""
+#~ "Tu biblioteca está vacía. Haz clic en + para añadir tu primer juego."
 
 #~ msgid "Folder missing. Locate the game folder to continue."
 #~ msgstr "Falta la carpeta. Localiza la carpeta del juego para continuar."

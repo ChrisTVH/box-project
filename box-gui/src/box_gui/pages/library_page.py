@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import gi
 
@@ -18,6 +19,7 @@ from box.errors import BoxError  # noqa: E402
 from box.models import EngineName  # noqa: E402
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
+from box_gui.core.app_info import get_app_author, get_app_version  # noqa: E402
 from box_gui.core.defaults import DefaultsRepository  # noqa: E402
 from box_gui.core.game_icon import rekey_cached_icon  # noqa: E402
 from box_gui.core.library import (  # noqa: E402
@@ -32,9 +34,10 @@ from box_gui.core.sessions import (  # noqa: E402
     live_session_names,
     poll_session_status,
 )
-from box_gui.gtk.icons import FOLDER_ICON_NAME  # noqa: E402
+from box_gui.gtk.icons import DROP_ICON_NAME, FOLDER_ICON_NAME, HEART_ICON_NAME  # noqa: E402
 from box_gui.gtk.interaction import AllowX11Interaction  # noqa: E402
 from box_gui.i18n import _  # noqa: E402
+from box_gui.widgets.external_link import confirm_and_open_external_link  # noqa: E402
 from box_gui.widgets.icon_widget import build_game_icon  # noqa: E402
 
 __all__ = ["LibraryPage", "default_display_name", "inspection_error_heading"]
@@ -48,6 +51,9 @@ _ENGINE_PILL_NAMES: dict[str, str] = {
 
 _ROW_MENU_ICON = "box-rpg-dots-symbolic"
 
+# Project home opened from the library footer version button.
+_PROJECT_URL = "https://gitlab.com/christvh/box-project"
+
 # Seconds between live-session badge refreshes while the page is visible.
 _SESSION_POLL_INTERVAL_S = 5
 
@@ -58,6 +64,78 @@ _GHOST_OPACITY = 0.55
 def _ghost_reason() -> str:
     """Return the shared explanation for disabled ghost actions."""
     return _("The game folder is missing. Use Locate folder… to point at it again.")
+
+
+def _get_heart_icon_name() -> str:
+    """Return the vendored heart icon name for the footer credit."""
+    return HEART_ICON_NAME
+
+
+def _get_app_version() -> str:
+    """Return the app version with a package fallback for dev checkouts."""
+    try:
+        app_version = get_app_version()
+    except Exception:
+        app_version = ""
+    if app_version:
+        return app_version
+    try:
+        from box_gui import __version__ as fallback_version
+    except ImportError:
+        return "0.0.0"
+    return fallback_version
+
+
+def _get_app_author() -> str:
+    """Return the app author with a fallback for dev checkouts."""
+    try:
+        author = get_app_author()
+    except Exception:
+        author = ""
+    if author:
+        return author
+    return "ChrisTVH"
+
+
+def _paths_from_drop_value(value: Any) -> list[str | None]:
+    """Extract local paths from a drop value without needing a display.
+
+    Accepts a single Gio.File duck-type (get_path), a Gdk.FileList
+    duck-type (get_files), or a list/tuple of files. Each entry resolves
+    to its local path or None when it cannot be resolved.
+    """
+    files: list[Any] = []
+    if value is None:
+        return []
+    get_files: Any = getattr(value, "get_files", None)
+    if callable(get_files):
+        try:
+            fetched: Any = get_files()
+        except Exception:
+            return []
+        try:
+            files = list(fetched)
+        except Exception:
+            return []
+    elif isinstance(value, (list, tuple)):
+        files = list(value)
+    elif callable(getattr(value, "get_path", None)):
+        files = [value]
+    else:
+        return []
+    paths: list[str | None] = []
+    for item in files:
+        get_path = getattr(item, "get_path", None)
+        if not callable(get_path):
+            paths.append(None)
+            continue
+        try:
+            resolved = get_path()
+        except Exception:
+            paths.append(None)
+        else:
+            paths.append(resolved if resolved is None or isinstance(resolved, str) else None)
+    return paths
 
 
 def default_display_name(inspection: Inspection) -> str:
@@ -135,18 +213,258 @@ class LibraryPage(Adw.NavigationPage):
         self._list_box = Gtk.ListBox()
         self._list_box.add_css_class("boxed-list-separate")
         self._list_box.set_selection_mode(Gtk.SelectionMode.NONE)
-        self._hint = Gtk.Label(label=_("Your library is empty. Click + to add your first game."))
+        self._hint = Gtk.Label(
+            label=_("Your library is empty. Click + or drop a game folder to add your first game.")
+        )
         self._hint.set_wrap(True)
         self._hint.add_css_class("dim")
         self._file_dialog: Gtk.FileDialog | None = None
+        self._footer: Gtk.Widget | None = None
+        self._version_button: Gtk.Button | None = None
+        self._drop_target: Gtk.DropTarget | None = None
+        self._drop_target_list: Gtk.DropTarget | None = None
+        self._drop_targets: list[Gtk.DropTarget] = []
+        self._drop_enter_count: int = 0
+        self._drop_overlay: Gtk.Overlay | None = None
+        self._drop_hint: Gtk.Widget | None = None
+        self._drop_hint_icon: Gtk.Image | None = None
         self.set_child(self._build_view())
         self.connect("map", self._on_mapped)
         self.connect("unmap", self._on_unmapped)
         self.connect("destroy", self._on_unmapped)
         self.refresh()
 
+    def _build_footer(self) -> Gtk.Widget:
+        """Build the fixed footer with a centered credit and right version."""
+        version = _get_app_version()
+        author = _get_app_author()
+        heart_name = _get_heart_icon_name()
+        footer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+        footer.append(separator)
+        bar = Gtk.CenterBox()
+        bar.set_margin_top(6)
+        bar.set_margin_bottom(6)
+        bar.set_margin_start(12)
+        bar.set_margin_end(6)
+        # Translators: the credit reads as one sentence
+        # "Created with <heart> love by {author}"; the heart is an
+        # inline icon, so the text stays split across two labels.
+        message = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        message.set_halign(Gtk.Align.CENTER)
+        message.set_valign(Gtk.Align.CENTER)
+        message.append(Gtk.Label(label=_("Created with")))
+        heart = Gtk.Image.new_from_icon_name(heart_name)
+        heart.set_pixel_size(16)
+        heart.add_css_class("love-heart")
+        message.append(heart)
+        message.append(Gtk.Label(label=_("love by {author}").format(author=author)))
+        version_button = Gtk.Button(label=f"v{version}")
+        version_button.add_css_class("flat")
+        version_button.add_css_class("link")
+        version_button.set_valign(Gtk.Align.CENTER)
+        version_button.set_tooltip_text(_("Open project repository"))
+        version_button.connect("clicked", self._on_version_clicked)
+        bar.set_center_widget(message)
+        bar.set_end_widget(version_button)
+        footer.append(bar)
+        self._footer = footer
+        self._version_button = version_button
+        return footer
+
+    def _show_drop_hint(self) -> None:
+        """Show the drag-over hint when a drag enters the library view."""
+        hint = self._drop_hint
+        if hint is None:
+            return
+        try:
+            hint.set_visible(True)
+        except Exception:
+            return
+
+    def _hide_drop_hint(self) -> None:
+        """Hide the drag-over hint, tolerating headless test setups."""
+        hint = self._drop_hint
+        if hint is None:
+            return
+        try:
+            hint.set_visible(False)
+        except Exception:
+            return
+
+    def _drop_accepts_files(self, target: Gtk.DropTarget | None) -> bool:
+        """Return True when the dragged formats can carry game folders.
+
+        Unknown or headless drag targets default to True so unit tests
+        calling the handlers directly keep showing the hint; only an
+        explicit formats object lacking both file types declines.
+        """
+        try:
+            drop = target.get_drop() if target is not None else None
+        except Exception:
+            return True
+        if drop is None:
+            return True
+        try:
+            formats = drop.get_formats()
+        except Exception:
+            return True
+        if formats is None:
+            return True
+        contain = getattr(formats, "contain_gtype", None)
+        if not callable(contain):
+            return True
+        try:
+            if bool(contain(Gio.File)):
+                return True
+        except Exception:
+            return True
+        try:
+            from gi.repository import Gdk
+        except ImportError:
+            return True
+        file_list_type = getattr(Gdk, "FileList", None)
+        if file_list_type is None:
+            return False
+        try:
+            return bool(contain(file_list_type))
+        except Exception:
+            return True
+
+    def _on_drop_enter(self, target: Gtk.DropTarget, _x: float, _y: float) -> int:
+        """Show the hint when a file drag enters, keeping the COPY action."""
+        if not self._drop_accepts_files(target):
+            return 0
+        self._drop_enter_count += 1
+        self._show_drop_hint()
+        try:
+            from gi.repository import Gdk
+        except ImportError:
+            return 0
+        try:
+            return int(Gdk.DragAction.COPY)
+        except Exception:
+            return 0
+
+    def _on_drop_motion(self, target: Gtk.DropTarget, _x: float, _y: float) -> int:
+        """Keep the hint visible while a file drag moves over the view."""
+        if not self._drop_accepts_files(target):
+            return 0
+        if self._drop_enter_count <= 0:
+            self._drop_enter_count = 1
+        self._show_drop_hint()
+        try:
+            from gi.repository import Gdk
+        except ImportError:
+            return 0
+        try:
+            return int(Gdk.DragAction.COPY)
+        except Exception:
+            return 0
+
+    def _on_drop_leave(self, _target: Gtk.DropTarget) -> None:
+        """Hide the hint once all tracked drags leave the view."""
+        self._drop_enter_count = max(0, self._drop_enter_count - 1)
+        if self._drop_enter_count == 0:
+            self._hide_drop_hint()
+        return None
+
+    def _attach_drop_target(self, widget: Gtk.Widget) -> None:
+        """Attach file drop targets, tolerating a missing Gdk in tests."""
+        try:
+            from gi.repository import Gdk
+        except ImportError:
+            return None
+        try:
+            file_target = Gtk.DropTarget.new(Gio.File, Gdk.DragAction.COPY)
+        except Exception:
+            return None
+        file_target.connect("drop", self._on_drop)
+        try:
+            file_target.connect("enter", self._on_drop_enter)
+            file_target.connect("motion", self._on_drop_motion)
+            file_target.connect("leave", self._on_drop_leave)
+        except Exception:
+            pass
+        widget.add_controller(file_target)
+        self._drop_target = file_target
+        self._drop_targets.append(file_target)
+        try:
+            file_list_type = getattr(Gdk, "FileList", None)
+            if file_list_type is not None:
+                list_target = Gtk.DropTarget.new(file_list_type, Gdk.DragAction.COPY)
+                list_target.connect("drop", self._on_drop)
+                try:
+                    list_target.connect("enter", self._on_drop_enter)
+                    list_target.connect("motion", self._on_drop_motion)
+                    list_target.connect("leave", self._on_drop_leave)
+                except Exception:
+                    pass
+                widget.add_controller(list_target)
+                self._drop_target_list = list_target
+                self._drop_targets.append(list_target)
+        except Exception:
+            pass
+        return None
+
+    def _on_drop(self, _target: Gtk.DropTarget, value: object, _x: float, _y: float) -> bool:
+        """Add dropped game folders through the shared inspect flow."""
+        self._drop_enter_count = 0
+        self._hide_drop_hint()
+        paths = _paths_from_drop_value(value)
+        if not paths:
+            return False
+        if any(path is None for path in paths):
+            self._show_alert(
+                _("Unexpected Error"),
+                _("Cannot resolve a local path for the selection."),
+            )
+        valid = [path for path in paths if path is not None]
+        if not valid:
+            return True
+        if len(paths) == 1:
+            self.inspect_and_add(Path(valid[0]), open_detail=True)
+        else:
+            for path in valid:
+                self.inspect_and_add(Path(path), open_detail=False)
+        return True
+
+    def _on_version_clicked(self, _button: Gtk.Button) -> None:
+        """Confirm, then open the project repository URL."""
+        confirm_and_open_external_link(self, _PROJECT_URL)
+
+    def _build_drop_hint(self) -> Gtk.Widget:
+        """Build the hidden drag-over veil with its centered hint content."""
+        veil = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        veil.set_halign(Gtk.Align.FILL)
+        veil.set_valign(Gtk.Align.FILL)
+        veil.set_hexpand(True)
+        veil.set_vexpand(True)
+        veil.add_css_class("drop-hint-veil")
+        veil.set_can_target(False)
+        veil.set_visible(False)
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        inner.set_halign(Gtk.Align.CENTER)
+        inner.set_valign(Gtk.Align.CENTER)
+        inner.set_can_target(False)
+        icon = Gtk.Image.new_from_icon_name(DROP_ICON_NAME)
+        icon.set_pixel_size(64)
+        icon.add_css_class("drop-hint-icon")
+        icon.set_halign(Gtk.Align.CENTER)
+        icon.set_can_target(False)
+        title = Gtk.Label(label=_("Drop your game folder to add it to the library."))
+        title.set_wrap(True)
+        title.set_halign(Gtk.Align.CENTER)
+        title.set_can_target(False)
+        inner.append(icon)
+        inner.append(title)
+        veil.append(inner)
+        self._drop_hint = veil
+        self._drop_hint_icon = icon
+        return veil
+
     def _build_view(self) -> Adw.ToolbarView:
-        """Assemble the header bar, game list, and footer hint."""
+        """Assemble the header bar, game list, footer, and drop target."""
         view = Adw.ToolbarView()
         view.set_top_bar_style(Adw.ToolbarStyle.RAISED_BORDER)
         header = Adw.HeaderBar()
@@ -165,7 +483,16 @@ class LibraryPage(Adw.NavigationPage):
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_child(clamp)
-        view.set_content(scrolled)
+        overlay = Gtk.Overlay()
+        overlay.set_child(scrolled)
+        overlay.add_overlay(self._build_drop_hint())
+        self._drop_overlay = overlay
+        self._attach_drop_target(overlay)
+        # Keep one file target on the scrolled window so the legacy
+        # drop-target lookup still finds a controller under the page.
+        self._attach_drop_target(scrolled)
+        view.set_content(overlay)
+        view.add_bottom_bar(self._build_footer())
         return view
 
     def refresh(self) -> None:
@@ -201,11 +528,13 @@ class LibraryPage(Adw.NavigationPage):
         for entry in entries:
             self._list_box.append(self._build_row(entry, show_reorder=len(entries) > 1))
 
-    def inspect_and_add(self, path: Path) -> None:
+    def inspect_and_add(self, path: Path, *, open_detail: bool = True) -> None:
         """Inspect a picked folder, add it, then open its detail page.
 
         A newly added game pushes straight into its detail page so the
         user lands where display name, runtime, and files are configured.
+        Multi-drops pass ``open_detail=False`` so only the list refreshes
+        instead of stacking one detail page per folder.
         """
         try:
             from box_gui.gtk.workers import run_inspect
@@ -215,7 +544,12 @@ class LibraryPage(Adw.NavigationPage):
         paths = self._paths
         if paths is None:
             return
-        run_inspect(paths, path, self._on_inspect_done, self._on_inspect_error)
+        run_inspect(
+            paths,
+            path,
+            lambda inspection: self._on_inspect_done(inspection, open_detail=open_detail),
+            self._on_inspect_error,
+        )
 
     def _build_row(self, entry: LibraryEntry, *, show_reorder: bool = True) -> Adw.ActionRow:
         """Build one title-only row with an icon, pills, menu, and launch button.
@@ -794,8 +1128,8 @@ class LibraryPage(Adw.NavigationPage):
             return
         self.inspect_and_add(Path(path))
 
-    def _on_inspect_done(self, inspection: Inspection) -> None:
-        """Add the inspected game, then open its detail page."""
+    def _on_inspect_done(self, inspection: Inspection, *, open_detail: bool = True) -> None:
+        """Add the inspected game, then open its detail page unless suppressed."""
         try:
             preferred_runtime = self._preferred_runtime_for_engine(inspection.game.engine)
         except Exception:
@@ -814,7 +1148,7 @@ class LibraryPage(Adw.NavigationPage):
             self._show_alert(_("Unexpected Error"), str(exc) or exc.__class__.__name__)
             return
         self.refresh()
-        if self._on_open_game is not None:
+        if open_detail and self._on_open_game is not None:
             self._on_open_game(created)
 
     def _on_inspect_error(self, error: BaseException) -> None:

@@ -2152,3 +2152,492 @@ def test_detail_poll_lifecycle_in_navigation(
         with contextlib.suppress(Exception):
             detail._stop_session_poll()
             detail.destroy()
+
+
+def test_paths_from_drop_value_single_file(tmp_path: Path) -> None:
+    """A single Gio.File resolves to its local path without a display."""
+    extract = library_page_module._paths_from_drop_value
+    target = tmp_path / "game"
+
+    assert extract(Gio.File.new_for_path(str(target))) == [str(target)]
+
+
+def test_paths_from_drop_value_unresolvable() -> None:
+    """A file without a local path surfaces as None for the alert flow."""
+
+    class _BadFile:
+        def get_path(self) -> Any:
+            return None
+
+    assert library_page_module._paths_from_drop_value(_BadFile()) == [None]
+
+
+def test_paths_from_drop_value_file_list(tmp_path: Path) -> None:
+    """A FileList duck-type resolves each entry in order."""
+
+    class _FakeList:
+        def __init__(self, files: Any) -> None:
+            self._files = files
+
+        def get_files(self) -> Any:
+            return list(self._files)
+
+    first = Gio.File.new_for_path(str(tmp_path / "one"))
+    second = Gio.File.new_for_path(str(tmp_path / "two"))
+
+    assert library_page_module._paths_from_drop_value(_FakeList([first, second])) == [
+        str(tmp_path / "one"),
+        str(tmp_path / "two"),
+    ]
+
+
+def test_paths_from_drop_value_ignores_unknown() -> None:
+    """Unknown drop values resolve to an empty list so drops stay rejected."""
+    extract = library_page_module._paths_from_drop_value
+
+    assert extract(None) == []
+    assert extract(object()) == []
+    assert extract([]) == []
+
+
+def test_empty_hint_mentions_drag_drop(tmp_path: Path) -> None:
+    """The empty state invites both the + button and folder drops."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+
+    assert (
+        page._hint.get_label()
+        == "Your library is empty. Click + or drop a game folder to add your first game."
+    )
+    assert page._hint.get_wrap() is True
+    assert page._hint.has_css_class("dim")
+
+
+def _footer_widgets(page: Any) -> list[Any]:
+    """Collect every widget under the library page for footer assertions."""
+    return _row_widgets(page)
+
+
+def test_footer_contains_version_and_credit(tmp_path: Path) -> None:
+    """The footer centers the credit line and docks the version right."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+
+    assert callable(getattr(page, "_build_footer", None))
+    widgets = _footer_widgets(page)
+    expected_label = f"v{library_page_module._get_app_version()}"
+    buttons = [
+        widget
+        for widget in widgets
+        if isinstance(widget, Gtk.Button) and str(widget.get_label() or "") == expected_label
+    ]
+    assert len(buttons) == 1
+    button = buttons[0]
+    assert button.get_tooltip_text() == "Open project repository"
+    assert button.has_css_class("flat")
+    texts = [widget.get_text() for widget in widgets if isinstance(widget, Gtk.Label)]
+    assert "Created with" in texts
+    assert any(text.startswith("love by ") for text in texts)
+    hearts = [
+        widget
+        for widget in widgets
+        if isinstance(widget, Gtk.Image) and widget.has_css_class("love-heart")
+    ]
+    assert len(hearts) == 1
+    assert hearts[0].get_pixel_size() == 16
+    separators = [
+        widget
+        for widget in widgets
+        if isinstance(widget, Gtk.Separator)
+        and widget.get_orientation() == Gtk.Orientation.HORIZONTAL
+    ]
+    assert separators != []
+    bar = button.get_parent()
+    assert isinstance(bar, Gtk.CenterBox)
+    assert bar.get_end_widget() is button
+    center = bar.get_center_widget()
+    assert center is not None
+    assert center.get_halign() == Gtk.Align.CENTER
+
+
+def test_version_button_opens_external_link(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The version button confirms through the external-link helper."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+    calls: list[Any] = []
+
+    def _fake_confirm(parent: Any, url: Any) -> None:
+        calls.append((parent, url))
+
+    monkeypatch.setattr(library_page_module, "confirm_and_open_external_link", _fake_confirm)
+
+    page._version_button.emit("clicked")
+
+    assert len(calls) == 1
+    assert calls[0][0] is page
+    assert calls[0][1] == "https://gitlab.com/christvh/box-project"
+
+
+def test_drop_single_folder_calls_inspect(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Dropping one folder resolves its path into inspect-and-add."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "dropped"
+    root.mkdir()
+    calls = _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, "Dropped"))
+    opened: list[Any] = []
+    page = LibraryPage(library=repository, on_open_game=opened.append, paths=_make_paths(tmp_path))
+
+    handled = page._on_drop(None, Gio.File.new_for_path(str(root)), 0.0, 0.0)
+
+    assert handled is True
+    assert [str(path) for path in calls] == [str(root)]
+    assert [entry.display_name for entry in repository.load()] == ["Dropped"]
+    assert len(opened) == 1
+
+
+def test_drop_unresolvable_path_alerts(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A drop without a local path alerts instead of inspecting."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    calls = _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, "Game"))
+    page = LibraryPage(
+        library=repository, on_open_game=lambda entry: None, paths=_make_paths(tmp_path)
+    )
+
+    class _BadFile:
+        def get_path(self) -> Any:
+            return None
+
+    handled = page._on_drop(None, _BadFile(), 0.0, 0.0)
+
+    assert handled is True
+    assert calls == []
+    assert len(presented) == 1
+    assert presented[0].get_heading() == "Unexpected Error"
+
+
+def test_drop_multiple_folders_iterate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A multi-file drop inspects every dropped folder."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    calls = _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, path.name))
+    page = LibraryPage(
+        library=repository, on_open_game=lambda entry: None, paths=_make_paths(tmp_path)
+    )
+
+    class _FakeList:
+        def __init__(self, files: Any) -> None:
+            self._files = files
+
+        def get_files(self) -> Any:
+            return list(self._files)
+
+    dropped = _FakeList([Gio.File.new_for_path(str(first)), Gio.File.new_for_path(str(second))])
+    handled = page._on_drop(None, dropped, 0.0, 0.0)
+
+    assert handled is True
+    assert [str(path) for path in calls] == [str(first), str(second)]
+    assert sorted(entry.display_name for entry in repository.load()) == ["first", "second"]
+
+
+def test_drop_target_attached_to_scrolled(tmp_path: Path) -> None:
+    """The scrolled window carries a file drop controller."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+
+    scrolled_windows = [
+        widget for widget in _row_widgets(page) if isinstance(widget, Gtk.ScrolledWindow)
+    ]
+    assert scrolled_windows != []
+    found = False
+    for scrolled in scrolled_windows:
+        controllers = scrolled.observe_controllers()
+        for index in range(controllers.get_n_items()):
+            if isinstance(controllers.get_item(index), Gtk.DropTarget):
+                found = True
+    assert found
+
+
+def test_drop_hint_hidden_by_default(tmp_path: Path) -> None:
+    """The drag-over veil starts hidden and never blocks drops."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+
+    assert isinstance(page._drop_overlay, Gtk.Overlay)
+    assert page._drop_hint is not None
+    assert page._drop_hint.get_visible() is False
+    assert page._drop_hint.get_can_target() is False
+    assert page._drop_hint_icon is not None
+
+
+def test_drop_hint_shows_on_enter_and_hides_on_leave(tmp_path: Path) -> None:
+    """Drag enter/motion shows the hint; leave hides it once all drags left."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+
+    assert page._drop_hint.get_visible() is False
+
+    page._on_drop_enter(None, 0.0, 0.0)
+
+    assert page._drop_hint.get_visible() is True
+
+    page._on_drop_enter(None, 0.0, 0.0)
+
+    assert page._drop_hint.get_visible() is True
+
+    page._on_drop_motion(None, 1.0, 1.0)
+
+    assert page._drop_hint.get_visible() is True
+
+    page._on_drop_leave(None)
+
+    assert page._drop_hint.get_visible() is True
+
+    page._on_drop_leave(None)
+
+    assert page._drop_hint.get_visible() is False
+
+    page._on_drop_leave(None)
+
+    assert page._drop_hint.get_visible() is False
+
+
+def test_drop_hint_content(tmp_path: Path) -> None:
+    """The hint shows a 64px drop icon plus a single instruction message."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    from box_gui.gtk.icons import DROP_ICON_NAME
+
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+
+    icon = page._drop_hint_icon
+
+    assert isinstance(icon, Gtk.Image)
+    assert icon.get_pixel_size() == 64
+    assert icon.get_icon_name() == DROP_ICON_NAME
+
+    labels = [widget for widget in _row_widgets(page._drop_hint) if isinstance(widget, Gtk.Label)]
+    texts = [label.get_text() for label in labels]
+    assert texts == ["Drop your game folder to add it to the library."]
+    message = labels[0]
+    assert message.get_wrap() is True
+    assert page._drop_hint.has_css_class("drop-hint-veil")
+
+    boxes = [widget for widget in _row_widgets(page._drop_hint) if isinstance(widget, Gtk.Box)]
+    inners = [box for box in boxes if box.get_spacing() == 12]
+    assert inners != []
+    inner = inners[0]
+    assert inner.get_orientation() == Gtk.Orientation.VERTICAL
+    assert inner.get_halign() == Gtk.Align.CENTER
+    assert inner.get_valign() == Gtk.Align.CENTER
+    assert not inner.has_css_class("drop-hint-veil")
+
+
+def test_drop_target_on_overlay(tmp_path: Path) -> None:
+    """The overlay carries file drop controllers above the scrolled list."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+
+    overlay = page._drop_overlay
+
+    assert isinstance(overlay, Gtk.Overlay)
+    controllers = overlay.observe_controllers()
+    found = False
+    for index in range(controllers.get_n_items()):
+        if isinstance(controllers.get_item(index), Gtk.DropTarget):
+            found = True
+    assert found
+
+
+def test_single_drop_hides_hint_and_opens_once(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A single drop hides the hint and opens its detail page once."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "single-hint"
+    root.mkdir()
+    _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, "Single"))
+    opened: list[Any] = []
+    page = LibraryPage(library=repository, on_open_game=opened.append, paths=_make_paths(tmp_path))
+    page._show_drop_hint()
+
+    assert page._drop_hint.get_visible() is True
+
+    handled = page._on_drop(None, Gio.File.new_for_path(str(root)), 0.0, 0.0)
+
+    assert handled is True
+    assert page._drop_hint.get_visible() is False
+    assert len(opened) == 1
+    assert opened[0].path == root
+
+
+def test_multi_drop_inspects_all_without_stacking_detail(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A multi-file drop inspects every folder but opens no detail page."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    first = tmp_path / "first-multi"
+    second = tmp_path / "second-multi"
+    first.mkdir()
+    second.mkdir()
+    calls = _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, path.name))
+    opened: list[Any] = []
+    page = LibraryPage(library=repository, on_open_game=opened.append, paths=_make_paths(tmp_path))
+    page._show_drop_hint()
+
+    class _FakeList:
+        def __init__(self, files: Any) -> None:
+            self._files = files
+
+        def get_files(self) -> Any:
+            return list(self._files)
+
+    dropped = _FakeList([Gio.File.new_for_path(str(first)), Gio.File.new_for_path(str(second))])
+    handled = page._on_drop(None, dropped, 0.0, 0.0)
+
+    assert handled is True
+    assert [str(path) for path in calls] == [str(first), str(second)]
+    assert sorted(entry.display_name for entry in repository.load()) == [
+        "first-multi",
+        "second-multi",
+    ]
+    assert opened == []
+    assert page._drop_hint.get_visible() is False
+
+
+def test_inspect_without_detail_only_refreshes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Suppressed detail still adds the game and refreshes the list."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "quiet"
+    root.mkdir()
+    _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, "Quiet"))
+    opened: list[Any] = []
+    page = LibraryPage(library=repository, on_open_game=opened.append, paths=_make_paths(tmp_path))
+
+    page.inspect_and_add(root, open_detail=False)
+
+    assert [entry.display_name for entry in repository.load()] == ["Quiet"]
+    assert opened == []
+
+
+def test_rejected_drop_hides_hint_and_returns_false(tmp_path: Path) -> None:
+    """Unknown drop values hide the hint and decline the drop."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+    page._show_drop_hint()
+
+    assert page._drop_hint.get_visible() is True
+    assert page._on_drop(None, object(), 0.0, 0.0) is False
+    assert page._drop_hint.get_visible() is False
+    assert page._on_drop(None, [], 0.0, 0.0) is False
+    assert page._drop_hint.get_visible() is False
+
+
+def test_mixed_drop_with_unresolvable_opens_no_detail(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A multi-item drop with one bad entry alerts once and opens nothing."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "mixed"
+    root.mkdir()
+    calls = _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, "Mixed"))
+    opened: list[Any] = []
+    page = LibraryPage(library=repository, on_open_game=opened.append, paths=_make_paths(tmp_path))
+
+    class _BadFile:
+        def get_path(self) -> Any:
+            return None
+
+    handled = page._on_drop(None, [Gio.File.new_for_path(str(root)), _BadFile()], 0.0, 0.0)
+
+    assert handled is True
+    assert [str(path) for path in calls] == [str(root)]
+    assert opened == []
+    assert len(presented) == 1
+    assert presented[0].get_heading() == "Unexpected Error"
+
+
+def test_incompatible_drag_leaves_hint_hidden(tmp_path: Path) -> None:
+    """Drags without file formats never light up the hint."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+
+    class _Formats:
+        def contain_gtype(self, _gtype: Any) -> bool:
+            return False
+
+    class _Drop:
+        def get_formats(self) -> Any:
+            return _Formats()
+
+    class _Target:
+        def get_drop(self) -> Any:
+            return _Drop()
+
+    assert page._on_drop_enter(_Target(), 0.0, 0.0) == 0
+    assert page._drop_hint.get_visible() is False
+    assert page._on_drop_motion(_Target(), 0.0, 0.0) == 0
+    assert page._drop_hint.get_visible() is False

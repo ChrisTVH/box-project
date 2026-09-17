@@ -94,7 +94,11 @@ class BoxRpgApplication(Adw.Application):
                 b".chip-remove { min-height: 22px; min-width: 22px; "
                 b"padding: 0; border-radius: 9999px; } "
                 b".chip-flow > flowboxchild:hover, "
-                b".chip-flow > flowboxchild:active { background-color: transparent; }"
+                b".chip-flow > flowboxchild:active { background-color: transparent; } "
+                b".love-heart { color: @error_bg_color; } "
+                b".drop-hint-veil { background-color: alpha(@view_bg_color, 0.82); "
+                b"border-radius: 12px; padding: 24px; } "
+                b".drop-hint-icon { min-width: 64px; min-height: 64px; }"
             )
             self._css_provider = provider
         display = Gdk.Display.get_default()
