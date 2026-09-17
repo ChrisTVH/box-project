@@ -16,6 +16,7 @@ from box.api.launch import launch
 from box.errors import LaunchError
 from gi.repository import GLib
 
+from box_gui.gtk.threads import run_in_thread
 from box_gui.i18n import _
 
 __all__ = [
@@ -26,26 +27,6 @@ __all__ = [
     "run_launch",
     "run_stop",
 ]
-
-
-def run_in_thread[T](
-    fn: Callable[[], T],
-    on_done: Callable[[T], None],
-    on_error: Callable[[BaseException], None],
-) -> threading.Thread:
-    """Run fn on a daemon thread, marshaling the outcome via GLib.idle_add."""
-
-    def _target() -> None:
-        try:
-            result = fn()
-        except BaseException as exc:
-            GLib.idle_add(on_error, exc)
-        else:
-            GLib.idle_add(on_done, result)
-
-    thread = threading.Thread(target=_target, daemon=True)
-    thread.start()
-    return thread
 
 
 def run_diagnose(

@@ -101,7 +101,7 @@ def _install_sync_workers(monkeypatch: pytest.MonkeyPatch) -> None:
     """Serve synchronous fake workers plus immediate idle dispatch."""
     import box_gui.gtk as gtk_package
 
-    module = types.ModuleType("box_gui.gtk.workers")
+    module = types.ModuleType("box_gui.gtk.threads")
 
     def _run_in_thread(fn: Any, on_done: Any, on_error: Any) -> None:
         try:
@@ -113,8 +113,8 @@ def _install_sync_workers(monkeypatch: pytest.MonkeyPatch) -> None:
         return None
 
     module.run_in_thread = _run_in_thread  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "box_gui.gtk.workers", module)
-    monkeypatch.setattr(gtk_package, "workers", module, raising=False)
+    monkeypatch.setitem(sys.modules, "box_gui.gtk.threads", module)
+    monkeypatch.setattr(gtk_package, "threads", module, raising=False)
 
     def _immediate_idle(callback: Any, *args: Any) -> int:
         callback(*args)

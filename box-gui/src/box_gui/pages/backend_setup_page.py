@@ -249,7 +249,7 @@ class BackendSetupPage(Adw.NavigationPage):
         ):
             return
         try:
-            from box_gui.gtk.workers import run_in_thread
+            from box_gui.gtk.threads import run_in_thread
         except ImportError as exc:
             self._detecting = False
             self.show_error(str(exc) or exc.__class__.__name__, unexpected=True)
@@ -304,7 +304,7 @@ class BackendSetupPage(Adw.NavigationPage):
         import sys
 
         try:
-            from box_gui.gtk.workers import run_in_thread
+            from box_gui.gtk.threads import run_in_thread
         except ImportError as exc:
             self.show_error(str(exc) or exc.__class__.__name__, unexpected=True)
             return
