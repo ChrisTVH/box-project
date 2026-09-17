@@ -594,11 +594,21 @@ class Sandbox:
         next_name = parts[0] if parts else "save"
         for name in os.listdir(descriptor):
             if name == next_name:
-                metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+                try:
+                    metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+                except OSError as exc:
+                    raise LaunchError(
+                        f"cannot prepare the game view at {destination}/{name}: {exc}"
+                    ) from exc
                 if not stat.S_ISDIR(metadata.st_mode):
                     raise LaunchError("unsafe NW.js save path or entrypoint ancestor")
                 continue
-            child = self.keep(os.open(name, os.O_PATH | os.O_NOFOLLOW, dir_fd=descriptor))
+            try:
+                child = self.keep(os.open(name, os.O_PATH | os.O_NOFOLLOW, dir_fd=descriptor))
+            except OSError as exc:
+                raise LaunchError(
+                    f"cannot prepare the game view at {destination}/{name}: {exc}"
+                ) from exc
             mode = os.fstat(child).st_mode
             if stat.S_ISLNK(mode):
                 # Read the pinned link, not a possibly replaced directory entry.
@@ -618,9 +628,16 @@ class Sandbox:
                 raise LaunchError(f"unsafe game entry in sandbox: {name}")
             self.bind(child, f"{destination}/{name}", writable=writable)
         if parts:
-            child = self.keep(
-                os.open(next_name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
-            )
+            try:
+                child = self.keep(
+                    os.open(
+                        next_name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor
+                    )
+                )
+            except OSError as exc:
+                raise LaunchError(
+                    f"cannot prepare the game view at {destination}/{next_name}: {exc}"
+                ) from exc
             self._nw_directory(
                 child, f"{destination}/{next_name}", parts[1:], saves, tree_root=tree_root
             )
@@ -667,21 +684,28 @@ def validate_tree(descriptor: int, *, persistent: bool = False) -> None:
         raise error
 
     tree_root = Path(f"/proc/self/fd/{descriptor}").resolve(strict=True)
-    for _root, directories, files, parent in os.fwalk(".", dir_fd=descriptor, onerror=failed):
-        for name in (*directories, *files):
-            metadata = os.stat(name, dir_fd=parent, follow_symlinks=False)
-            if stat.S_ISLNK(metadata.st_mode):
-                target = os.readlink(name, dir_fd=parent)
-                if not persistent:
-                    # Resolve link chains before checking containment: lexical '..'
-                    # normalization alone misses escapes through directory links.
-                    try:
-                        resolved = Path(f"/proc/self/fd/{parent}", name).resolve()
-                    except OSError as exc:
-                        raise LaunchError("cannot resolve sandbox asset symlink") from exc
-                    if target.startswith("/") or not resolved.is_relative_to(tree_root):
-                        raise LaunchError("sandbox asset symlink escapes its tree")
-            elif not (stat.S_ISREG(metadata.st_mode) or stat.S_ISDIR(metadata.st_mode)):
-                raise LaunchError("sandbox trees must not contain sockets or special files")
-            elif stat.S_ISREG(metadata.st_mode) and metadata.st_nlink != 1:
-                raise LaunchError("sandbox files must not have hard links")
+    current = "."
+    try:
+        for _root, directories, files, parent in os.fwalk(".", dir_fd=descriptor, onerror=failed):
+            for name in (*directories, *files):
+                current = f"{_root}/{name}"
+                metadata = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                if stat.S_ISLNK(metadata.st_mode):
+                    target = os.readlink(name, dir_fd=parent)
+                    if not persistent:
+                        # Resolve link chains before checking containment: lexical '..'
+                        # normalization alone misses escapes through directory links.
+                        try:
+                            resolved = Path(f"/proc/self/fd/{parent}", name).resolve()
+                        except OSError as exc:
+                            raise LaunchError("cannot resolve sandbox asset symlink") from exc
+                        if target.startswith("/") or not resolved.is_relative_to(tree_root):
+                            raise LaunchError("sandbox asset symlink escapes its tree")
+                elif not (stat.S_ISREG(metadata.st_mode) or stat.S_ISDIR(metadata.st_mode)):
+                    raise LaunchError("sandbox trees must not contain sockets or special files")
+                elif stat.S_ISREG(metadata.st_mode) and metadata.st_nlink != 1:
+                    raise LaunchError("sandbox files must not have hard links")
+    except OSError as exc:
+        # Name the walked path, not just the bare entry: a bare OSError
+        # cannot tell a transient lookup miss from a broken tree.
+        raise LaunchError(f"cannot validate sandbox tree at {current}: {exc}") from exc

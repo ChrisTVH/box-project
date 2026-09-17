@@ -2,11 +2,12 @@
 
 # pyright: reportPrivateUsage=false
 
+import errno
 import os
 import socket
 import stat
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from itertools import pairwise
 from pathlib import Path
 
@@ -1584,3 +1585,63 @@ def test_real_dri_listing_when_host_has_it() -> None:
         )
         assert result.returncode == 0, result.stderr
         assert result.stdout == "dri-ok\n"
+
+
+def test_nw_game_names_unreadable_asset_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A lookup miss mid-walk reports the sandbox destination, not a bare name."""
+    root = tmp_path / "game"
+    parent = root / "www"
+    parent.mkdir(parents=True)
+    (parent / "index.html").write_text("fixture")
+    (root / "vanishing.dat").write_text("asset")
+    game = GameInfo(EngineName.RPG_MAKER_MV, root, parent / "index.html")
+    real_open: Callable[..., int] = os.open
+
+    def flaky_open(
+        path: str | int | os.PathLike[str],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if isinstance(path, str) and path == "vanishing.dat" and dir_fd is not None:
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(os, "open", flaky_open)
+    with Sandbox() as sandbox:
+        descriptor = sandbox.keep(open_directory_without_symlinks(root))
+        saves = sandbox.game_saves(game, descriptor)
+        with pytest.raises(LaunchError, match="/game/vanishing"):
+            sandbox.nw_game(game, descriptor, saves)
+
+
+def test_validate_tree_names_unreadable_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A lookup miss during validation reports the walked path, not a bare name."""
+    root = tmp_path / "game"
+    nested = root / "www" / "audio"
+    nested.mkdir(parents=True)
+    (nested / "vanishing.dat").write_text("asset")
+    real_stat: Callable[..., os.stat_result] = os.stat
+
+    def flaky_stat(
+        path: str | int | os.PathLike[str],
+        *,
+        dir_fd: int | None = None,
+        follow_symlinks: bool = True,
+    ) -> os.stat_result:
+        if isinstance(path, str) and path == "vanishing.dat" and dir_fd is not None:
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
+        return real_stat(path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(os, "stat", flaky_stat)
+    descriptor = open_directory_without_symlinks(root)
+    try:
+        with pytest.raises(LaunchError, match=r"\./www/audio/vanishing"):
+            validate_tree(descriptor)
+    finally:
+        os.close(descriptor)
