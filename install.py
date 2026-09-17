@@ -28,6 +28,7 @@ import sys
 import tempfile
 import uuid
 from collections.abc import Generator, Sequence
+from ctypes.util import find_library
 from pathlib import Path
 from typing import cast
 
@@ -356,6 +357,19 @@ def gtk_problem() -> str | None:
     )
     if not _tool_runs([system_python(), "-I", "-c", probe]):
         return "missing"
+    return None
+
+
+def fuse3_problem() -> str | None:
+    """Return None when the case-insensitive mount backend is usable, else a reason."""
+    try:
+        found = find_library("fuse3")
+    except Exception:
+        return "missing"
+    if found is None:
+        return "missing"
+    if not Path("/dev/fuse").exists():
+        return "no-device"
     return None
 
 
@@ -974,6 +988,24 @@ Pass --target {cli,gui,all} to select which distributions to manage."""
         )
         return 1
     print(_("OK: GnuPG found."))
+
+    fuse_issue = fuse3_problem()
+    if fuse_issue == "missing":
+        print(
+            _(
+                "warning: libfuse3 not found; the case-insensitive mount (--ci-mount) will be unavailable"
+            ),
+            file=sys.stderr,
+        )
+    elif fuse_issue == "no-device":
+        print(
+            _(
+                "warning: /dev/fuse not found; the case-insensitive mount (--ci-mount) will be unavailable"
+            ),
+            file=sys.stderr,
+        )
+    else:
+        print(_("OK: libfuse3 found for the case-insensitive mount."))
 
     if args.target in ("gui", "all"):
         if gtk_problem() == "missing":

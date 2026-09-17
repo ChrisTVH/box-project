@@ -53,6 +53,7 @@ __all__ = [
     "LaunchedSession",
     "authorize_game",
     "find_live_sessions",
+    "is_ci_mount_available",
     "is_gamemode_available",
     "is_session_running",
     "launch",
@@ -70,6 +71,11 @@ def find_live_sessions(paths: AppPaths, identifier: str) -> list[str]:
 def is_gamemode_available() -> bool:
     """Report whether the GameMode wrapper is usable for a sandboxed launch."""
     return _gamemode.is_available()
+
+
+def is_ci_mount_available() -> bool:
+    """Report whether the libfuse3 backend required for --ci-mount exists."""
+    return _cimount.is_available()
 
 
 def _confirm_x11(sandbox: Sandbox, interaction: Interaction | None) -> None:

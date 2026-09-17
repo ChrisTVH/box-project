@@ -100,6 +100,7 @@ def test_interactive_actions_abort_cleanly_on_end_of_input(
     monkeypatch.setattr(install, "has_pip", lambda: True)
     monkeypatch.setattr(install, "bwrap_problem", lambda: None)
     monkeypatch.setattr(install, "gpg_problem", lambda: None)
+    monkeypatch.setattr(install, "fuse3_problem", lambda: None)
     monkeypatch.setattr(install, "gtk_problem", lambda: None)
     monkeypatch.setattr(install, "installed_version", _fixed_installed_version(installed))
     monkeypatch.setattr(install, "install_commands", no_commands)
@@ -135,6 +136,7 @@ def test_install_same_version_message_reflects_force_flag(
     monkeypatch.setattr(install, "has_pip", lambda: True)
     monkeypatch.setattr(install, "bwrap_problem", lambda: None)
     monkeypatch.setattr(install, "gpg_problem", lambda: None)
+    monkeypatch.setattr(install, "fuse3_problem", lambda: None)
     monkeypatch.setattr(install, "gtk_problem", lambda: None)
     monkeypatch.setattr(install, "installed_version", _fixed_installed_version("1.0.0"))
     monkeypatch.setattr(install, "repo_version", lambda: "1.0.0")
@@ -260,12 +262,45 @@ def test_gpg_problem_reports_missing_broken_and_ok(
     assert install.gpg_problem() is None
 
 
+def test_fuse3_problem_reports_missing_no_device_and_ok(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _missing(_name: str) -> str | None:
+        return None
+
+    monkeypatch.setattr(install, "find_library", _missing)
+    assert install.fuse3_problem() == "missing"
+
+    def _boom(_name: str) -> str:
+        raise OSError("find_library unavailable")
+
+    monkeypatch.setattr(install, "find_library", _boom)
+    assert install.fuse3_problem() == "missing"
+
+    def _found(_name: str) -> str | None:
+        return "libfuse3.so.3"
+
+    def _no_device(self: object) -> bool:
+        return False
+
+    def _device(self: object) -> bool:
+        return True
+
+    monkeypatch.setattr(install, "find_library", _found)
+    monkeypatch.setattr(install.Path, "exists", _no_device)
+    assert install.fuse3_problem() == "no-device"
+
+    monkeypatch.setattr(install.Path, "exists", _device)
+    assert install.fuse3_problem() is None
+
+
 def _mock_install_prerequisites(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(install, "is_linux", lambda: True)
     monkeypatch.setattr(install, "_check_python_version", lambda: True)
     monkeypatch.setattr(install, "has_pip", lambda: True)
     monkeypatch.setattr(install, "bwrap_problem", lambda: None)
     monkeypatch.setattr(install, "gpg_problem", lambda: None)
+    monkeypatch.setattr(install, "fuse3_problem", lambda: None)
     monkeypatch.setattr(install, "gtk_problem", lambda: None)
 
 
@@ -287,12 +322,68 @@ def test_main_blocks_install_without_bwrap(
     assert "user namespaces" in capsys.readouterr().err
 
 
+def test_main_warns_but_installs_without_fuse3(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _mock_install_prerequisites(monkeypatch)
+    monkeypatch.setattr(install, "fuse3_problem", lambda: "missing")
+    monkeypatch.setattr(install.sys, "argv", ["install.py", "--install", "--yes"])
+    monkeypatch.setattr(install, "installed_version", _fixed_installed_version(None))
+    monkeypatch.setattr(install, "repo_version", lambda: "1.0.0")
+    calls: list[str] = []
+
+    def succeed(target: str = "all") -> bool:
+        calls.append(target)
+        return True
+
+    monkeypatch.setattr(install, "run_install", succeed)
+
+    assert install.main() == 0
+    assert "warning:" in capsys.readouterr().err
+    assert calls == ["all"]
+
+
+def test_main_warns_but_installs_without_fuse_device(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _mock_install_prerequisites(monkeypatch)
+    monkeypatch.setattr(install, "fuse3_problem", lambda: "no-device")
+    monkeypatch.setattr(install.sys, "argv", ["install.py", "--install", "--yes"])
+    monkeypatch.setattr(install, "installed_version", _fixed_installed_version(None))
+    monkeypatch.setattr(install, "repo_version", lambda: "1.0.0")
+    calls: list[str] = []
+
+    def succeed(target: str = "all") -> bool:
+        calls.append(target)
+        return True
+
+    monkeypatch.setattr(install, "run_install", succeed)
+
+    assert install.main() == 0
+    assert "warning:" in capsys.readouterr().err
+    assert calls == ["all"]
+
+
 def test_main_uninstall_skips_runtime_tool_checks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _mock_install_prerequisites(monkeypatch)
     monkeypatch.setattr(install, "BWRAP", tmp_path / "missing-bwrap")
     monkeypatch.setattr(install, "GPG", tmp_path / "missing-gpg")
+    monkeypatch.setattr(install.sys, "argv", ["install.py", "--uninstall", "--yes"])
+    monkeypatch.setattr(install, "installed_version", _fixed_installed_version("1.0.0"))
+    monkeypatch.setattr(install, "run_uninstall", _succeed)
+
+    assert install.main() == 0
+
+
+def test_main_uninstall_skips_fuse3_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    _mock_install_prerequisites(monkeypatch)
+
+    def forbidden() -> str | None:
+        raise AssertionError("uninstall must not consult fuse3")
+
+    monkeypatch.setattr(install, "fuse3_problem", forbidden)
     monkeypatch.setattr(install.sys, "argv", ["install.py", "--uninstall", "--yes"])
     monkeypatch.setattr(install, "installed_version", _fixed_installed_version("1.0.0"))
     monkeypatch.setattr(install, "run_uninstall", _succeed)

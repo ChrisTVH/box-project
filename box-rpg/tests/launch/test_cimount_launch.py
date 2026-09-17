@@ -247,6 +247,17 @@ def test_cli_execute_forwards_ci_mount(tmp_path: Path, monkeypatch: pytest.Monke
     from box.cli import launch as launch_command
 
     seen: dict[str, object] = {}
+    # Pin the early availability pre-check so the forwarding assertion stays
+    # hermetic on hosts without libfuse3 or /dev/fuse.
+    monkeypatch.setattr("box.cli.launch.api_ci_mount_available", lambda: True)
+    real_exists = Path.exists
+
+    def _fuse_present(self: Path) -> bool:
+        if self == Path("/dev/fuse"):
+            return True
+        return real_exists(self)
+
+    monkeypatch.setattr(Path, "exists", _fuse_present)
 
     def fake_api(
         paths: object,
@@ -598,3 +609,207 @@ def test_supervisor_without_ci_mount_skips_unmount(
         with suppress(OSError):
             os.close(session_fd)
     assert calls == 0
+
+
+def _fake_fuse_library(name: str) -> str | None:
+    assert name == "fuse3"
+    return "libfuse3.so.3"
+
+
+def _missing_fuse_library(name: str) -> str | None:
+    assert name == "fuse3"
+    return None
+
+
+def test_is_ci_mount_available_when_library_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from box.api import launch as api_launch_module
+    from box.api.launch import is_ci_mount_available
+
+    monkeypatch.setattr(cimount_module, "find_library", _fake_fuse_library)
+    assert is_ci_mount_available() is True
+    assert "is_ci_mount_available" in api_launch_module.__all__
+
+
+def test_is_ci_mount_available_when_library_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from box.api.launch import is_ci_mount_available
+
+    monkeypatch.setattr(cimount_module, "find_library", _missing_fuse_library)
+    assert is_ci_mount_available() is False
+
+
+def test_cli_execute_ci_mount_missing_library_warns_then_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from box.cli import launch as launch_command
+
+    monkeypatch.setattr("box.cli.launch.api_ci_mount_available", lambda: False)
+    launched = False
+
+    def forbidden_api(
+        paths: object,
+        repository: object,
+        game_path: Path,
+        version: str | None,
+        sdk: bool,
+        copy_root_files: tuple[str, ...] = (),
+        *,
+        allow_network: bool = False,
+        allow_game_writes: bool = False,
+        x11: bool = False,
+        use_gamemode: bool = False,
+        ci_mount: bool = False,
+        interaction: object = None,
+    ) -> object:
+        nonlocal launched
+        launched = True
+        raise AssertionError("unavailable ci-mount must not launch")
+
+    monkeypatch.setattr("box.cli.launch.api_launch", forbidden_api)
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    paths = _paths(tmp_path)
+    repository = ConfigRepository(paths)
+    with pytest.raises(LaunchError, match="libfuse3"):
+        launch_command.execute(paths, repository, tmp_path, None, False, ci_mount=True)
+    assert launched is False
+    captured = capsys.readouterr()
+    assert "warning:" in captured.err
+    assert "libfuse3" in captured.err
+    assert "--ci-mount" in captured.err
+
+
+def test_cli_execute_ci_mount_missing_device_warns_then_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from box.cli import launch as launch_command
+
+    monkeypatch.setattr("box.cli.launch.api_ci_mount_available", lambda: True)
+    real_exists = Path.exists
+
+    def missing_device(self: Path) -> bool:
+        if self == Path("/dev/fuse"):
+            return False
+        return real_exists(self)
+
+    monkeypatch.setattr(Path, "exists", missing_device)
+    launched = False
+
+    def forbidden_api(
+        paths: object,
+        repository: object,
+        game_path: Path,
+        version: str | None,
+        sdk: bool,
+        copy_root_files: tuple[str, ...] = (),
+        *,
+        allow_network: bool = False,
+        allow_game_writes: bool = False,
+        x11: bool = False,
+        use_gamemode: bool = False,
+        ci_mount: bool = False,
+        interaction: object = None,
+    ) -> object:
+        nonlocal launched
+        launched = True
+        raise AssertionError("unavailable ci-mount must not launch")
+
+    monkeypatch.setattr("box.cli.launch.api_launch", forbidden_api)
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    paths = _paths(tmp_path)
+    repository = ConfigRepository(paths)
+    with pytest.raises(LaunchError, match="/dev/fuse"):
+        launch_command.execute(paths, repository, tmp_path, None, False, ci_mount=True)
+    assert launched is False
+    captured = capsys.readouterr()
+    assert "warning:" in captured.err
+    assert "/dev/fuse" in captured.err
+    assert "--ci-mount" in captured.err
+
+
+def test_cli_execute_ci_mount_available_proceeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from box.cli import launch as launch_command
+
+    monkeypatch.setattr("box.cli.launch.api_ci_mount_available", lambda: True)
+    real_exists = Path.exists
+
+    def device_present(self: Path) -> bool:
+        if self == Path("/dev/fuse"):
+            return True
+        return real_exists(self)
+
+    monkeypatch.setattr(Path, "exists", device_present)
+    seen: dict[str, object] = {}
+
+    def fake_api(
+        paths: object,
+        repository: object,
+        game_path: Path,
+        version: str | None,
+        sdk: bool,
+        copy_root_files: tuple[str, ...] = (),
+        *,
+        allow_network: bool = False,
+        allow_game_writes: bool = False,
+        x11: bool = False,
+        use_gamemode: bool = False,
+        ci_mount: bool = False,
+        interaction: object = None,
+    ) -> object:
+        seen["ci_mount"] = ci_mount
+        return LaunchedSession("testid", "testname", tmp_path / "session")
+
+    def fake_poll(paths: object, identifier: str, name: str) -> int | None:
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.api_launch", fake_api)
+    monkeypatch.setattr("box.cli.launch.api_poll_status", fake_poll)
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    paths = _paths(tmp_path)
+    repository = ConfigRepository(paths)
+    assert launch_command.execute(paths, repository, tmp_path, None, False, ci_mount=True) == 0
+    assert seen == {"ci_mount": True}
+    assert "warning:" not in capsys.readouterr().err
+
+
+def test_cli_execute_without_ci_mount_skips_availability_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from box.cli import launch as launch_command
+
+    monkeypatch.setattr("box.cli.launch.api_ci_mount_available", lambda: False)
+    seen: dict[str, object] = {}
+
+    def fake_api(
+        paths: object,
+        repository: object,
+        game_path: Path,
+        version: str | None,
+        sdk: bool,
+        copy_root_files: tuple[str, ...] = (),
+        *,
+        allow_network: bool = False,
+        allow_game_writes: bool = False,
+        x11: bool = False,
+        use_gamemode: bool = False,
+        ci_mount: bool = False,
+        interaction: object = None,
+    ) -> object:
+        seen["ci_mount"] = ci_mount
+        return LaunchedSession("testid", "testname", tmp_path / "session")
+
+    def fake_poll(paths: object, identifier: str, name: str) -> int | None:
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.api_launch", fake_api)
+    monkeypatch.setattr("box.cli.launch.api_poll_status", fake_poll)
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    paths = _paths(tmp_path)
+    repository = ConfigRepository(paths)
+    assert launch_command.execute(paths, repository, tmp_path, None, False, ci_mount=False) == 0
+    assert seen == {"ci_mount": False}
+    assert "warning:" not in capsys.readouterr().err

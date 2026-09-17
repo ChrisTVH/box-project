@@ -14,6 +14,7 @@ from pathlib import Path
 from box.api.interaction import ConsoleInteraction
 from box.api.launch import _setup_desktop as api_setup_desktop
 from box.api.launch import authorize_game as api_authorize_game
+from box.api.launch import is_ci_mount_available as api_ci_mount_available
 from box.api.launch import is_session_running as api_is_running
 from box.api.launch import launch as api_launch
 from box.api.launch import poll_launch_status as api_poll_status
@@ -24,6 +25,7 @@ from box.errors import LaunchError
 from box.launch.sandbox import Sandbox
 from box.models import GameInfo
 from box.paths import AppPaths
+from box.utils.i18n import _
 from box.utils.terminal import abbreviate_prompt_path
 
 _abbreviate_prompt_path = abbreviate_prompt_path
@@ -46,6 +48,26 @@ def execute(
     ci_mount: bool = False,
 ) -> int:
     """Launch detached, then block in the foreground until the game exits."""
+    if ci_mount:
+        # Early warn-then-error before any launch work; main() renders the
+        # raised BoxError as `error:` with exit 1.
+        lib_ok = api_ci_mount_available()
+        dev_ok = Path("/dev/fuse").exists()
+        if not lib_ok or not dev_ok:
+            detail = "libfuse3" if not lib_ok else "/dev/fuse"
+            print(
+                _(
+                    "warning: {detail} not found; the case-insensitive mount "
+                    "(--ci-mount) is unavailable"
+                ).format(detail=detail),
+                file=sys.stderr,
+            )
+            raise LaunchError(
+                _(
+                    "case-insensitive mount requires libfuse3 and /dev/fuse; "
+                    "install them or retry without --ci-mount"
+                )
+            )
     # Resolve input at call time (not via the default argument) so the
     # terminal reader stays patchable exactly like the former read callable.
     interaction = ConsoleInteraction(read=input) if sys.stdin.isatty() else None
