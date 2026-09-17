@@ -17,7 +17,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 import appimage_tag
 import build_appimage
 
-TAG = "26.9.43"
+# Tracks the aligned repo versions: main() compares tags against the live
+# checkout, so a hardcoded tag rots on every release-alignment commit.
+TAG = build_appimage.gui_repo_version()
 
 
 def test_reader_contract_constants_match() -> None:
@@ -111,7 +113,10 @@ def test_apprun_source_runs_on_system_python_with_baked_tag() -> None:
     assert f'BUILD_TAG = "{TAG}"' in source
     assert appimage_tag.APPIMAGE_TAG_ENV_VAR in source
     assert "from box_gui.app import main" in source
-    assert "import box.api" in source
+    assert "import box.api" not in source
+    assert "sys.version_info < (3, 14)" in source
+    assert "staged payload missing" in source
+    assert "staged frontend failed to import" in source
     assert "venv" not in source
 
 
