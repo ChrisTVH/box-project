@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "box-rpg-maker"
-version = "26.9.53"
+version = "26.9.55"
 description = "A safe GUI launcher for RPG Maker 2000/2003/MV/MZ projects"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -20,7 +20,7 @@ classifiers = [
     "Environment :: X11 Applications :: GTK",
 ]
 dependencies = [
-    "box-rpg>=26.9.53",
+    "box-rpg>=26.9.55",
     "PyGObject",
     "pycairo",
     "icoextract",
