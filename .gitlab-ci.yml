@@ -1,26 +1,67 @@
-# Manual AppImage distribution build for box-rpg-maker.
+# Manual AppImage distribution build for box-rpg-maker, auto-published as a Release.
 #
-# Trigger: manual only (when: manual on the appimage job). Never on push.
-# The Python-pure builder (python3 -m tools.build_appimage) computes the
-# stable year.month.commit-count tag, creates it at HEAD, verifies the
-# checkout is exactly at that tag, stages the frontend-only AppDir, and
-# converts it with a recent FUSE3-capable appimagetool (no libfuse2).
+# Trigger: run the appimage job manually (never on push, never on tag
+# pipelines). It builds with the Python-pure builder
+# (python3 -m tools.build_appimage), pushes the stable year.month.commit-count
+# tag the builder created at HEAD, and records it in build.env; the publish
+# job then creates the Release (generic title, notes, and artifact link)
+# automatically through its needs on the build.
+# The Python-pure builder stages the frontend-only AppDir and converts it
+# with a recent FUSE3-capable appimagetool (no libfuse2).
 # The builder never refuses root, so the default root user of the
 # python:3.14 image is fine (unlike install.py, building needs no user
 # install and writes only inside the job workspace).
 stages:
   - package
+  - release
 
 appimage:
   stage: package
   image: python:3.14
   rules:
+    - if: $CI_COMMIT_TAG
+      when: never
     - when: manual
   before_script:
     - apt-get update && apt-get install -y git ca-certificates fuse3
   script:
     - python3 -m tools.build_appimage --yes --output dist/box-rpg-maker.appimage
+    - APPIMAGE_TAG=$(git describe --tags --exact-match HEAD)
+    - echo "APPIMAGE_TAG=$APPIMAGE_TAG" > build.env
+    - git push origin "$APPIMAGE_TAG"
   artifacts:
     paths:
       - dist/box-rpg-maker.appimage
-    expire_in: 4 weeks
+    reports:
+      dotenv: build.env
+    # Releases link straight at this artifact, so it must outlive the build.
+    expire_in: never
+
+publish:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/cli:latest
+  needs:
+    - appimage
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: never
+    - when: on_success
+  script:
+    - echo "Publishing release for $APPIMAGE_TAG"
+  release:
+    tag_name: '$APPIMAGE_TAG'
+    name: 'box-rpg-maker $APPIMAGE_TAG'
+    description: |
+      Standalone AppImage of the box-gui frontend (GTK4 + libadwaita).
+
+      Runs on the system Python 3.14+; the box-rpg backend is not bundled.
+      Install the matching backend first: ./install.py --install --target cli
+      (exact version match required; without it the app guides the install itself).
+
+      Requires Python 3.14+, GTK4/libadwaita 1.5+, and libfuse3.
+    ref: '$CI_COMMIT_SHA'
+    assets:
+      links:
+        - name: 'box-rpg-maker.appimage'
+          url: '$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_REF_NAME/raw/dist/box-rpg-maker.appimage?job=appimage'
+          link_type: 'package'

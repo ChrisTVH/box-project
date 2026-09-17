@@ -90,7 +90,7 @@ Releases are tag-driven. The builder computes the `year.month.commit-count` tag 
 
 Reader contract for the release screen: implement `box_gui.appimage_tag.get_appimage_tag() -> str | None`, checking the environment variable first and the sibling `appimage_tag.txt` second.
 
-Builds trigger manually only: `workflow_dispatch` in `.github/workflows/appimage.yml`, `when: manual` in `.gitlab-ci.yml`. Inspect locally without creating tags or downloading tools:
+Builds trigger manually only: `workflow_dispatch` in `.github/workflows/appimage.yml`, `when: manual` in `.gitlab-ci.yml`. Each manual build also publishes a Release on both platforms with a generic title, notes, and the AppImage (attached binary on GitHub, artifact link on GitLab). Inspect locally without creating tags or downloading tools:
 
 ```sh
 python3 -m tools.build_appimage --check
