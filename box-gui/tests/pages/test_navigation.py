@@ -97,10 +97,10 @@ def _make_paths(tmp_path: Path) -> Any:
     return paths
 
 
-def _make_inspection(root: Path, title: str | None = "Demo") -> Any:
+def _make_inspection(root: Path, title: str | None = "Demo", engine: Any = None) -> Any:
     """Build a minimal inspection pointing at root."""
     game = GameInfo(
-        engine=EngineName.RPG_MAKER_MV,
+        engine=engine or EngineName.RPG_MAKER_MV,
         root=root,
         entrypoint=root / "www" / "index.html",
         manifest=root / "package.json",
@@ -168,6 +168,7 @@ def _install_fake_launch_workers(
         allow_game_writes: bool = False,
         x11: bool = False,
         gamemode: bool = False,
+        ci_mount: bool = False,
     ) -> None:
         launch_calls.append(
             {
@@ -182,6 +183,7 @@ def _install_fake_launch_workers(
                 "allow_game_writes": allow_game_writes,
                 "x11": x11,
                 "gamemode": gamemode,
+                "ci_mount": ci_mount,
             }
         )
         if launch_error is not None:
@@ -1364,7 +1366,7 @@ def test_file_icon_bakes_rounded_corners(tmp_path: Path) -> None:
 def test_launch_button_forwards_gamemode_flag(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Quick-launch passes the persisted GameMode flag to run_launch."""
+    """Quick-launch passes the persisted GameMode and mount flags to run_launch."""
     _require_display()
     with contextlib.suppress(Exception):
         Adw.init()
@@ -1373,7 +1375,7 @@ def test_launch_button_forwards_gamemode_flag(
     game = tmp_path / "game"
     game.mkdir()
     created = repository.add(game, "Game")
-    repository.update(replace(created, use_gamemode=True, engine="rpg-maker-mv"))
+    repository.update(replace(created, use_gamemode=True, use_ci_mount=True, engine="rpg-maker-mv"))
     paths = _make_paths(tmp_path)
     launch_calls: list[Any] = []
     _install_fake_launch_workers(
@@ -1391,6 +1393,42 @@ def test_launch_button_forwards_gamemode_flag(
 
     assert len(launch_calls) == 1
     assert launch_calls[0]["gamemode"] is True
+    assert launch_calls[0]["ci_mount"] is True
+    assert button.get_sensitive() is True
+
+
+def test_launch_button_forces_ci_mount_off_for_easyrpg(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Quick-launch never forwards the mount flag for EasyRPG games."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    game = tmp_path / "game"
+    game.mkdir()
+    created = repository.add(game, "Game")
+    repository.update(replace(created, use_ci_mount=True, engine="rpg-maker-2000-2003"))
+    paths = _make_paths(tmp_path)
+    launch_calls: list[Any] = []
+    _install_fake_launch_workers(
+        monkeypatch,
+        lambda path: _make_inspection(path, "Game", EngineName.RPG_MAKER_2000_2003),
+        launch_calls,
+    )
+    page = LibraryPage(
+        library=repository,
+        on_open_game=lambda entry: None,
+        paths=paths,
+        repository=ConfigRepository(paths),
+    )
+
+    button = _row_launch_button(page._list_box.get_first_child())
+    button.emit("clicked")
+
+    assert len(launch_calls) == 1
+    assert launch_calls[0]["ci_mount"] is False
     assert button.get_sensitive() is True
 
 

@@ -21,7 +21,7 @@ Key files:
 - `src/box_gui/core/library.py`: game library persistence. `LibraryEntry` dataclass and `LibraryRepository` with `load`, `save`, `add`, `remove`, `reorder`, and `update` over `library.json`. No GTK dependency.
 - `src/box_gui/core/defaults.py`: global defaults over `defaults.json`, currently the preferred EasyRPG Player version. Same atomic-write and user-only-permission pattern as `library.py`. No GTK dependency.
 - `src/box_gui/pages/library_page.py`: root page with tag `library`. Folder picker, inspection-to-add flow, rows with runtime pill and reorder/remove menu, Settings entry point.
-- `src/box_gui/pages/game_detail_page.py`: detail page with tag `game-detail`. Re-inspects on push, free-text display name, persisted runtime, SDK, extra-files, and sandbox permission switches, header launch icon, footer `Diagnose` button opening `DiagnoseDialog`.
+- `src/box_gui/pages/game_detail_page.py`: detail page with tag `game-detail`. Re-inspects on push, free-text display name, persisted runtime, SDK, GameMode, case-insensitive mount, extra-files, and sandbox permission switches, header launch icon, footer `Diagnose` button opening `DiagnoseDialog`.
 - `src/box_gui/pages/settings_dialog.py`: modal `Adw.PreferencesDialog` with search disabled by design, hosting `GeneralPage`, `NwjsPage`, `EasyrpgPage`, and `CleanupPage`.
 - `src/box_gui/pages/diagnose_dialog.py`: `Adw.Dialog` with environment and version groups. Requires libadwaita 1.5 or newer.
 - `src/box_gui/gtk/workers.py`: threading only. `run_in_thread` with daemon thread plus `GLib.idle_add` marshaling, `ProgressReporter` forwarding `(completed, total)` to the main loop, and thin `run_inspect`, `run_launch`, and `run_diagnose` wrappers.
@@ -54,7 +54,7 @@ The `+` button on the library opens a `Gtk.FileDialog` folder picker, runs `run_
 Extra frontend data lives under `~/.config/box-rpg/` without touching the CLI. `AppPaths.config_root` is public through `box.api`, so `box_gui` manages its own file there.
 
 - File: `paths.config_root / "library.json"`. JSON, not TOML: this file is app-managed, not hand-edited like `config.toml`, and `json` needs no new dependency.
-- Schema version 3 with entries holding `path`, `display_name`, `order`, `preferred_runtime`, `preferred_sdk`, `copy_root_files`, `engine`, `allow_network`, `allow_game_writes`, `allow_x11`, and `icon_path`. `order` is an explicit integer, not array position. `load()` returns entries sorted by `order`. A missing file yields an empty tuple. A corrupt file raises `LibraryError`, shown as a normal `Adw.AlertDialog` error, never a crash. Older versions migrate forward with safe defaults.
+- Schema version 6 with entries holding `path`, `display_name`, `order`, `preferred_runtime`, `preferred_sdk`, `copy_root_files`, `engine`, `allow_network`, `allow_game_writes`, `allow_x11`, `use_gamemode`, `use_ci_mount`, `icon_path`, and `missing_streak`. `order` is an explicit integer, not array position. `load()` returns entries sorted by `order`. A missing file yields an empty tuple. A corrupt file raises `LibraryError`, shown as a normal `Adw.AlertDialog` error, never a crash. Older versions migrate forward with safe defaults.
 - Writes are atomic: write to a temporary file in the same directory, `fsync`, `chmod 0o600`, then `os.replace`. The config root is created with `mkdir(parents=True, exist_ok=True, mode=0o700)` before the first write.
 - `LibraryRepository` imports nothing from `box` except `AppPaths`.
 

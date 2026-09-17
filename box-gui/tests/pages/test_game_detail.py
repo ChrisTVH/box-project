@@ -491,6 +491,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
         allow_game_writes: bool = False,
         x11: bool = False,
         gamemode: bool = False,
+        ci_mount: bool = False,
         interaction: Any = None,
     ) -> int:
         calls.update(
@@ -502,6 +503,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
                 "allow_game_writes": allow_game_writes,
                 "x11": x11,
                 "gamemode": gamemode,
+                "ci_mount": ci_mount,
                 "interaction": interaction,
             }
         )
@@ -522,6 +524,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
         allow_game_writes: bool = False,
         x11: bool = False,
         gamemode: bool = False,
+        ci_mount: bool = False,
     ) -> Any:
         try:
             code = _fake_launch(
@@ -535,6 +538,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
                 allow_game_writes=allow_game_writes,
                 x11=x11,
                 gamemode=gamemode,
+                ci_mount=ci_mount,
                 interaction=interaction,
             )
         except BaseException as exc:
@@ -559,6 +563,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
     assert calls["allow_game_writes"] is False
     assert calls["x11"] is True
     assert calls["gamemode"] is False
+    assert calls["ci_mount"] is False
     assert calls["interaction"].confirm_x11(":0") is True
     assert page._status.get_text() == ""
     assert page._status_box.get_visible() is False
@@ -687,6 +692,7 @@ def _capture_launch_version(monkeypatch: pytest.MonkeyPatch, page: Any) -> dict[
         allow_game_writes: bool = False,
         x11: bool = False,
         gamemode: bool = False,
+        ci_mount: bool = False,
     ) -> Any:
         calls.update(
             {
@@ -694,6 +700,7 @@ def _capture_launch_version(monkeypatch: pytest.MonkeyPatch, page: Any) -> dict[
                 "sdk": sdk,
                 "copy_root_files": copy_root_files,
                 "gamemode": gamemode,
+                "ci_mount": ci_mount,
             }
         )
         on_done(0)
@@ -1315,6 +1322,126 @@ def test_easyrpg_launch_forwards_gamemode(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert calls["sdk"] is False
     assert calls["copy_root_files"] == ()
     assert calls["gamemode"] is True
+
+
+def _ci_mount_warning_images(page: Any) -> list[Any]:
+    """Collect warning icons currently attached below the mount row."""
+    from gi.repository import Gtk
+
+    images: list[Any] = []
+    pending: list[Any] = [page._ci_mount_row]
+    while pending:
+        widget = pending.pop()
+        if isinstance(widget, Gtk.Image) and widget.get_icon_name() == ("box-rpg-warning-symbolic"):
+            images.append(widget)
+        child = widget.get_first_child()
+        while child is not None:
+            pending.append(child)
+            child = child.get_next_sibling()
+    return images
+
+
+def test_ci_mount_unavailable_disables_row_with_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Without mount support the row locks off, warns, and launches False."""
+    monkeypatch.setattr(GameDetailPage, "_is_ci_mount_available", staticmethod(lambda: False))
+    page, library, entry = _make_page(monkeypatch, tmp_path)
+
+    assert page._ci_mount_row.get_title() == "Case-insensitive mount"
+    assert page._ci_mount_row.get_sensitive() is False
+    assert page._ci_mount_row.get_active() is False
+    assert page._ci_mount_warning is not None
+    assert page._ci_mount_warning.get_icon_name() == "box-rpg-warning-symbolic"
+    assert (
+        page._ci_mount_warning.get_tooltip_text() == "This feature is not available on your system."
+    )
+    assert len(_ci_mount_warning_images(page)) == 1
+
+    # A stale True can never reach launch: syncing forces and persists False.
+    page._entry = library.update(replace(entry, use_ci_mount=True))
+    page._sync_ci_mount_availability()
+
+    assert page._ci_mount_row.get_active() is False
+    assert library.load()[0].use_ci_mount is False
+    assert len(_ci_mount_warning_images(page)) == 1
+
+    calls = _capture_launch_version(monkeypatch, page)
+    page._on_launch_clicked(page._launch_button)
+
+    assert calls["ci_mount"] is False
+
+
+def test_ci_mount_toggle_persists_when_available(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """With mount support the switch follows and stores the entry flag."""
+    monkeypatch.setattr(GameDetailPage, "_is_ci_mount_available", staticmethod(lambda: True))
+    page, library, _entry = _make_page(monkeypatch, tmp_path)
+
+    assert page._ci_mount_row.get_sensitive() is True
+    assert page._ci_mount_row.get_active() is False
+    assert page._ci_mount_warning is None
+    assert _ci_mount_warning_images(page) == []
+
+    page._ci_mount_row.set_active(True)
+
+    assert library.load()[0].use_ci_mount is True
+    assert page._entry.use_ci_mount is True
+
+    calls = _capture_launch_version(monkeypatch, page)
+    page._on_launch_clicked(page._launch_button)
+
+    assert calls["ci_mount"] is True
+
+
+def test_ci_mount_warning_removed_when_available(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The warning suffix is added once and detached once support appears."""
+    monkeypatch.setattr(GameDetailPage, "_is_ci_mount_available", staticmethod(lambda: False))
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    assert len(_ci_mount_warning_images(page)) == 1
+
+    page._sync_ci_mount_availability()
+    assert len(_ci_mount_warning_images(page)) == 1
+
+    monkeypatch.setattr(GameDetailPage, "_is_ci_mount_available", staticmethod(lambda: True))
+    page._sync_ci_mount_availability()
+
+    assert page._ci_mount_warning is None
+    assert _ci_mount_warning_images(page) == []
+    assert page._ci_mount_row.get_sensitive() is True
+
+
+def test_ci_mount_easyrpg_disabled_with_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """EasyRPG games lock the mount off and never forward the flag."""
+    monkeypatch.setattr(GameDetailPage, "_is_ci_mount_available", staticmethod(lambda: True))
+    page, library, entry = _make_page(
+        monkeypatch,
+        tmp_path,
+        lambda path: _make_inspection(path, EngineName.RPG_MAKER_2000_2003),
+    )
+
+    assert page._ci_mount_row.get_sensitive() is False
+    assert page._ci_mount_row.get_active() is False
+    assert page._ci_mount_warning is not None
+    assert page._ci_mount_warning.get_tooltip_text() == "Not available for EasyRPG games."
+    assert len(_ci_mount_warning_images(page)) == 1
+
+    page._entry = library.update(replace(entry, use_ci_mount=True))
+    page._sync_ci_mount_availability()
+
+    assert page._ci_mount_row.get_active() is False
+    assert library.load()[0].use_ci_mount is False
+    assert len(_ci_mount_warning_images(page)) == 1
+
+    calls = _capture_launch_version(monkeypatch, page)
+    page._on_launch_clicked(page._launch_button)
+
+    assert calls["ci_mount"] is False
 
 
 _GHOST_REASON = "The game folder is missing. Use Locate folder… to point at it again."

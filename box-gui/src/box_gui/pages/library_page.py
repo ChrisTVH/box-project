@@ -528,9 +528,11 @@ class LibraryPage(Adw.NavigationPage):
         allow_game_writes = fresh.allow_game_writes
         use_x11 = fresh.allow_x11
         gamemode = fresh.use_gamemode
+        ci_mount = getattr(fresh, "use_ci_mount", False)
         if inspection.game.engine is EngineName.RPG_MAKER_2000_2003:
             sdk = False
             copy_root_files = ()
+            ci_mount = False
             if version is None:
                 version = self._global_easyrpg_runtime()
         interaction = self._interaction
@@ -552,6 +554,7 @@ class LibraryPage(Adw.NavigationPage):
             allow_game_writes=allow_game_writes,
             x11=use_x11,
             gamemode=gamemode,
+            ci_mount=ci_mount,
         )
 
     def _global_nwjs_runtime(self) -> str | None:

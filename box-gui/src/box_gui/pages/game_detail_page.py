@@ -164,6 +164,12 @@ class GameDetailPage(Adw.NavigationPage):
         self._runtime_row.connect("notify::selected", self._on_runtime_changed)
         self._sdk_row = Adw.SwitchRow(title=_("SDK"))
         self._sdk_row.connect("notify::active", self._on_sdk_toggled)
+        self._ci_mount_row = Adw.SwitchRow(
+            title=_("Case-insensitive mount"),
+            subtitle=_("Use a case-insensitive view for this game when available."),
+        )
+        self._ci_mount_row.connect("notify::active", self._on_ci_mount_toggled)
+        self._ci_mount_warning: Gtk.Image | None = None
         self._gamemode_row = Adw.SwitchRow(
             title=_("GameMode"),
             subtitle=_("Boost performance with GameMode when available."),
@@ -199,6 +205,7 @@ class GameDetailPage(Adw.NavigationPage):
         self._x11_switch.set_active(entry.allow_x11)
         self._loading = False
         self._sync_gamemode_availability()
+        self._sync_ci_mount_availability()
         self.connect("map", self._on_mapped)
         self.connect("unmap", self._on_unmapped)
         self.connect("destroy", self._on_unmapped)
@@ -249,6 +256,7 @@ class GameDetailPage(Adw.NavigationPage):
         )
         runtime_group.add(self._runtime_row)
         runtime_group.add(self._sdk_row)
+        runtime_group.add(self._ci_mount_row)
         runtime_group.add(self._gamemode_row)
         content.append(runtime_group)
         files_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -413,6 +421,7 @@ class GameDetailPage(Adw.NavigationPage):
             self._loading = False
         self._missing = False
         self._sync_gamemode_availability()
+        self._sync_ci_mount_availability()
         self._set_busy(False, "")
         self._sync_running_state()
 
@@ -572,6 +581,99 @@ class GameDetailPage(Adw.NavigationPage):
         if active == self._entry.use_gamemode:
             return
         self._persist(replace(self._entry, use_gamemode=active))
+
+    @staticmethod
+    def _is_ci_mount_available() -> bool:
+        """Return True when the backend supports a case-insensitive mount.
+
+        Prefers the backend probe when present so libfuse availability is
+        checked through the stable surface; otherwise falls back to the
+        launch signature and lets the backend fail at launch time. Any
+        failure means unavailable, never a crash.
+        """
+        try:
+            from box.api import launch as launch_api
+        except ImportError:
+            return False
+        try:
+            probe = getattr(launch_api, "is_ci_mount_available", None)
+            if callable(probe):
+                return bool(probe())
+            import inspect as stdlib_inspect
+
+            return "ci_mount" in stdlib_inspect.signature(launch_api.launch).parameters
+        except Exception:
+            return False
+
+    def _sync_ci_mount_availability(self) -> None:
+        """Reflect case-insensitive mount support on the switch.
+
+        EasyRPG games force the switch off with their own warning since
+        the backend rejects the flag for them; an unavailable system
+        does the same with the generic warning. Available restores the
+        persisted choice and drops the warning icon.
+        """
+        is_easyrpg = False
+        if self._inspection is not None:
+            is_easyrpg = self._inspection.game.engine is EngineName.RPG_MAKER_2000_2003
+        else:
+            is_easyrpg = self._entry.engine == EngineName.RPG_MAKER_2000_2003.value
+        if is_easyrpg:
+            self._loading = True
+            try:
+                self._ci_mount_row.set_active(False)
+            finally:
+                self._loading = False
+            self._ci_mount_row.set_sensitive(False)
+            if self._entry.use_ci_mount:
+                self._persist(replace(self._entry, use_ci_mount=False))
+            self._ensure_ci_mount_warning(_("Not available for EasyRPG games."))
+            return
+        if self._is_ci_mount_available():
+            self._clear_ci_mount_warning()
+            self._ci_mount_row.set_sensitive(True)
+            if self._ci_mount_row.get_active() != self._entry.use_ci_mount:
+                self._loading = True
+                try:
+                    self._ci_mount_row.set_active(self._entry.use_ci_mount)
+                finally:
+                    self._loading = False
+            return
+        self._loading = True
+        try:
+            self._ci_mount_row.set_active(False)
+        finally:
+            self._loading = False
+        self._ci_mount_row.set_sensitive(False)
+        if self._entry.use_ci_mount:
+            self._persist(replace(self._entry, use_ci_mount=False))
+        self._ensure_ci_mount_warning(_("This feature is not available on your system."))
+
+    def _ensure_ci_mount_warning(self, reason: str) -> None:
+        """Attach the unavailable-feature warning icon exactly once."""
+        if self._ci_mount_warning is not None:
+            self._ci_mount_warning.set_tooltip_text(reason)
+            return
+        warning = Gtk.Image.new_from_icon_name(WARNING_ICON_NAME)
+        warning.set_tooltip_text(reason)
+        self._ci_mount_row.add_suffix(warning)
+        self._ci_mount_warning = warning
+
+    def _clear_ci_mount_warning(self) -> None:
+        """Detach the warning icon now that the mount is available."""
+        if self._ci_mount_warning is None:
+            return
+        self._ci_mount_row.remove(self._ci_mount_warning)
+        self._ci_mount_warning = None
+
+    def _on_ci_mount_toggled(self, row: Adw.SwitchRow, _pspec: object) -> None:
+        """Persist case-insensitive mount picks without touching other fields."""
+        if self._loading:
+            return
+        active = row.get_active()
+        if active == self._entry.use_ci_mount:
+            return
+        self._persist(replace(self._entry, use_ci_mount=active))
 
     def _sync_running_state(self) -> None:
         """Reflect a live backend session with an explicit Stop button.
@@ -979,9 +1081,11 @@ class GameDetailPage(Adw.NavigationPage):
         version = self._entry.preferred_runtime
         sdk = self._entry.preferred_sdk
         copy_root_files = self._entry.copy_root_files
+        ci_mount = bool(getattr(self._entry, "use_ci_mount", False))
         if self._inspection.game.engine is EngineName.RPG_MAKER_2000_2003:
             sdk = False
             copy_root_files = ()
+            ci_mount = False
             if version is None:
                 version = self._global_easyrpg_runtime()
         allow_network = self._network_switch.get_active()
@@ -1007,6 +1111,7 @@ class GameDetailPage(Adw.NavigationPage):
             allow_game_writes=allow_game_writes,
             x11=use_x11,
             gamemode=self._entry.use_gamemode,
+            ci_mount=ci_mount,
         )
 
     def _on_diagnose_clicked(self, _button: Gtk.Button) -> None:

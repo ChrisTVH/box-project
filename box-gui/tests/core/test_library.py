@@ -188,7 +188,7 @@ def test_save_writes_versioned_schema(tmp_path: Path) -> None:
 
     payload = json.loads(repository.library_file.read_text(encoding="utf-8"))
 
-    assert payload["version"] == 5
+    assert payload["version"] == 6
     assert isinstance(payload["entries"], list)
     assert payload["entries"][0]["path"] == "/games/a"
     assert payload["entries"][0]["engine"] is None
@@ -196,6 +196,7 @@ def test_save_writes_versioned_schema(tmp_path: Path) -> None:
     assert payload["entries"][0]["allow_game_writes"] is False
     assert payload["entries"][0]["allow_x11"] is False
     assert payload["entries"][0]["use_gamemode"] is False
+    assert payload["entries"][0]["use_ci_mount"] is False
     assert payload["entries"][0]["missing_streak"] == 0
 
 
@@ -221,16 +222,18 @@ def test_migrates_v1_without_engine_to_none(tmp_path: Path) -> None:
 
     assert len(loaded) == 1
     assert loaded[0].engine is None
+    assert loaded[0].use_ci_mount is False
 
     repository.save(loaded)
     migrated = json.loads(repository.library_file.read_text(encoding="utf-8"))
 
-    assert migrated["version"] == 5
+    assert migrated["version"] == 6
     assert migrated["entries"][0]["engine"] is None
     assert migrated["entries"][0]["allow_network"] is False
     assert migrated["entries"][0]["allow_game_writes"] is False
     assert migrated["entries"][0]["allow_x11"] is False
     assert migrated["entries"][0]["use_gamemode"] is False
+    assert migrated["entries"][0]["use_ci_mount"] is False
 
 
 def test_loads_v2_with_engine_string(tmp_path: Path) -> None:
@@ -418,15 +421,17 @@ def test_migrates_v2_without_permissions_to_false(tmp_path: Path) -> None:
     assert loaded[0].allow_network is False
     assert loaded[0].allow_game_writes is False
     assert loaded[0].allow_x11 is False
+    assert loaded[0].use_ci_mount is False
 
     repository.save(loaded)
     migrated = json.loads(repository.library_file.read_text(encoding="utf-8"))
 
-    assert migrated["version"] == 5
+    assert migrated["version"] == 6
     assert migrated["entries"][0]["allow_network"] is False
     assert migrated["entries"][0]["allow_game_writes"] is False
     assert migrated["entries"][0]["allow_x11"] is False
     assert migrated["entries"][0]["use_gamemode"] is False
+    assert migrated["entries"][0]["use_ci_mount"] is False
 
 
 def test_decode_rejects_bad_permissions(tmp_path: Path) -> None:
@@ -757,6 +762,139 @@ def test_add_reorder_update_preserve_gamemode(tmp_path: Path) -> None:
         )
     )
     assert renamed.use_gamemode is True
+    assert renamed.display_name == "One Renamed"
+
+
+def _legacy_entry_v5(path: str) -> dict[str, object]:
+    """Build a version-5 style entry without the ci-mount key."""
+    entry = _legacy_entry(path)
+    entry["use_gamemode"] = False
+    entry["missing_streak"] = 0
+    return entry
+
+
+def test_old_payload_without_ci_mount_defaults_to_false(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    repository.library_file.parent.mkdir(parents=True, exist_ok=True)
+    entry = _legacy_entry_v5("/games/legacy")
+    repository.library_file.write_text(
+        json.dumps({"version": 5, "entries": [entry]}), encoding="utf-8"
+    )
+
+    loaded = repository.load()
+
+    assert len(loaded) == 1
+    assert loaded[0].use_ci_mount is False
+
+
+def test_ci_mount_round_trip_with_true(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    created = repository.add(tmp_path / "game", "Game")
+    updated = repository.update(
+        LibraryEntry(
+            path=created.path,
+            display_name=created.display_name,
+            order=created.order,
+            preferred_runtime=created.preferred_runtime,
+            preferred_sdk=created.preferred_sdk,
+            copy_root_files=created.copy_root_files,
+            engine=created.engine,
+            allow_network=created.allow_network,
+            allow_game_writes=created.allow_game_writes,
+            allow_x11=created.allow_x11,
+            use_gamemode=created.use_gamemode,
+            use_ci_mount=True,
+            icon_path=created.icon_path,
+        )
+    )
+
+    assert updated.use_ci_mount is True
+
+    loaded = repository.load()
+    assert loaded[0].use_ci_mount is True
+    payload = json.loads(repository.library_file.read_text(encoding="utf-8"))
+    assert payload["entries"][0]["use_ci_mount"] is True
+
+
+def test_version_6_accepted_and_99_rejected(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    repository.library_file.parent.mkdir(parents=True, exist_ok=True)
+    entry = _legacy_entry_v5("/games/modern")
+    entry["use_ci_mount"] = True
+    repository.library_file.write_text(
+        json.dumps({"version": 6, "entries": [entry]}), encoding="utf-8"
+    )
+
+    loaded = repository.load()
+    assert len(loaded) == 1
+    assert loaded[0].use_ci_mount is True
+
+    repository.library_file.write_text(json.dumps({"version": 99, "entries": []}), encoding="utf-8")
+    with pytest.raises(LibraryError):
+        repository.load()
+
+
+def test_decode_rejects_bad_ci_mount(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    repository.library_file.parent.mkdir(parents=True, exist_ok=True)
+    entry = _legacy_entry_v5("/games/bad")
+    entry["use_ci_mount"] = 1
+    repository.library_file.write_text(
+        json.dumps({"version": 5, "entries": [entry]}), encoding="utf-8"
+    )
+
+    with pytest.raises(LibraryError):
+        repository.load()
+
+
+def test_add_reorder_update_preserve_ci_mount(tmp_path: Path) -> None:
+    repository = _make_repository(tmp_path)
+    first = repository.add(tmp_path / "one", "One")
+    assert first.use_ci_mount is False
+
+    enabled = repository.update(
+        LibraryEntry(
+            path=first.path,
+            display_name=first.display_name,
+            order=first.order,
+            preferred_runtime=first.preferred_runtime,
+            preferred_sdk=first.preferred_sdk,
+            copy_root_files=first.copy_root_files,
+            engine=first.engine,
+            allow_network=first.allow_network,
+            allow_game_writes=first.allow_game_writes,
+            allow_x11=first.allow_x11,
+            use_gamemode=first.use_gamemode,
+            use_ci_mount=True,
+            icon_path=first.icon_path,
+        )
+    )
+    assert enabled.use_ci_mount is True
+
+    second = repository.add(tmp_path / "two", "Two")
+    reordered = repository.reorder(second, "up")
+
+    assert [entry.use_ci_mount for entry in reordered] == [False, True]
+    assert [entry.use_ci_mount for entry in repository.load()] == [False, True]
+
+    renamed = repository.update(
+        LibraryEntry(
+            path=first.path,
+            display_name="One Renamed",
+            order=999,
+            preferred_runtime=None,
+            preferred_sdk=False,
+            copy_root_files=(),
+            engine=None,
+            allow_network=False,
+            allow_game_writes=False,
+            allow_x11=False,
+            use_gamemode=False,
+            use_ci_mount=True,
+            icon_path=None,
+        )
+    )
+    assert renamed.use_ci_mount is True
     assert renamed.display_name == "One Renamed"
 
 

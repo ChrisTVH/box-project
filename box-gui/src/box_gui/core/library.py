@@ -30,7 +30,7 @@ the presentation layers dim the row and offer relocation instead of
 deleting anything.
 """
 
-_LIBRARY_VERSION = 5
+_LIBRARY_VERSION = 6
 
 ReorderDirection = Literal["up", "down", "top", "bottom"]
 
@@ -54,6 +54,7 @@ class LibraryEntry:
     allow_game_writes: bool = False
     allow_x11: bool = False
     use_gamemode: bool = False
+    use_ci_mount: bool = False
     icon_path: Path | None = None
     missing_streak: int = 0
 
@@ -137,6 +138,7 @@ class LibraryRepository:
             allow_game_writes=False,
             allow_x11=False,
             use_gamemode=False,
+            use_ci_mount=False,
             missing_streak=0,
         )
         entries.append(created)
@@ -185,6 +187,7 @@ class LibraryRepository:
                 allow_game_writes=stored.allow_game_writes,
                 allow_x11=stored.allow_x11,
                 use_gamemode=stored.use_gamemode,
+                use_ci_mount=stored.use_ci_mount,
                 icon_path=stored.icon_path,
                 missing_streak=stored.missing_streak,
             )
@@ -194,7 +197,7 @@ class LibraryRepository:
         return tuple(reordered)
 
     def update(self, entry: LibraryEntry) -> LibraryEntry:
-        """Persist display-name, runtime, SDK, file, icon, permission, and streak edits.
+        """Persist display-name, runtime, SDK, file, icon, permission, GameMode, mount, and streak edits.
 
         Entries normally match by path. When the path itself changed (the
         Locate-folder flow points a ghost at a new folder), the entry
@@ -233,6 +236,7 @@ class LibraryRepository:
             allow_game_writes=entry.allow_game_writes,
             allow_x11=entry.allow_x11,
             use_gamemode=entry.use_gamemode,
+            use_ci_mount=entry.use_ci_mount,
             icon_path=entry.icon_path,
             missing_streak=entry.missing_streak,
         )
@@ -328,7 +332,7 @@ def _decode_library(payload: object, source: Path) -> tuple[LibraryEntry, ...]:
     if not isinstance(payload, dict):
         raise LibraryError(f"invalid library file {source}: top-level value must be an object")
     version = payload.get("version")
-    if version not in (1, 2, 3, 4, 5):
+    if version not in (1, 2, 3, 4, 5, 6):
         raise LibraryError(f"unsupported library version in {source}: {version!r}")
     raw_entries = payload.get("entries")
     if not isinstance(raw_entries, list):
@@ -353,6 +357,7 @@ def _decode_entry(raw: object, source: Path, number: int) -> LibraryEntry:
     writes_value = raw.get("allow_game_writes", False)
     x11_value = raw.get("allow_x11", False)
     gamemode_value = raw.get("use_gamemode", False)
+    ci_mount_value = raw.get("use_ci_mount", False)
     streak_value = raw.get("missing_streak", 0)
     icon_value = raw.get("icon_path")
     if not isinstance(path_value, str) or not path_value:
@@ -380,6 +385,7 @@ def _decode_entry(raw: object, source: Path, number: int) -> LibraryEntry:
         ("allow_game_writes", writes_value),
         ("allow_x11", x11_value),
         ("use_gamemode", gamemode_value),
+        ("use_ci_mount", ci_mount_value),
     ):
         if not isinstance(value, bool):
             raise LibraryError(f"invalid library entry #{number} in {source}: bad {label}")
@@ -397,6 +403,7 @@ def _decode_entry(raw: object, source: Path, number: int) -> LibraryEntry:
         allow_game_writes=writes_value,
         allow_x11=x11_value,
         use_gamemode=gamemode_value,
+        use_ci_mount=ci_mount_value,
         icon_path=Path(icon_value) if icon_value is not None else None,
         missing_streak=streak_value,
     )
@@ -416,6 +423,7 @@ def _encode_entry(entry: LibraryEntry) -> dict[str, object]:
         "allow_game_writes": entry.allow_game_writes,
         "allow_x11": entry.allow_x11,
         "use_gamemode": entry.use_gamemode,
+        "use_ci_mount": entry.use_ci_mount,
         "icon_path": str(entry.icon_path) if entry.icon_path is not None else None,
         "missing_streak": entry.missing_streak,
     }
