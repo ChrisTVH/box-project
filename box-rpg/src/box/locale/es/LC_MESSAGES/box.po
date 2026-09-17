@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-17 10:06-0400\n"
+"POT-Creation-Date: 2026-09-17 12:22-0400\n"
 "PO-Revision-Date: 2026-09-08 00:00+0000\n"
 "Last-Translator: Christopher Herasme <5632734-"
 "christvh@users.noreply.gitlab.com>\n"
@@ -651,23 +651,6 @@ msgstr "Versiones disponibles de EasyRPG Player (página {page}, x64):"
 msgid "  (no versions on this page)"
 msgstr "  (no hay versiones en esta página)"
 
-#: box-rpg/src/box/cli/launch.py:60
-#, python-brace-format
-msgid ""
-"warning: {detail} not found; the case-insensitive mount (--ci-mount) is "
-"unavailable"
-msgstr ""
-"advertencia: no se encontró {detail}; el montaje insensible a mayúsculas y "
-"minúsculas (--ci-mount) no está disponible"
-
-#: box-rpg/src/box/cli/launch.py:67
-msgid ""
-"case-insensitive mount requires libfuse3 and /dev/fuse; install them or "
-"retry without --ci-mount"
-msgstr ""
-"el montaje insensible a mayúsculas y minúsculas requiere libfuse3 y /dev/"
-"fuse; instálalos o reintenta sin --ci-mount"
-
 #: box-rpg/src/box/cli/main.py:39
 msgid ""
 "error: no supported RPG Maker game was found here; run box-rpg from the game "
@@ -890,6 +873,28 @@ msgstr "imprime un informe de diagnóstico local"
 #: box-rpg/src/box/cli/parser.py:256
 msgid "game directory to diagnose"
 msgstr "directorio del juego para diagnosticar"
+
+#: box-rpg/src/box/cli/launch.py:60
+#, python-brace-format
+msgid ""
+"warning: {detail} not found; the case-insensitive mount (--ci-mount) is "
+"unavailable"
+msgstr ""
+"advertencia: no se encontró {detail}; el montaje insensible a mayúsculas y "
+"minúsculas (--ci-mount) no está disponible"
+
+#: box-rpg/src/box/cli/launch.py:67
+msgid ""
+"case-insensitive mount requires libfuse3 and /dev/fuse; install them or "
+"retry without --ci-mount"
+msgstr ""
+"el montaje insensible a mayúsculas y minúsculas requiere libfuse3 y /dev/"
+"fuse; instálalos o reintenta sin --ci-mount"
+
+#: box-rpg/src/box/cli/version_info.py:37
+#, python-brace-format
+msgid "box-rpg {version} by {author} ({url})"
+msgstr "box-rpg {version} por {author} ({url})"
 
 #: box-rpg/src/box/config/reader.py:36
 msgid "configuration has unsafe type, ownership or permissions"

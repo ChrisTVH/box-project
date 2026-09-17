@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 
-from box import __version__
+from box.cli.version_info import version_text
 from box.utils.i18n import _
 
 
@@ -26,7 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=_AlignedHelpFormatter,
         description=_("Launch RPG Maker games with managed NW.js or EasyRPG Player runtimes."),
     )
-    parser.add_argument("--version", action="version", version=f"box-rpg {__version__}")
+    parser.add_argument("--version", action="version", version=version_text())
     commands = parser.add_subparsers(dest="command")
 
     cleanup = commands.add_parser(
