@@ -24,6 +24,13 @@ appimage:
     - when: manual
   before_script:
     - apt-get update && apt-get install -y git ca-certificates fuse3
+    # Fresh runners carry no git identity and the builder creates an
+    # annotated tag, so tagger identity comes from the environment
+    # (mirrors the machine's global identity; runners never inherit it).
+    - export GIT_AUTHOR_NAME='Christopher Herasme'
+    - export GIT_AUTHOR_EMAIL='5632734-christvh@users.noreply.gitlab.com'
+    - export GIT_COMMITTER_NAME='Christopher Herasme'
+    - export GIT_COMMITTER_EMAIL='5632734-christvh@users.noreply.gitlab.com'
   script:
     - python3 -m tools.build_appimage --yes --output dist/box-rpg-maker.appimage
     - APPIMAGE_TAG=$(git describe --tags --exact-match HEAD)

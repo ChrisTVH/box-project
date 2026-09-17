@@ -39,6 +39,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y fuse3
 
       - name: Build the AppImage
+        env:
+          # Fresh runners carry no git identity and the builder creates an
+          # annotated tag, so tagger identity comes from the environment.
+          GIT_AUTHOR_NAME: ChrisTVH
+          GIT_AUTHOR_EMAIL: cristoferherame@gmail.com
+          GIT_COMMITTER_NAME: ChrisTVH
+          GIT_COMMITTER_EMAIL: cristoferherame@gmail.com
         run: |
           if [ -n "${{ inputs.tag }}" ]; then
             python3 -m tools.build_appimage --yes --tag "${{ inputs.tag }}"
