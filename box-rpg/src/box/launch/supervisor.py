@@ -26,6 +26,7 @@ from typing import cast
 from uuid import uuid4
 
 from box.errors import ConfigurationError, LaunchError
+from box.launch import cimount as _cimount
 from box.launch import gamemode as _gamemode
 from box.launch.process import runtime_environment
 from box.launch.sandbox import BWRAP
@@ -411,6 +412,21 @@ def _terminate_proxy(proxy: subprocess.Popen[bytes] | None) -> None:
             proxy.wait(timeout=_GAMEMODE_PROXY_STOP_TIMEOUT)
 
 
+def _teardown_ci_mount(mountpoint: Path | None) -> None:
+    """Detach a case-insensitive mount without ever propagating its errors.
+
+    Runs after the game exits and the GameMode proxy is terminated. There is
+    no terminal I/O available here and the supervisor always ends via
+    os._exit, so failures stay silent best-effort like _terminate_proxy.
+    Only the mountpoint path is needed; no descriptor ever crosses into the
+    supervisor.
+    """
+    if mountpoint is None:
+        return
+    with suppress(Exception):
+        _cimount.force_unmount(mountpoint)
+
+
 def _wait_for_proxy_socket(
     socket_path: Path,
     proxy: subprocess.Popen[bytes],
@@ -468,6 +484,7 @@ def _supervisor_main(
     *,
     use_gamemode: bool = False,
     gamemode_proxy: Path | None = None,
+    ci_mountpoint: Path | None = None,
 ) -> None:
     """Run detached; never returns, always terminates via os._exit."""
     # Detach standard streams so the supervisor never holds the terminal.
@@ -677,6 +694,7 @@ def _supervisor_main(
             with suppress(Exception):
                 _gamemode.unregister_host_game(child_pid)
         _terminate_proxy(proxy)
+        _teardown_ci_mount(ci_mountpoint)
         finished: dict[str, object] = {
             "pid": os.getpid(),
             "child_pid": child_pid,
@@ -732,6 +750,7 @@ def spawn_detached(
     session_descriptor: int,
     use_gamemode: bool = False,
     gamemode_proxy: Path | None = None,
+    ci_mountpoint: Path | None = None,
 ) -> LaunchedSession:
     """Double-fork a supervisor that parents the exact Bubblewrap command.
 
@@ -739,7 +758,9 @@ def spawn_detached(
     shell, only the ``pass_fds`` allowlist crosses), then returns once the
     supervisor confirms startup. The first child exits so the launcher can
     reap it; the orphaned grandchild (reparented to init) holds the session
-    flock for its lifetime and owns cleanup.
+    flock for its lifetime and owns cleanup. The optional ``ci_mountpoint``
+    hands a case-insensitive mount path to the supervisor for post-exit
+    teardown via ``force_unmount``; only the path crosses, never a descriptor.
     """
     if not command or command[0] != str(BWRAP):
         raise LaunchError("refusing to execute a runtime without Bubblewrap")
@@ -802,6 +823,7 @@ def spawn_detached(
             write_fd,
             use_gamemode=use_gamemode,
             gamemode_proxy=gamemode_proxy,
+            ci_mountpoint=ci_mountpoint,
         )
         os._exit(0)
     finally:

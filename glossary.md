@@ -78,6 +78,17 @@ Shared source of truth for both projects. The first section covers the backend (
 | relocation directory | directorio de reubicación | Directorio PE recuperado. |
 | exception record | registro de excepciones | En mensajes de restauración; «exception handling» → «control de excepciones». |
 | thread directory | directorio de hilos | En «thread directory cleared»; «thread» → «hilo». |
+| case-insensitive mount | montaje insensible a mayúsculas y minúsculas | Vista FUSE de solo lectura de `--ci-mount`; `libfuse3`, `/dev/fuse`, `--ci-mount` y `x86_64` quedan literales. |
+| mountpoint | punto de montaje | En «case-insensitive mountpoint» y «save mountpoint» → «punto de montaje de guardado». |
+| mount (verb) | montar | «mount» → «montar»; «unmount» → «desmontar». |
+| stale mount | montaje obsoleto | Restos de un montaje anterior; «clear» → «borrar». |
+| pin the game root | fijar la raíz del juego | Mantener el descriptor abierto; «game root» → «raíz del juego». |
+| mount session | sesión del montaje | Sesión FUSE; distinto de «launch session» → «sesión de inicio». |
+| mount loop | bucle del montaje | Bucle FUSE del montaje. |
+| case-insensitive view | vista insensible a mayúsculas y minúsculas | Vista FUSE del montaje. |
+| game tree | árbol del juego | En «save mountpoint under the game tree» y «game tree save entry». |
+| save entry | entrada de guardado | En «game tree save entry». |
+| supervisor path | ruta del supervisor | La única que puede desmontar tras la transferencia de propiedad. |
 
 ## Frontend (`box-gui`)
 

@@ -99,6 +99,26 @@ def test_app_paths_reject_a_symlinked_xdg_ancestor(tmp_path: Path) -> None:
         paths.ensure()
 
 
+def test_profile_ci_mount_path_ensured_and_managed(tmp_path: Path) -> None:
+    """The profile ci-mount tree is a validated direct ci-mount/ child."""
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    paths.ensure()
+    profile = paths.profiles_root / "0123456789abcdef"
+    entry = paths.ensure_managed_profile_ci_mount_path(profile / "ci-mount")
+    assert entry.parent == paths.profiles_root.resolve(strict=True) / "0123456789abcdef"
+    assert entry.name == "ci-mount"
+    with pytest.raises(ConfigurationError):
+        paths.ensure_managed_profile_ci_mount_path(profile / "game")
+    with pytest.raises(ConfigurationError):
+        paths.ensure_managed_profile_ci_mount_path(profile / "CI-MOUNT")
+    with pytest.raises(ConfigurationError):
+        paths.ensure_managed_profile_ci_mount_path(profile / "ci-mount" / "nested")
+    with pytest.raises(ConfigurationError):
+        paths.ensure_managed_profile_ci_mount_path(profile)
+    with pytest.raises(ConfigurationError):
+        paths.ensure_managed_profile_ci_mount_path(tmp_path / "0123456789abcdef" / "ci-mount")
+
+
 def test_app_paths_reject_existing_managed_directories_with_unsafe_permissions(
     tmp_path: Path,
 ) -> None:

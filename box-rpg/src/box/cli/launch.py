@@ -43,6 +43,7 @@ def execute(
     allow_game_writes: bool = False,
     x11: bool = False,
     gamemode: bool = False,
+    ci_mount: bool = False,
 ) -> int:
     """Launch detached, then block in the foreground until the game exits."""
     # Resolve input at call time (not via the default argument) so the
@@ -59,6 +60,7 @@ def execute(
         allow_game_writes=allow_game_writes,
         x11=x11,
         use_gamemode=gamemode,
+        ci_mount=ci_mount,
         interaction=interaction,
     )
     try:

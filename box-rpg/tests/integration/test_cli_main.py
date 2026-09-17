@@ -32,11 +32,13 @@ def test_main_launches_the_current_directory_without_arguments(
         allow_game_writes: bool = False,
         x11: bool = False,
         gamemode: bool = False,
+        ci_mount: bool = False,
     ) -> int:
         assert not allow_network
         assert not allow_game_writes
         assert not x11
         assert not gamemode
+        assert not ci_mount
         calls.append((game_path, version, sdk, copy_root_files))
         return 0
 
@@ -193,6 +195,7 @@ def test_network_permission_is_forwarded_for_one_launch(
         allow_game_writes: bool = False,
         x11: bool = False,
         gamemode: bool = False,
+        ci_mount: bool = False,
     ) -> int:
         permissions.append(allow_network)
         return 0
@@ -215,6 +218,7 @@ def test_game_writes_permission_is_forwarded_for_one_launch(
         allow_game_writes: bool = False,
         x11: bool = False,
         gamemode: bool = False,
+        ci_mount: bool = False,
     ) -> int:
         permissions.append(allow_game_writes)
         return 0
@@ -237,6 +241,7 @@ def test_x11_display_is_forwarded_for_one_launch(
         allow_game_writes: bool = False,
         x11: bool = False,
         gamemode: bool = False,
+        ci_mount: bool = False,
     ) -> int:
         permissions.append(x11)
         return 0

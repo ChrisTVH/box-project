@@ -265,6 +265,7 @@ def _patch_spawn(
         session_descriptor: int,
         use_gamemode: bool = False,
         gamemode_proxy: Path | None = None,
+        ci_mountpoint: Path | None = None,
     ) -> LaunchedSession:
         seen.append((list(command), tuple(pass_fds)))
         if capture is not None:
@@ -292,6 +293,7 @@ def _patch_spawn_forbidden(monkeypatch: pytest.MonkeyPatch, message: str) -> Non
         session_descriptor: int,
         use_gamemode: bool = False,
         gamemode_proxy: Path | None = None,
+        ci_mountpoint: Path | None = None,
     ) -> LaunchedSession:
         raise AssertionError(message)
 

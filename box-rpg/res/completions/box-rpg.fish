@@ -37,6 +37,7 @@ complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-network -d 
 complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l allow-game-writes -d 'Allow game directory writes for this launch only'
 complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l x11 -d 'Use the local X11 display for this launch only'
 complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l gamemode -d 'Run the game with GameMode for this launch only'
+complete -c box-rpg -n '__fish_seen_subcommand_from launch' -l ci-mount -d 'Use a case-insensitive mount for this launch only'
 complete -c box-rpg -n '__fish_seen_subcommand_from diagnose' -l runtime -d 'Use an NW.js version'
 complete -c box-rpg -n '__fish_seen_subcommand_from diagnose' -l sdk -d 'Use an NW.js SDK build'
 complete -c box-rpg -n '__fish_seen_subcommand_from cleanup inspect runtime launch config diagnose' -l help -d 'Show help'

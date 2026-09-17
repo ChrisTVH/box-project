@@ -42,6 +42,7 @@ def _patch_run_as_detached(
         session_descriptor: int,
         use_gamemode: bool = False,
         gamemode_proxy: Path | None = None,
+        ci_mountpoint: Path | None = None,
     ) -> LaunchedSession:
         code = run(command, None, pass_fds)
         codes.append(code)

@@ -394,6 +394,7 @@ def test_launch_with_gamemode_missing_fails_closed(
         session_descriptor: int,
         use_gamemode: bool = False,
         gamemode_proxy: Path | None = None,
+        ci_mountpoint: Path | None = None,
     ) -> object:
         raise AssertionError("missing GameMode must not run")
 
@@ -439,6 +440,7 @@ def test_launch_with_gamemode_prefixes_inside_sandbox_payload(
         session_descriptor: int,
         use_gamemode: bool = False,
         gamemode_proxy: Path | None = None,
+        ci_mountpoint: Path | None = None,
     ) -> object:
         commands.append(command)
         from box.launch.supervisor import LaunchedSession
@@ -498,6 +500,7 @@ def test_cli_execute_forwards_gamemode(tmp_path: Path, monkeypatch: pytest.Monke
         allow_game_writes: bool = False,
         x11: bool = False,
         use_gamemode: bool = False,
+        ci_mount: bool = False,
         interaction: object = None,
     ) -> object:
         seen["use_gamemode"] = use_gamemode

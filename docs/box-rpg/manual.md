@@ -107,6 +107,22 @@ box-rpg launch --copy-root-file game_messages.csv
 
 Repeat the option for more files. When `GAME_PATH` is omitted the current directory is used. Only direct regular files from the game root are accepted, up to 16 MiB each. Folders, links, and special files are rejected. The reserved names `game` and `package.json` are also rejected.
 
+Some NW.js exports reference asset files with the wrong letter case (for example `image.png` on disk as `Image.PNG`). Windows ignores the difference, but Linux does not, so those assets fail to load. Mount the game through a case-insensitive view for one launch with:
+
+```sh
+box-rpg launch /path/to/game --ci-mount
+```
+
+The view is read-only and only affects filename lookups; nothing in the game folder is changed. It needs `libfuse3` and `/dev/fuse` on the host, and it is NW.js only: EasyRPG Player already resolves filename case itself since 0.8, so combining it with a 2000/2003 project is rejected.
+
+If a `--ci-mount` launch fails while validating the game tree (for example `cannot validate sandbox tree at ./www/example/...: [Errno 2] ...`), capture what the mount layer actually saw:
+
+```sh
+BOX_CIMOUNT_DEBUG_LOG=/tmp/cimount.log box-rpg launch . --ci-mount
+```
+
+The log file is created with private permissions and records one line per lookup and directory listing (names, inode numbers, and directory timestamps only — never file contents). A line ending in `open_failed step=open errno=24` means the mount ran out of file descriptors (`EMFILE`); lines ending in `opened ino=<number>` are successful lookups. This exact procedure once diagnosed descriptor exhaustion behind `ENOENT` errors on files that existed: the log showed every lookup resolving correctly until the ~1021st distinct file, where opens started failing with `errno=24` against the shell's 1024 file-descriptor limit.
+
 Each NW.js game keeps a private profile at `$XDG_CACHE_HOME/box-rpg/profiles/<16-hex-game-id>/sandbox` (usually under `~/.cache`). It stores browser preferences, web storage, and cache. RPG Maker saves stay beside the game, usually in `<game>/www/save/` or `<game>/save/`.
 
 EasyRPG Player has no Wayland video driver, so it runs through XWayland. On Wayland this still asks for one-time X11 consent per launch. Without XWayland the game cannot open a window.

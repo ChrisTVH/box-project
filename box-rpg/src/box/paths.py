@@ -197,6 +197,22 @@ class AppPaths:
         self.ensure_managed_profile_path(managed.parent)
         return managed
 
+    def ensure_managed_profile_ci_mount_path(self, path: Path) -> Path:
+        """Validate the case-insensitive mount tree below one launcher-owned profile."""
+        managed = self._ensure_managed_child(self.profiles_root, path, _("ci-mount"))
+        try:
+            relative = managed.relative_to(self.profiles_root.resolve(strict=True))
+        except ValueError as exc:
+            raise ConfigurationError(
+                _("refusing to manage nested ci-mount path: {path}").format(path=path)
+            ) from exc
+        if len(relative.parts) != 2 or relative.parts[1] != "ci-mount":
+            raise ConfigurationError(
+                _("refusing to manage nested ci-mount path: {path}").format(path=path)
+            )
+        self.ensure_managed_profile_path(managed.parent)
+        return managed
+
     def ensure_managed_easyrpg_runtime_path(self, path: Path) -> Path:
         """Validate an EasyRPG runtime path is owned by the launcher cache."""
         return self._ensure_managed_child(self.easyrpg_runtimes_root, path, _("EasyRPG runtime"))

@@ -208,6 +208,11 @@ def build_parser() -> argparse.ArgumentParser:
         help=_("run the game with GameMode for this launch only"),
     )
     launch.add_argument(
+        "--ci-mount",
+        action="store_true",
+        help=_("use a case-insensitive mount for this launch only"),
+    )
+    launch.add_argument(
         "--copy-root-file",
         action="append",
         default=[],

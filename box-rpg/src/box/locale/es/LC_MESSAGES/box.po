@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-16 17:52-0400\n"
+"POT-Creation-Date: 2026-09-16 22:15-0400\n"
 "PO-Revision-Date: 2026-09-08 00:00+0000\n"
 "Last-Translator: Christopher Herasme <5632734-"
 "christvh@users.noreply.gitlab.com>\n"
@@ -524,11 +524,11 @@ msgstr ""
 "error: no se encontró aquí ningún juego de RPG Maker compatible; ejecuta box-"
 "rpg desde el directorio del juego."
 
-#: box-rpg/src/box/cli/main.py:59
+#: box-rpg/src/box/cli/main.py:60
 msgid "error"
 msgstr "error"
 
-#: box-rpg/src/box/cli/main.py:128
+#: box-rpg/src/box/cli/main.py:130
 #, python-brace-format
 msgid "unsupported command: {command}"
 msgstr "comando no compatible: {command}"
@@ -653,7 +653,7 @@ msgid "override the detected NW.js architecture"
 msgstr "anula la arquitectura de NW.js detectada"
 
 #: box-rpg/src/box/cli/parser.py:129 box-rpg/src/box/cli/parser.py:139
-#: box-rpg/src/box/cli/parser.py:189 box-rpg/src/box/cli/parser.py:259
+#: box-rpg/src/box/cli/parser.py:189 box-rpg/src/box/cli/parser.py:264
 msgid "use the NW.js SDK build"
 msgstr "usa la compilación SDK de NW.js"
 
@@ -701,7 +701,7 @@ msgstr "inicia un juego permitido en una sesión aislada"
 msgid "game directory to launch (default: current directory)"
 msgstr "directorio del juego para iniciar (predeterminado: directorio actual)"
 
-#: box-rpg/src/box/cli/parser.py:187 box-rpg/src/box/cli/parser.py:257
+#: box-rpg/src/box/cli/parser.py:187 box-rpg/src/box/cli/parser.py:262
 msgid "runtime version to use (NW.js or EasyRPG Player, autodetected)"
 msgstr ""
 "versión del entorno de ejecución para usar (NW.js o EasyRPG Player, "
@@ -727,39 +727,43 @@ msgstr ""
 msgid "run the game with GameMode for this launch only"
 msgstr "ejecuta el juego con GameMode solo para este inicio"
 
-#: box-rpg/src/box/cli/parser.py:215
+#: box-rpg/src/box/cli/parser.py:213
+msgid "use a case-insensitive mount for this launch only"
+msgstr "usa un montaje insensible a mayúsculas y minúsculas solo para este inicio"
+
+#: box-rpg/src/box/cli/parser.py:220
 msgid "copy a direct game-root file into the isolated NW.js session"
 msgstr ""
 "copia un archivo ubicado directamente en la raíz del juego en la sesión "
 "aislada de NW.js"
 
-#: box-rpg/src/box/cli/parser.py:221
+#: box-rpg/src/box/cli/parser.py:226
 msgid "show or update launcher configuration"
 msgstr "muestra o actualiza la configuración del iniciador"
 
-#: box-rpg/src/box/cli/parser.py:227
+#: box-rpg/src/box/cli/parser.py:232
 msgid "show current configuration"
 msgstr "muestra la configuración actual"
 
-#: box-rpg/src/box/cli/parser.py:232
+#: box-rpg/src/box/cli/parser.py:237
 msgid "set an allowed game root or preferred runtime"
 msgstr ""
 "establece una raíz de juego permitida o un entorno de ejecución preferido"
 
-#: box-rpg/src/box/cli/parser.py:237
+#: box-rpg/src/box/cli/parser.py:242
 msgid "configuration key: allowed-game-root or preferred-runtime"
 msgstr "clave de configuración: allowed-game-root o preferred-runtime"
 
-#: box-rpg/src/box/cli/parser.py:242
+#: box-rpg/src/box/cli/parser.py:247
 msgid "directory for allowed-game-root, version or none for preferred-runtime"
 msgstr ""
 "directorio para allowed-game-root, versión o none para preferred-runtime"
 
-#: box-rpg/src/box/cli/parser.py:248
+#: box-rpg/src/box/cli/parser.py:253
 msgid "print a local diagnostic report"
 msgstr "imprime un informe de diagnóstico local"
 
-#: box-rpg/src/box/cli/parser.py:251
+#: box-rpg/src/box/cli/parser.py:256
 msgid "game directory to diagnose"
 msgstr "directorio del juego para diagnosticar"
 
@@ -810,7 +814,7 @@ msgid "Install with: {command}"
 msgstr "Instala con: {command}"
 
 #: box-rpg/src/box/cli/runtime.py:163 box-rpg/src/box/api/cleanup.py:133
-#: box-rpg/src/box/api/launch.py:334
+#: box-rpg/src/box/api/launch.py:436
 msgid "standard"
 msgstr "estándar"
 
@@ -1186,32 +1190,33 @@ msgstr "la página de versiones de EasyRPG Player debe ser al menos 1"
 msgid "cannot stage EasyRPG Player archive {archive}: {error}"
 msgstr "no se puede preparar el archivo de EasyRPG Player {archive}: {error}"
 
-#: box-rpg/src/box/runtime/evb.py:147 box-rpg/src/box/runtime/evb.py:223
-#: box-rpg/src/box/runtime/evb.py:391
+#: box-rpg/src/box/runtime/evb.py:150 box-rpg/src/box/runtime/evb.py:279
+#: box-rpg/src/box/runtime/evb.py:524
 #, python-brace-format
 msgid "cannot unpack game executable {path}: {error}"
 msgstr "no se puede desempaquetar el ejecutable del juego {path}: {error}"
 
-#: box-rpg/src/box/runtime/evb.py:403 box-rpg/src/box/runtime/evb.py:432
+#: box-rpg/src/box/runtime/evb.py:536 box-rpg/src/box/runtime/evb.py:565
 #: box-rpg/src/box/runtime/evb_unpack.py:247
 #: box-rpg/src/box/runtime/evb_unpack.py:264
 #, python-brace-format
 msgid "cannot read packed executable {path}: {error}"
 msgstr "no se puede leer el ejecutable empaquetado {path}: {error}"
 
-#: box-rpg/src/box/runtime/evb.py:411 box-rpg/src/box/runtime/evb_unpack.py:253
+#: box-rpg/src/box/runtime/evb.py:544 box-rpg/src/box/runtime/evb_unpack.py:253
 #, python-brace-format
 msgid "packed source is not a regular file: {path}"
 msgstr "el origen empaquetado no es un archivo regular: {path}"
 
-#: box-rpg/src/box/runtime/evb.py:415 box-rpg/src/box/runtime/evb_unpack.py:257
+#: box-rpg/src/box/runtime/evb.py:548 box-rpg/src/box/runtime/evb_unpack.py:257
 #: box-rpg/src/box/runtime/evb_unpack.py:270
 #, python-brace-format
 msgid "packed executable exceeds source size budget: {path}"
 msgstr ""
 "el ejecutable empaquetado supera el presupuesto de tamaño del origen: {path}"
 
-#: box-rpg/src/box/runtime/evb.py:446 box-rpg/src/box/runtime/evb.py:450
+#: box-rpg/src/box/runtime/evb.py:579 box-rpg/src/box/runtime/evb.py:583
+#: box-rpg/src/box/runtime/evb.py:597
 #, python-brace-format
 msgid "packed source changed during unpacking: {path}"
 msgstr "el origen empaquetado cambió durante el desempaquetado: {path}"
@@ -1595,39 +1600,40 @@ msgid "cannot register game with GameMode; retry without --gamemode"
 msgstr "no se puede registrar el juego con GameMode; reintenta sin --gamemode"
 
 #: box-rpg/src/box/launch/links.py:26 box-rpg/src/box/launch/links.py:61
+#: box-rpg/src/box/launch/links.py:97
 #, python-brace-format
 msgid "game root is missing or unsafe: {root}"
 msgstr "la raíz del juego no existe o no es segura: {root}"
 
-#: box-rpg/src/box/launch/links.py:73
+#: box-rpg/src/box/launch/links.py:109
 msgid "cannot resolve the open game directory"
 msgstr "no se puede resolver el directorio abierto del juego"
 
-#: box-rpg/src/box/launch/links.py:75
+#: box-rpg/src/box/launch/links.py:111
 msgid "game root disappeared before launch"
 msgstr "la raíz del juego desapareció antes del inicio"
 
-#: box-rpg/src/box/launch/links.py:90
+#: box-rpg/src/box/launch/links.py:126
 #, python-brace-format
 msgid "cannot link game into session: {error}"
 msgstr "no se puede enlazar el juego a la sesión: {error}"
 
-#: box-rpg/src/box/launch/links.py:104
+#: box-rpg/src/box/launch/links.py:140
 msgid "invalid game-root filename: {filename!r}"
 msgstr "nombre de archivo de raíz de juego no válido: {filename!r}"
 
-#: box-rpg/src/box/launch/links.py:119 box-rpg/src/box/launch/links.py:125
+#: box-rpg/src/box/launch/links.py:155 box-rpg/src/box/launch/links.py:161
 #, python-brace-format
 msgid "game-root file is missing or unsafe: {filename}"
 msgstr "el archivo de la raíz del juego no existe o no es seguro: {filename}"
 
-#: box-rpg/src/box/launch/links.py:129 box-rpg/src/box/launch/links.py:151
+#: box-rpg/src/box/launch/links.py:165 box-rpg/src/box/launch/links.py:187
 #, python-brace-format
 msgid "game-root file exceeds byte limit: {filename}"
 msgstr "el archivo de la raíz del juego supera el límite de bytes: {filename}"
 
-#: box-rpg/src/box/launch/links.py:140 box-rpg/src/box/launch/links.py:161
-#: box-rpg/src/box/launch/links.py:169
+#: box-rpg/src/box/launch/links.py:176 box-rpg/src/box/launch/links.py:197
+#: box-rpg/src/box/launch/links.py:205
 #, python-brace-format
 msgid "cannot copy game-root file into session: {error}"
 msgstr ""
@@ -1665,16 +1671,16 @@ msgid "game manifest is not a JSON object: {manifest}"
 msgstr "el manifiesto del juego no es un objeto JSON: {manifest}"
 
 #: box-rpg/src/box/launch/process.py:33
-#: box-rpg/src/box/launch/supervisor.py:579
-#: box-rpg/src/box/launch/supervisor.py:604
-#: box-rpg/src/box/launch/supervisor.py:751
-#: box-rpg/src/box/launch/supervisor.py:757
+#: box-rpg/src/box/launch/supervisor.py:596
+#: box-rpg/src/box/launch/supervisor.py:621
+#: box-rpg/src/box/launch/supervisor.py:772
+#: box-rpg/src/box/launch/supervisor.py:778
 #, python-brace-format
 msgid "cannot start game runtime: {error}"
 msgstr "no se puede iniciar el entorno de ejecución del juego: {error}"
 
 #: box-rpg/src/box/launch/profiles.py:33 box-rpg/src/box/launch/session.py:219
-#: box-rpg/src/box/api/launch.py:453
+#: box-rpg/src/box/api/launch.py:805
 #, python-brace-format
 msgid "cannot identify game root {root}: {error}"
 msgstr "no se puede identificar la raíz del juego {root}: {error}"
@@ -1684,7 +1690,7 @@ msgstr "no se puede identificar la raíz del juego {root}: {error}"
 msgid "game profile directory is missing or unsafe: {path}"
 msgstr "el directorio del perfil del juego no existe o no es seguro: {path}"
 
-#: box-rpg/src/box/launch/profiles.py:67
+#: box-rpg/src/box/launch/profiles.py:67 box-rpg/src/box/launch/cimount.py:401
 #, python-brace-format
 msgid "invalid game profile identifier: {identifier}"
 msgstr "identificador del perfil del juego no válido: {identifier}"
@@ -1705,8 +1711,8 @@ msgid "cannot securely open managed profiles: {error}"
 msgstr "no se pueden abrir de forma segura los perfiles gestionados: {error}"
 
 #: box-rpg/src/box/launch/session.py:163
-#: box-rpg/src/box/launch/supervisor.py:309
-#: box-rpg/src/box/launch/supervisor.py:321
+#: box-rpg/src/box/launch/supervisor.py:310
+#: box-rpg/src/box/launch/supervisor.py:322
 #, python-brace-format
 msgid "cannot create launch session: {error}"
 msgstr "no se puede crear la sesión de inicio: {error}"
@@ -1721,50 +1727,171 @@ msgid "launch session directory has unsafe ownership or permissions"
 msgstr ""
 "el directorio de sesión de inicio tiene propiedad o permisos no seguros"
 
-#: box-rpg/src/box/launch/supervisor.py:64
-#: box-rpg/src/box/launch/supervisor.py:66
-#: box-rpg/src/box/launch/supervisor.py:84
-#: box-rpg/src/box/launch/supervisor.py:86
+#: box-rpg/src/box/launch/supervisor.py:65
+#: box-rpg/src/box/launch/supervisor.py:67
+#: box-rpg/src/box/launch/supervisor.py:85
+#: box-rpg/src/box/launch/supervisor.py:87
 msgid "refusing to manage invalid session path"
 msgstr "se rechaza gestionar una ruta de sesión no válida"
 
-#: box-rpg/src/box/launch/supervisor.py:116
-#: box-rpg/src/box/launch/supervisor.py:123
+#: box-rpg/src/box/launch/supervisor.py:117
+#: box-rpg/src/box/launch/supervisor.py:124
 #, python-brace-format
 msgid "cannot check launch session: {error}"
 msgstr "no se puede comprobar la sesión de inicio: {error}"
 
-#: box-rpg/src/box/launch/supervisor.py:197
-#: box-rpg/src/box/launch/supervisor.py:200
+#: box-rpg/src/box/launch/supervisor.py:198
+#: box-rpg/src/box/launch/supervisor.py:201
 msgid "cannot stop launch session without supervisor status"
 msgstr "no se puede detener la sesión de inicio sin el estado del supervisor"
 
-#: box-rpg/src/box/launch/supervisor.py:213
-#: box-rpg/src/box/launch/supervisor.py:215
+#: box-rpg/src/box/launch/supervisor.py:214
+#: box-rpg/src/box/launch/supervisor.py:216
 #, python-brace-format
 msgid "cannot stop launch session: {error}"
 msgstr "no se puede detener la sesión de inicio: {error}"
 
-#: box-rpg/src/box/launch/supervisor.py:287
-#: box-rpg/src/box/launch/supervisor.py:522
+#: box-rpg/src/box/launch/supervisor.py:288
+#: box-rpg/src/box/launch/supervisor.py:539
 msgid "game already running"
 msgstr "el juego ya está en ejecución"
 
-#: box-rpg/src/box/launch/supervisor.py:326
+#: box-rpg/src/box/launch/supervisor.py:327
 msgid "launch session directory has unsafe ownership"
 msgstr "el directorio de sesión de inicio tiene propiedad no segura"
 
-#: box-rpg/src/box/launch/supervisor.py:341
+#: box-rpg/src/box/launch/supervisor.py:342
 msgid "cannot create launch session: name collision"
 msgstr "no se puede crear la sesión de inicio: colisión de nombres"
 
-#: box-rpg/src/box/launch/supervisor.py:350
+#: box-rpg/src/box/launch/supervisor.py:351
 msgid "cannot record launch status"
 msgstr "no se puede registrar el estado de inicio"
 
-#: box-rpg/src/box/launch/supervisor.py:775
+#: box-rpg/src/box/launch/supervisor.py:796
 msgid "cannot start game runtime"
 msgstr "no se puede iniciar el entorno de ejecución del juego"
+
+#: box-rpg/src/box/launch/cimount.py:259
+msgid ""
+"case-insensitive mount requires libfuse3; install libfuse3 and retry without "
+"--ci-mount"
+msgstr ""
+"el montaje insensible a mayúsculas y minúsculas requiere libfuse3; instala "
+"libfuse3 y reintenta sin --ci-mount"
+
+#: box-rpg/src/box/launch/cimount.py:350 box-rpg/src/box/launch/cimount.py:359
+#, python-brace-format
+msgid "cannot unmount the case-insensitive mount at {path}: {error}"
+msgstr ""
+"no se puede desmontar el montaje insensible a mayúsculas y minúsculas en "
+"{path}: {error}"
+
+#: box-rpg/src/box/launch/cimount.py:432 box-rpg/src/box/launch/cimount.py:450
+#: box-rpg/src/box/launch/cimount.py:463
+#, python-brace-format
+msgid "cannot clear the stale case-insensitive mount at {path}: {error}"
+msgstr ""
+"no se puede borrar el montaje obsoleto insensible a mayúsculas y minúsculas "
+"en {path}: {error}"
+
+#: box-rpg/src/box/launch/cimount.py:456 box-rpg/src/box/launch/cimount.py:469
+#, python-brace-format
+msgid "cannot clear the stale case-insensitive mount at {path}"
+msgstr ""
+"no se puede borrar el montaje obsoleto insensible a mayúsculas y minúsculas "
+"en {path}"
+
+#: box-rpg/src/box/launch/cimount.py:1117
+#, python-brace-format
+msgid ""
+"case-insensitive mount ownership was handed over; only the supervisor path "
+"may unmount {path}"
+msgstr ""
+"la propiedad del montaje insensible a mayúsculas y minúsculas fue "
+"transferida; solo la ruta del supervisor puede desmontar {path}"
+
+#: box-rpg/src/box/launch/cimount.py:1209
+msgid "case-insensitive mount requires /dev/fuse; retry without --ci-mount"
+msgstr ""
+"el montaje insensible a mayúsculas y minúsculas requiere /dev/fuse; "
+"reintenta sin --ci-mount"
+
+#: box-rpg/src/box/launch/cimount.py:1214
+#, python-brace-format
+msgid "case-insensitive mountpoint is missing or unsafe: {path}"
+msgstr ""
+"el punto de montaje insensible a mayúsculas y minúsculas no existe o no es "
+"seguro: {path}"
+
+#: box-rpg/src/box/launch/cimount.py:1218
+#, python-brace-format
+msgid "case-insensitive mountpoint is not a directory: {path}"
+msgstr ""
+"el punto de montaje insensible a mayúsculas y minúsculas no es un "
+"directorio: {path}"
+
+#: box-rpg/src/box/launch/cimount.py:1222
+#, python-brace-format
+msgid ""
+"case-insensitive mount already active at {path}; stop it before retrying"
+msgstr ""
+"el montaje insensible a mayúsculas y minúsculas ya está activo en {path}; "
+"detenlo antes de reintentar"
+
+#: box-rpg/src/box/launch/cimount.py:1230
+#: box-rpg/src/box/launch/cimount.py:1237
+#, python-brace-format
+msgid "cannot pin the game root for the case-insensitive mount: {error}"
+msgstr ""
+"no se puede fijar la raíz del juego para el montaje insensible a mayúsculas "
+"y minúsculas: {error}"
+
+#: box-rpg/src/box/launch/cimount.py:1242
+msgid "cannot mount a game root that is not a directory"
+msgstr "no se puede montar una raíz del juego que no es un directorio"
+
+#: box-rpg/src/box/launch/cimount.py:1245
+msgid ""
+"case-insensitive mount requires an x86_64 host; retry without --ci-mount"
+msgstr ""
+"el montaje insensible a mayúsculas y minúsculas requiere un servidor x86_64; "
+"reintenta sin --ci-mount"
+
+#: box-rpg/src/box/launch/cimount.py:1251
+#, python-brace-format
+msgid "cannot load libfuse3 for the case-insensitive mount: {error}"
+msgstr ""
+"no se puede cargar libfuse3 para el montaje insensible a mayúsculas y "
+"minúsculas: {error}"
+
+#: box-rpg/src/box/launch/cimount.py:1268
+#, python-brace-format
+msgid "cannot create the case-insensitive mount session for {path}"
+msgstr ""
+"no se puede crear la sesión del montaje insensible a mayúsculas y "
+"minúsculas para {path}"
+
+#: box-rpg/src/box/launch/cimount.py:1276
+#, python-brace-format
+msgid "cannot mount the case-insensitive view at {path}"
+msgstr ""
+"no se puede montar la vista insensible a mayúsculas y minúsculas en {path}"
+
+#: box-rpg/src/box/launch/cimount.py:1297
+#, python-brace-format
+msgid "cannot start the case-insensitive mount loop: {error}"
+msgstr ""
+"no se puede iniciar el bucle del montaje insensible a mayúsculas y "
+"minúsculas: {error}"
+
+#: box-rpg/src/box/launch/cimount.py:1354
+#, python-brace-format
+msgid ""
+"case-insensitive mount did not come up at {path}; retry without --ci-mount"
+msgstr ""
+"el montaje insensible a mayúsculas y minúsculas no se inició en {path}; "
+"reintenta sin --ci-mount"
 
 #: box-rpg/src/box/utils/i18n.py:55
 #, python-format
@@ -1901,8 +2028,8 @@ msgstr "{sdk} solo está disponible para juegos de NW.js"
 msgid "Add {path} to allowed game roots? [y/N] "
 msgstr "¿Agregar {path} a los juegos permitidos? [y/N] "
 
-#: box-rpg/src/box/api/interaction.py:79 box-rpg/src/box/api/launch.py:420
-#: box-rpg/src/box/api/launch.py:422
+#: box-rpg/src/box/api/interaction.py:79 box-rpg/src/box/api/launch.py:550
+#: box-rpg/src/box/api/launch.py:552
 msgid "game root was not authorized"
 msgstr "la raíz del juego no fue autorizada"
 
@@ -1919,16 +2046,16 @@ msgstr ""
 msgid "Continue with X11? [y/N] "
 msgstr "¿Continuar con X11? [y/N] "
 
-#: box-rpg/src/box/api/interaction.py:92 box-rpg/src/box/api/launch.py:83
-#: box-rpg/src/box/api/launch.py:85
+#: box-rpg/src/box/api/interaction.py:92 box-rpg/src/box/api/launch.py:87
+#: box-rpg/src/box/api/launch.py:89
 msgid "X11 launch was not confirmed"
 msgstr "el inicio con X11 no fue confirmado"
 
 #: box-rpg/src/box/api/interaction.py:98 box-rpg/src/box/api/interaction.py:104
-#: box-rpg/src/box/api/interaction.py:113 box-rpg/src/box/api/launch.py:311
-#: box-rpg/src/box/api/launch.py:313 box-rpg/src/box/api/launch.py:315
-#: box-rpg/src/box/api/launch.py:341 box-rpg/src/box/api/launch.py:343
-#: box-rpg/src/box/api/launch.py:345
+#: box-rpg/src/box/api/interaction.py:113 box-rpg/src/box/api/launch.py:413
+#: box-rpg/src/box/api/launch.py:415 box-rpg/src/box/api/launch.py:417
+#: box-rpg/src/box/api/launch.py:443 box-rpg/src/box/api/launch.py:445
+#: box-rpg/src/box/api/launch.py:447
 msgid "runtime selection was cancelled"
 msgstr "se canceló la selección del entorno de ejecución"
 
@@ -1946,25 +2073,53 @@ msgstr ""
 "Selecciona un entorno de ejecución de NW.js 1-{count} (predeterminado 1) o "
 "[q] salir: "
 
-#: box-rpg/src/box/api/launch.py:75
+#: box-rpg/src/box/api/launch.py:79
 msgid "explicit consent is required for X11; run interactively to continue"
 msgstr ""
 "se requiere consentimiento explícito para X11; ejecuta de forma interactiva "
 "para continuar"
 
-#: box-rpg/src/box/api/launch.py:157
+#: box-rpg/src/box/api/launch.py:162
 #, python-brace-format
 msgid "{sdk} and {copy_root_file} are only available for NW.js games"
 msgstr "{sdk} y {copy_root_file} solo están disponibles para juegos de NW.js"
 
-#: box-rpg/src/box/api/launch.py:307
+#: box-rpg/src/box/api/launch.py:169
+#, python-brace-format
+msgid ""
+"{ci_mount} is only available for NW.js games; EasyRPG Player resolves "
+"filename case itself since 0.8"
+msgstr ""
+"{ci_mount} solo está disponible para juegos de NW.js; EasyRPG Player "
+"resuelve por sí mismo las mayúsculas y minúsculas de los nombres de archivo "
+"desde la versión 0.8"
+
+#: box-rpg/src/box/api/launch.py:300
+#, python-brace-format
+msgid "cannot open the case-insensitive mount at {path}: {error}"
+msgstr ""
+"no se puede abrir el montaje insensible a mayúsculas y minúsculas en "
+"{path}: {error}"
+
+#: box-rpg/src/box/api/launch.py:409
 msgid "Installed EasyRPG Player runtimes (x64):"
 msgstr "Entornos de ejecución de EasyRPG Player instalados (x64):"
 
-#: box-rpg/src/box/api/launch.py:335
+#: box-rpg/src/box/api/launch.py:437
 #, python-brace-format
 msgid "Installed NW.js runtimes ({architecture}, {flavor}):"
 msgstr "Entornos de ejecución de NW.js instalados ({architecture}, {flavor}):"
+
+#: box-rpg/src/box/api/launch.py:595
+#, python-brace-format
+msgid "cannot prepare the save mountpoint under the game tree: {error}"
+msgstr ""
+"no se puede preparar el punto de montaje de guardado en el árbol del juego: "
+"{error}"
+
+#: box-rpg/src/box/api/launch.py:598
+msgid "the game tree save entry is not a directory"
+msgstr "la entrada de guardado del árbol del juego no es un directorio"
 
 #: box-rpg/src/box/paths.py:31
 #, python-brace-format
@@ -2025,69 +2180,80 @@ msgid "refusing to manage nested unpacked game path: {path}"
 msgstr "se rechaza gestionar una ruta anidada de juego desempaquetado: {path}"
 
 #: box-rpg/src/box/paths.py:202
+msgid "ci-mount"
+msgstr "montaje insensible a mayúsculas y minúsculas"
+
+#: box-rpg/src/box/paths.py:207 box-rpg/src/box/paths.py:211
+#, python-brace-format
+msgid "refusing to manage nested ci-mount path: {path}"
+msgstr ""
+"se rechaza gestionar una ruta anidada de montaje insensible a mayúsculas y "
+"minúsculas: {path}"
+
+#: box-rpg/src/box/paths.py:218
 msgid "EasyRPG runtime"
 msgstr "entorno de ejecución de EasyRPG"
 
-#: box-rpg/src/box/paths.py:213 box-rpg/src/box/paths.py:250
+#: box-rpg/src/box/paths.py:229 box-rpg/src/box/paths.py:266
 #, python-brace-format
 msgid "refusing to manage {label} outside cache: {path}"
 msgstr "se rechaza gestionar {label} fuera de la caché: {path}"
 
-#: box-rpg/src/box/paths.py:217
+#: box-rpg/src/box/paths.py:233
 #, python-brace-format
 msgid "refusing to manage cache root as a {label}: {path}"
 msgstr "se rechaza gestionar la raíz de la caché como {label}: {path}"
 
-#: box-rpg/src/box/paths.py:224 box-rpg/src/box/paths.py:325
-#: box-rpg/src/box/paths.py:350
+#: box-rpg/src/box/paths.py:240 box-rpg/src/box/paths.py:341
+#: box-rpg/src/box/paths.py:366
 #, python-brace-format
 msgid "managed directory must not be a symlink: {path}"
 msgstr "el directorio gestionado no debe ser un enlace simbólico: {path}"
 
-#: box-rpg/src/box/paths.py:234
+#: box-rpg/src/box/paths.py:250
 #, python-brace-format
 msgid "managed {label} path contains a symlink: {path}"
 msgstr "la ruta de {label} gestionada contiene un enlace simbólico: {path}"
 
-#: box-rpg/src/box/paths.py:243
+#: box-rpg/src/box/paths.py:259
 #, python-brace-format
 msgid "managed {label} directory has unsafe ownership or permissions: {path}"
 msgstr ""
 "el directorio de {label} gestionado tiene propiedad o permisos no seguros: "
 "{path}"
 
-#: box-rpg/src/box/paths.py:254
+#: box-rpg/src/box/paths.py:270
 #, python-brace-format
 msgid "managed {label} path contains upper-case components: {path}"
 msgstr ""
 "la ruta de {label} gestionada contiene componentes en mayúsculas: {path}"
 
-#: box-rpg/src/box/paths.py:283
+#: box-rpg/src/box/paths.py:299
 #, python-brace-format
 msgid "managed directory is unsafe: {name}"
 msgstr "el directorio gestionado no es seguro: {name}"
 
-#: box-rpg/src/box/paths.py:293
+#: box-rpg/src/box/paths.py:309
 #, python-brace-format
 msgid "cannot safely open managed directory: {name}"
 msgstr "no se puede abrir de forma segura el directorio gestionado: {name}"
 
-#: box-rpg/src/box/paths.py:299 box-rpg/src/box/paths.py:305
+#: box-rpg/src/box/paths.py:315 box-rpg/src/box/paths.py:321
 #, python-brace-format
 msgid "managed directory has unsafe ownership or permissions: {name}"
 msgstr "el directorio gestionado tiene propiedad o permisos no seguros: {name}"
 
-#: box-rpg/src/box/paths.py:341
+#: box-rpg/src/box/paths.py:357
 #, python-brace-format
 msgid "managed directory is not owned by the current user: {path}"
 msgstr "el directorio gestionado no pertenece al usuario actual: {path}"
 
-#: box-rpg/src/box/paths.py:345
+#: box-rpg/src/box/paths.py:361
 #, python-brace-format
 msgid "managed directory has unsafe permissions: {path}"
 msgstr "el directorio gestionado tiene permisos no seguros: {path}"
 
-#: box-rpg/src/box/paths.py:353
+#: box-rpg/src/box/paths.py:369
 #, python-brace-format
 msgid "cannot safely create managed directory {path}: {error}"
 msgstr ""

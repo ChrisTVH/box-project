@@ -16,6 +16,7 @@ from box.errors import GameValidationError, LaunchError
 from box.games.detector import detect_game, ensure_allowed_root, resolve_game_root
 from box.games.files import MAX_GAME_FILE_BYTES, open_game_directory, validate_game_descriptor
 from box.games.identity import game_id
+from box.launch import cimount as _cimount
 from box.launch import gamemode as _gamemode
 from box.launch.cleanup import remove_session
 from box.launch.command import build_command
@@ -43,6 +44,7 @@ from box.runtime.catalog import RuntimeCatalog
 from box.runtime.easyrpg import EasyRPGCatalog, EasyRPGRuntime
 from box.runtime.easyrpg import executable as easyrpg_executable
 from box.runtime.platform import current_architecture
+from box.runtime.security import cache_lock
 from box.runtime.selector import matching_runtimes, select_runtime
 from box.utils.i18n import _
 from box.utils.terminal import safe_terminal_text
@@ -128,6 +130,7 @@ def launch(
     allow_game_writes: bool = False,
     x11: bool = False,
     use_gamemode: bool = False,
+    ci_mount: bool = False,
     interaction: Interaction | None = None,
 ) -> LaunchedSession:
     """Launch an allowed game through a detached supervisor without terminal I/O.
@@ -159,6 +162,13 @@ def launch(
                     _("{sdk} and {copy_root_file} are only available for NW.js games").format(
                         sdk="--sdk", copy_root_file="--copy-root-file"
                     )
+                )
+            if ci_mount:
+                raise GameValidationError(
+                    _(
+                        "{ci_mount} is only available for NW.js games; "
+                        "EasyRPG Player resolves filename case itself since 0.8"
+                    ).format(ci_mount="--ci-mount")
                 )
             runtime = _select_easyrpg_runtime(EasyRPGCatalog(paths), version, interaction)
             _authorize_launch_game(game, consent_source, config, repository, interaction)
@@ -264,51 +274,126 @@ def launch(
         _authorize_launch_game(game, consent_source, config, repository, interaction)
         validate_game_descriptor(game, game_descriptor)
         check_no_live_session(paths, _launch_identifier(game, consent_source))
-        with create_session(
-            paths, game, copy_root_files, game_descriptor=game_descriptor, game_root=consent_source
-        ) as session:
-            validate_game_descriptor(game, game_descriptor)
-            with Sandbox(
-                allow_network=allow_network, allow_game_writes=allow_game_writes
-            ) as sandbox:
-                executable = sandbox.runtime(runtime_nw.executable)
-                display = _setup_desktop(sandbox, interaction, force_x11=x11)
-                sandbox.devices()
-                sandbox.audio()
-                if use_gamemode:
-                    sandbox.gamemode(session.root / _gamemode.GAMEMODE_PROXY_SOCKET_NAME)
-                sandbox.persistence(paths, game, consent_source)
-                saves = sandbox.game_saves(game, game_descriptor)
-                sandbox.nw_game(game, game_descriptor, saves)
-                sandbox.bind(sandbox.keep(os.dup(session.session_descriptor)), "/session")
-                sandbox.bind(saves, "/session/save", writable=True)
-                command = build_command(runtime_nw, Path("/session"), Path("/profile"), display)
-                command[0] = executable
-                if use_gamemode:
-                    command = [str(_gamemode.GAMEMODERUN), *command]
+        ci_session = None
+        ci_mountpoint: Path | None = None
+        mounted_fd = -1
+        if ci_mount:
+            # Fail fast before any profile mutation; missing lib never falls back.
+            _cimount.require_libfuse3()
+            mount_identifier = _launch_identifier(game, consent_source)
+            profile_fd = paths.open_or_create_private_cache_directory("profiles", mount_identifier)
+            try:
+                with cache_lock(profile_fd, _cimount.CI_MOUNT_DIRNAME):
+                    mountpoint = _cimount.ensure_profile_ci_mount_path(paths, mount_identifier)
+                    _cimount.drop_stale_ci_mount(mountpoint)
+                    ci_session = _cimount.mount_ci_mount(game_descriptor, mountpoint)
+                    try:
+                        mounted_fd = os.open(
+                            mountpoint, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+                        )
+                    except OSError as exc:
+                        failed = ci_session
+                        ci_session = None
+                        with suppress(Exception):
+                            failed.unmount()
+                        raise LaunchError(
+                            _("cannot open the case-insensitive mount at {path}: {error}").format(
+                                path=mountpoint, error=exc
+                            )
+                        ) from exc
+                    ci_mountpoint = mountpoint
+            finally:
+                with suppress(OSError):
+                    os.close(profile_fd)
+        # The mounted descriptor serves the read-only game view (session
+        # manifest/copies and the sandbox game tree) while GameInfo roots stay
+        # on the source tree. Saves and identity checks keep the raw backing
+        # descriptor: saves must stay writable and the mount itself is read-only.
+        game_view_fd = mounted_fd if ci_session is not None else game_descriptor
+        spawned = False
+        try:
+            with create_session(
+                paths,
+                game,
+                copy_root_files,
+                game_descriptor=game_view_fd,
+                game_root=consent_source,
+            ) as session:
                 validate_game_descriptor(game, game_descriptor)
-                # Start inside the game view so relative asset paths (such as
-                # ./www/...) resolve exactly like a stock export launched from
-                # its own root; /session remains the app directory for NW.js.
-                full = sandbox.command(command, cwd="/session/game")
-                pass_fds = sandbox.pass_fds
-                handle = spawn_detached(
-                    paths,
-                    session.identifier,
-                    session.name,
-                    full,
-                    pass_fds,
-                    parent_descriptor=session.parent_descriptor,
-                    session_descriptor=session.session_descriptor,
-                    use_gamemode=use_gamemode,
-                    gamemode_proxy=(
-                        session.root / _gamemode.GAMEMODE_PROXY_SOCKET_NAME
-                        if use_gamemode
-                        else None
-                    ),
-                )
-                session.detach()
-                return handle
+                with Sandbox(
+                    allow_network=allow_network, allow_game_writes=allow_game_writes
+                ) as sandbox:
+                    executable = sandbox.runtime(runtime_nw.executable)
+                    display = _setup_desktop(sandbox, interaction, force_x11=x11)
+                    sandbox.devices()
+                    sandbox.audio()
+                    if use_gamemode:
+                        sandbox.gamemode(session.root / _gamemode.GAMEMODE_PROXY_SOCKET_NAME)
+                    sandbox.persistence(paths, game, consent_source)
+                    saves = sandbox.game_saves(game, game_descriptor)
+                    sandbox.nw_game(game, game_view_fd, saves)
+                    sandbox.bind(sandbox.keep(os.dup(session.session_descriptor)), "/session")
+                    sandbox.bind(saves, "/session/save", writable=True)
+                    command = build_command(runtime_nw, Path("/session"), Path("/profile"), display)
+                    command[0] = executable
+                    if use_gamemode:
+                        command = [str(_gamemode.GAMEMODERUN), *command]
+                    validate_game_descriptor(game, game_descriptor)
+                    # Start inside the game view so relative asset paths (such as
+                    # ./www/...) resolve exactly like a stock export launched from
+                    # its own root; /session remains the app directory for NW.js.
+                    full = sandbox.command(command, cwd="/session/game")
+                    pass_fds = sandbox.pass_fds
+                    if ci_mountpoint is not None:
+                        handle = spawn_detached(
+                            paths,
+                            session.identifier,
+                            session.name,
+                            full,
+                            pass_fds,
+                            parent_descriptor=session.parent_descriptor,
+                            session_descriptor=session.session_descriptor,
+                            use_gamemode=use_gamemode,
+                            gamemode_proxy=(
+                                session.root / _gamemode.GAMEMODE_PROXY_SOCKET_NAME
+                                if use_gamemode
+                                else None
+                            ),
+                            ci_mountpoint=ci_mountpoint,
+                        )
+                    else:
+                        handle = spawn_detached(
+                            paths,
+                            session.identifier,
+                            session.name,
+                            full,
+                            pass_fds,
+                            parent_descriptor=session.parent_descriptor,
+                            session_descriptor=session.session_descriptor,
+                            use_gamemode=use_gamemode,
+                            gamemode_proxy=(
+                                session.root / _gamemode.GAMEMODE_PROXY_SOCKET_NAME
+                                if use_gamemode
+                                else None
+                            ),
+                        )
+                    session.detach()
+                    spawned = True
+                    return handle
+        finally:
+            # Success hands the running mount to the supervisor path: disown
+            # only, never unmount. Any failure before a successful spawn fully
+            # unmounts because no supervisor will own it.
+            if ci_session is not None:
+                if spawned:
+                    with suppress(Exception):
+                        ci_session.disown()
+                else:
+                    with suppress(Exception):
+                        ci_session.unmount()
+            if mounted_fd >= 0:
+                with suppress(OSError):
+                    os.close(mounted_fd)
 
 
 def _select_easyrpg_runtime(

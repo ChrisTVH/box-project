@@ -102,7 +102,7 @@ _box_rpg() {
             ;;
         launch)
             if [[ "$cur" == -* ]]; then
-                COMPREPLY=($(compgen -W '--runtime --sdk --copy-root-file --allow-network --allow-game-writes --x11 --gamemode --help' -- "$cur"))
+                COMPREPLY=($(compgen -W '--runtime --sdk --copy-root-file --allow-network --allow-game-writes --x11 --gamemode --ci-mount --help' -- "$cur"))
             else
                 COMPREPLY=($(compgen -f -- "$cur"))
             fi
