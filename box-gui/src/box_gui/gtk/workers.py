@@ -64,12 +64,18 @@ def run_diagnose(
 
 
 def run_inspect(
+    paths: AppPaths,
     path: Path,
     on_done: Callable[[Inspection], None],
     on_error: Callable[[BaseException], None],
 ) -> threading.Thread:
-    """Inspect a game folder off the main loop, even though inspect is pure I/O."""
-    return run_in_thread(lambda: inspect(path), on_done, on_error)
+    """Inspect a game folder off the main loop, unpacking packed sources first.
+
+    Packed single-executable directories unpack into their source-keyed
+    profile on first use (a cache hit afterwards); the inspection root
+    stays the source folder so launching it agrees with session tracking.
+    """
+    return run_in_thread(lambda: inspect(paths, path), on_done, on_error)
 
 
 def run_launch(

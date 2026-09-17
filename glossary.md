@@ -65,6 +65,19 @@ Shared source of truth for both projects. The first section covers the backend (
 | launch status | estado de inicio | Estado registrado en `status.json`; distinto de «launch session» → «sesión de inicio». |
 | name collision | colisión de nombres | En «cannot create launch session: name collision». |
 | session bus | bus de sesión | En «session bus address»; las variables `$DBUS_SESSION_BUS_ADDRESS` y `$XDG_RUNTIME_DIR/bus` quedan literales. |
+| packed executable | ejecutable empaquetado | En mensajes de EVB; `Game.exe`, `evbunpack` y `Enigma Virtual Box` quedan literales. |
+| unpacked game | juego desempaquetado | Etiqueta de caché en `paths.py`; también en «unpacked game cache name». |
+| packed source | origen empaquetado | Origen del ejecutable en `evb.py`; «source» → «origen». |
+| packed file | archivo empaquetado | En «per-file size budget». |
+| budget | presupuesto | En «source size budget», «entry count budget», «time budget», etc. Distinto de «byte limit» → «límite de bytes». |
+| output directory | directorio de salida | En mensajes de `evb_unpack.py`. |
+| extraction root | raíz de extracción | En «refusing path outside extraction root». |
+| loader | cargador | En «loader sections» y «loader data». |
+| preserved image | imagen preservada | Imagen preservada en mensajes de importación y reubicación. |
+| import directory | directorio de importación | Directorio PE recuperado. |
+| relocation directory | directorio de reubicación | Directorio PE recuperado. |
+| exception record | registro de excepciones | En mensajes de restauración; «exception handling» → «control de excepciones». |
+| thread directory | directorio de hilos | En «thread directory cleared»; «thread» → «hilo». |
 
 ## Frontend (`box-gui`)
 

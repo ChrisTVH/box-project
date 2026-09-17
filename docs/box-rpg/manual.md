@@ -36,6 +36,10 @@ Use `inspect` when you only want to check detection without starting the game.
 
 The first time you launch a game outside your allowed game roots, the launcher asks you to authorize that exact directory. This remembers one game folder. To authorize a whole collection at once, see [Configuration](#configuration).
 
+## Packed single-executable games
+
+A folder holding exactly one packed `.exe` file (any name) with no unpacked game files is unpacked automatically on launch. Unpacking runs offline inside the launcher: the embedded files are extracted and the executable is restored next to them, then the game starts from that copy. Consent still covers the folder you pointed at. The unpacked tree lives in your game profile at `$XDG_CACHE_HOME/box-rpg/profiles/<16-hex-game-id>/game/`, next to the persistent `sandbox/` profile; sessions, saves, and profiles follow that source-keyed identity, so replacing the executable keeps them. A fingerprint (content hash, size, modification time) decides staleness: an unchanged source reuses the tree, while a changed source re-unpacks over it with save folders carried forward. For EasyRPG games saves live in the source folder (see below); the unpacked `save/` goes stale after the first migration and removing the profile does not delete source saves. For NW.js, removing the profile deletes the unpacked tree and its saves with it. `inspect` unpacks on demand on first use and reports the source folder afterwards.
+
 NW.js games open as their manifest requests. Window size and fullscreen follow the supported manifest window settings. Game plugins that control the window behave as in a normal export.
 
 ## Permissions per launch
@@ -84,7 +88,7 @@ For 2000/2003 projects you need EasyRPG Player:
 box-rpg runtime easyrpg available --interactive
 ```
 
-Projects are detected from `RPG_RT.ini`, `RPG_RT.ldb`, and `RPG_RT.lmt`. The game starts fullscreen. Saves are stored in `<game>/save/` as files such as `Save01.lsd`. To reuse old saves, close the game and copy the `Save*.lsd` files from the game root into `<game>/save/`.
+Projects are detected from `RPG_RT.ini`, `RPG_RT.ldb`, and `RPG_RT.lmt`. The game starts fullscreen. Saves are stored in `<game>/save/` as files such as `Save01.lsd`. For packed single-executable games `<game>` is the source folder you pointed at, not the unpacked cache copy; the first launch moves saves from the old unpacked `save/` into the source `save/` when the source is empty, then the unpacked copy goes stale. To reuse old saves, close the game and copy the `Save*.lsd` files from the game root into `<game>/save/`.
 
 When several matching runtimes are installed, an interactive launch asks which one to use. Press Enter to keep the newest. Non-interactive launches always use the newest. You can also fix a version. NW.js versions use the form `vX.Y.Z`, while EasyRPG versions use two to four numeric components:
 

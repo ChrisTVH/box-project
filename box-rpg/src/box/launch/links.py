@@ -65,6 +65,42 @@ def list_root_files(game_root: Path) -> tuple[str, ...]:
         os.close(descriptor)
 
 
+def list_root_executables(game_root: Path) -> tuple[str, ...]:
+    """List direct ``*.exe`` filenames under a game root, in sorted order.
+
+    Shares the trust model of :func:`list_root_files` (descriptor-pinned
+    root, regular files only, no symlinks, directories, or reserved
+    names) but applies no size cap: icon discovery only reads executable
+    resources and never copies bytes, so large packed executables stay
+    eligible. Closes the descriptor in a finally block.
+    """
+    descriptor = open_game_root(game_root)
+    try:
+        try:
+            with os.scandir(descriptor) as it:
+                names: list[str] = []
+                for entry in it:
+                    try:
+                        is_file = entry.is_file(follow_symlinks=False)
+                    except OSError:
+                        continue
+                    if not is_file:
+                        continue
+                    name = entry.name
+                    if name in _RESERVED_ROOT_NAMES:
+                        continue
+                    if not name.lower().endswith(".exe"):
+                        continue
+                    names.append(name)
+        except OSError as exc:
+            raise LaunchError(
+                _("game root is missing or unsafe: {root}").format(root=game_root)
+            ) from exc
+        return tuple(sorted(names, key=str.lower))
+    finally:
+        os.close(descriptor)
+
+
 def descriptor_path(descriptor: int) -> Path:
     """Resolve the current stable pathname for an open game directory descriptor."""
     try:

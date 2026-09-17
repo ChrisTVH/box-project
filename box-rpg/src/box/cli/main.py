@@ -64,7 +64,9 @@ def main(argv: list[str] | None = None) -> int:
 def _dispatch(arguments: Namespace) -> int:
     """Dispatch one parsed subcommand to its isolated implementation module."""
     if arguments.command == "inspect":
-        return inspect_command.execute(Path(arguments.game))
+        # No ensure(): plain inspection must not create launcher directories;
+        # packed sources create their profile cache on demand during unpack.
+        return inspect_command.execute(AppPaths.from_environment(), Path(arguments.game))
     paths = AppPaths.from_environment()
     paths.ensure()
     repository = ConfigRepository(paths)

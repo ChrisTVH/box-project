@@ -504,10 +504,13 @@ class FakeSandboxNoGamemode:
     def audio(self) -> None:
         pass
 
-    def persistence(self, paths: AppPaths, game: GameInfo) -> None:
+    def persistence(self, paths: AppPaths, game: GameInfo, game_root: Path | None = None) -> None:
         pass
 
     def game_saves(self, game: GameInfo, descriptor: int) -> int:
+        return descriptor
+
+    def game_source_saves(self, source: GameInfo, descriptor: int) -> int:
         return descriptor
 
     def nw_game(self, game: GameInfo, descriptor: int, saves: int) -> None:
@@ -558,6 +561,7 @@ def test_no_proxy_bind_or_env_when_gamemode_disabled(
         copy_root_files: tuple[str, ...] = (),
         *,
         game_descriptor: int | None = None,
+        game_root: Path | None = None,
     ) -> Any:
         descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
 

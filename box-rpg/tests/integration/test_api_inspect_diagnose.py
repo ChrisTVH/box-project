@@ -36,6 +36,7 @@ def test_inspect_returns_delegated_result_without_io(
     game = GameInfo(EngineName.RPG_MAKER_MZ, game_root)
     expected = Inspection(game=game, title="Sample", plugin_count=3)
     seen: dict[str, object] = {}
+    paths = _paths(tmp_path)
 
     def fake_inspect(path: Path, registry: EngineRegistry | None = None) -> Inspection:
         seen["path"] = path
@@ -52,7 +53,7 @@ def test_inspect_returns_delegated_result_without_io(
     monkeypatch.setattr("builtins.print", forbidden_print)
     monkeypatch.setattr("builtins.input", forbidden_input)
 
-    result = api_inspect.inspect(game_root)
+    result = api_inspect.inspect(paths, game_root)
 
     assert result == expected
     assert seen == {"path": game_root, "registry": None}
@@ -66,6 +67,7 @@ def test_inspect_forwards_registry(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     game = GameInfo(EngineName.RPG_MAKER_MZ, tmp_path)
     expected = Inspection(game=game, title=None, plugin_count=0)
     seen: dict[str, object] = {}
+    paths = _paths(tmp_path)
 
     def fake_inspect(path: Path, registry: EngineRegistry | None = None) -> Inspection:
         seen["registry"] = registry
@@ -73,8 +75,131 @@ def test_inspect_forwards_registry(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr(api_inspect, "inspect_game", fake_inspect)
 
-    assert api_inspect.inspect(tmp_path, registry) == expected
+    assert api_inspect.inspect(paths, tmp_path, registry) == expected
     assert seen["registry"] is registry
+
+
+def _packed_source(root: Path, name: str = "Game.exe") -> Path:
+    """Create a packed candidate directory with one executable."""
+    root.mkdir(parents=True, exist_ok=True)
+    executable = root / name
+    executable.write_bytes(b"fake packed executable")
+    return executable
+
+
+def _mv_tree(root: Path) -> Path:
+    """Create a minimal detectable RPG Maker MV tree."""
+    (root / "www" / "js").mkdir(parents=True)
+    (root / "www" / "index.html").write_text("<html></html>", encoding="utf-8")
+    (root / "www" / "js" / "plugins.js").write_text(
+        'var $plugins = [{"name": "Demo"}];', encoding="utf-8"
+    )
+    (root / "package.json").write_text('{"name": "Packed Demo"}', encoding="utf-8")
+    return root
+
+
+def test_inspect_packed_source_stays_source_rooted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Packed folders inspect the unpacked tree but report the source root."""
+    from box.runtime import evb as evb_module
+
+    source = tmp_path / "game"
+    executable = _packed_source(source)
+    unpacked = _mv_tree(tmp_path / "unpacked")
+    unpacked_calls: list[Path] = []
+    paths = _paths(tmp_path)
+
+    def fake_unpack(actual_paths: AppPaths, exe: Path, **kwargs: object) -> Path:
+        assert actual_paths == paths
+        unpacked_calls.append(exe)
+        return unpacked
+
+    monkeypatch.setattr(evb_module, "ensure_unpacked", fake_unpack)
+
+    inspection = api_inspect.inspect(paths, source)
+
+    assert unpacked_calls == [executable]
+    assert inspection.game.root == source
+    assert inspection.game.engine is EngineName.RPG_MAKER_MV
+    assert inspection.title == "Packed Demo"
+    assert inspection.plugin_count == 1
+    assert inspection.game.entrypoint == unpacked / "www" / "index.html"
+    assert inspection.game.manifest == unpacked / "package.json"
+    assert inspection.game.entrypoint is not None and inspection.game.entrypoint.is_file()
+    assert inspection.game.manifest is not None and inspection.game.manifest.is_file()
+
+
+def test_list_root_files_packed_source_matches_unpacked_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Copy candidates for a packed source resolve against the unpacked tree."""
+    from box.api import launch as api_launch
+    from box.launch.links import list_root_files as links_list_root_files
+    from box.runtime import evb as evb_module
+
+    source = tmp_path / "game"
+    executable = _packed_source(source)
+    unpacked = _mv_tree(tmp_path / "unpacked")
+    (unpacked / "config.ini").write_text("language=en", encoding="utf-8")
+    paths = _paths(tmp_path)
+
+    def fake_unpack(actual_paths: AppPaths, exe: Path, **kwargs: object) -> Path:
+        assert exe == executable
+        return unpacked
+
+    monkeypatch.setattr(evb_module, "ensure_unpacked", fake_unpack)
+    inspection = api_inspect.inspect(paths, source)
+    assert inspection.game.root == source
+    expected = links_list_root_files(unpacked)
+    assert "config.ini" in expected
+    assert api_launch.list_root_files(inspection.game, paths) == expected
+
+
+def test_inspect_packed_easyrpg_source_stays_source_rooted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """EasyRPG packed folders report the source root with no entrypoint."""
+    from box.runtime import evb as evb_module
+
+    source = tmp_path / "game"
+    _packed_source(source)
+    unpacked = tmp_path / "unpacked"
+    unpacked.mkdir()
+    (unpacked / "RPG_RT.ini").write_text("[RPG_RT]\nGameTitle=Packed\n", encoding="utf-8")
+    for filename in ("RPG_RT.ldb", "RPG_RT.lmt"):
+        (unpacked / filename).write_text("fixture", encoding="utf-8")
+    paths = _paths(tmp_path)
+
+    def fake_unpack(*args: object, **kwargs: object) -> Path:
+        del args, kwargs
+        return unpacked
+
+    monkeypatch.setattr(evb_module, "ensure_unpacked", fake_unpack)
+
+    inspection = api_inspect.inspect(paths, source)
+
+    assert inspection.game.root == source
+    assert inspection.game.engine is EngineName.RPG_MAKER_2000_2003
+    assert inspection.game.entrypoint is None
+    assert inspection.game.manifest is None
+    assert inspection.title == "Packed"
+
+
+def test_inspect_unresolvable_path_skips_unpacking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Missing paths flow straight to detection without touching the cache."""
+    from box.runtime import evb as evb_module
+
+    def forbidden_unpack(*args: object, **kwargs: object) -> Path:
+        raise AssertionError("unpacking must not run for missing paths")
+
+    monkeypatch.setattr(evb_module, "ensure_unpacked", forbidden_unpack)
+    paths = _paths(tmp_path)
+
+    with pytest.raises(GameValidationError, match=r"unsupported game|cannot resolve"):
+        api_inspect.inspect(paths, tmp_path / "absent")
 
 
 def test_diagnose_easyrpg_explicit_version_without_io(
@@ -279,6 +404,54 @@ def test_diagnose_nwjs_explicit_version_overrides_config(
     result = api_diagnose.diagnose(paths, repository, game_root, "v0.112.0", False)
 
     assert selected == {"version": "v0.112.0", "sdk": True}
+    assert result.versions.nwjs == "v0.112.0"
+
+
+def test_diagnose_packed_source_detects_unpacked_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Packed folders diagnose the unpacked tree, not the source folder."""
+    from box.runtime import evb as evb_module
+
+    source = tmp_path / "game"
+    executable = _packed_source(source)
+    unpacked = _mv_tree(tmp_path / "unpacked")
+    paths = _paths(tmp_path)
+    repository = ConfigRepository(paths)
+    unpacked_calls: list[Path] = []
+    detected: list[Path] = []
+
+    def fake_unpack(actual_paths: AppPaths, exe: Path, **kwargs: object) -> Path:
+        unpacked_calls.append(exe)
+        return unpacked
+
+    def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
+        detected.append(path)
+        return GameInfo(EngineName.RPG_MAKER_MZ, path)
+
+    monkeypatch.setattr(evb_module, "ensure_unpacked", fake_unpack)
+    monkeypatch.setattr(api_diagnose, "detect_game", fake_detect)
+    monkeypatch.setattr(api_diagnose, "current_architecture", lambda: "x64")
+
+    def fake_select(
+        catalog: object, architecture: str, version: str | None, sdk: bool
+    ) -> RuntimeInfo:
+        return RuntimeInfo(RuntimeSpec("v0.112.0", "x64"), tmp_path, tmp_path / "nw")
+
+    monkeypatch.setattr(api_diagnose, "select_runtime", fake_select)
+    monkeypatch.setattr(
+        api_diagnose, "collect_environment", lambda: Environment("Linux", "1.0", "x86_64")
+    )
+
+    def fake_versions(game: GameInfo, runtime: RuntimeInfo) -> VersionReport:
+        return VersionReport("rpg-maker-mz", None, "v0.112.0")
+
+    monkeypatch.setattr(api_diagnose, "collect_versions", fake_versions)
+
+    result = api_diagnose.diagnose(paths, repository, source, None, False)
+
+    assert unpacked_calls == [executable]
+    assert detected == [unpacked]
     assert result.versions.nwjs == "v0.112.0"
 
 

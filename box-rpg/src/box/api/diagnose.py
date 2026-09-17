@@ -10,9 +10,10 @@ from box.diagnostics.environment import Environment, collect_environment
 from box.diagnostics.versions import VersionReport, collect_easyrpg_versions, collect_versions
 from box.engines.registry import default_registry
 from box.errors import GameValidationError
-from box.games.detector import detect_game
+from box.games.detector import detect_game, resolve_game_root
 from box.models import EngineName
 from box.paths import AppPaths
+from box.runtime import evb as _evb
 from box.runtime.catalog import RuntimeCatalog
 from box.runtime.easyrpg import EasyRPGCatalog
 from box.runtime.platform import current_architecture
@@ -38,7 +39,7 @@ def diagnose(
     sdk: bool,
 ) -> DiagnoseResult:
     """Collect local diagnostics without network transmission or console output."""
-    game = detect_game(game_path, default_registry())
+    game = detect_game(_resolve_effective_game(paths, game_path), default_registry())
     config = repository.load()
     if game.engine is EngineName.RPG_MAKER_2000_2003:
         if sdk:
@@ -55,3 +56,19 @@ def diagnose(
         sdk or config.prefer_sdk,
     )
     return DiagnoseResult(collect_environment(), collect_versions(game, runtime_nw))
+
+
+def _resolve_effective_game(paths: AppPaths, game_path: Path) -> Path:
+    """Unpack a packed single-executable directory before detection.
+
+    Version probes read the unpacked tree; anything else keeps the given
+    path untouched.
+    """
+    try:
+        source_root = resolve_game_root(game_path)
+    except GameValidationError:
+        return game_path
+    candidate = _evb.find_packed_executable(source_root)
+    if candidate is None:
+        return game_path
+    return _evb.ensure_unpacked(paths, candidate)

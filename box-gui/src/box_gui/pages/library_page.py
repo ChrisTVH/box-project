@@ -212,7 +212,10 @@ class LibraryPage(Adw.NavigationPage):
         except ImportError as exc:
             self._show_alert(_("Unexpected Error"), str(exc) or exc.__class__.__name__)
             return
-        run_inspect(path, self._on_inspect_done, self._on_inspect_error)
+        paths = self._paths
+        if paths is None:
+            return
+        run_inspect(paths, path, self._on_inspect_done, self._on_inspect_error)
 
     def _build_row(self, entry: LibraryEntry, *, show_reorder: bool = True) -> Adw.ActionRow:
         """Build one title-only row with an icon, pills, menu, and launch button.
@@ -476,6 +479,7 @@ class LibraryPage(Adw.NavigationPage):
         """Launch one entry directly with its persisted options."""
         if self._paths is None or self._repository is None:
             return
+        paths = self._paths
         fresh = self._fresh_entry(entry)
         if is_ghost(fresh):
             self._show_alert(_("Folder missing"), _ghost_reason())
@@ -493,6 +497,7 @@ class LibraryPage(Adw.NavigationPage):
         button.set_icon_name("box-rpg-rocket-off-symbolic")
         button.set_sensitive(False)
         run_inspect(
+            paths,
             fresh.path,
             lambda inspection: self._on_launch_inspect_done(inspection, fresh, button),
             lambda error: self._on_launch_inspect_error(error, button),
@@ -717,7 +722,11 @@ class LibraryPage(Adw.NavigationPage):
         except ImportError as exc:
             self._show_alert(_("Unexpected Error"), str(exc) or exc.__class__.__name__)
             return
+        paths = self._paths
+        if paths is None:
+            return
         run_inspect(
+            paths,
             Path(path),
             lambda inspection: self._on_locate_inspect_done(inspection, entry),
             self._on_locate_inspect_error,

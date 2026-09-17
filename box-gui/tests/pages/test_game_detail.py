@@ -116,7 +116,7 @@ def _install_fake_workers(monkeypatch: pytest.MonkeyPatch, factory: Any) -> dict
     state: dict[str, Any] = {"inspects": [], "stops": [], "stop_error": None}
     module = types.ModuleType("box_gui.gtk.workers")
 
-    def _run_inspect(path: Any, on_done: Any, on_error: Any) -> None:
+    def _run_inspect(_paths: Any, path: Any, on_done: Any, on_error: Any) -> None:
         state["inspects"].append(path)
         on_done(factory(path))
         return None
@@ -279,7 +279,7 @@ def test_root_file_options_skip_binary_and_media(
     page, _library, _entry = _make_page(monkeypatch, tmp_path)
     monkeypatch.setattr(
         "box_gui.pages.game_detail_page.list_root_files",
-        lambda game: (
+        lambda game, paths=None: (
             "config.ini",
             "lang.json",
             "data.pak",
@@ -1461,7 +1461,7 @@ def test_ghost_detail_locate_invalid_stays_ghost(
     monkeypatch.setattr(
         sys.modules["box_gui.gtk.workers"],
         "run_inspect",
-        lambda path, on_done, on_error: on_error(BoxError("not a game")),
+        lambda _paths, path, on_done, on_error: on_error(BoxError("not a game")),
     )
 
     class _FakeFile:
@@ -1949,9 +1949,9 @@ def test_detail_refresh_missing_folder_blocks_without_dialog(
     inspects: list[Any] = []
     original = workers_module.run_inspect
 
-    def _counting(path: Any, on_done: Any, on_error: Any) -> Any:
+    def _counting(_paths: Any, path: Any, on_done: Any, on_error: Any) -> Any:
         inspects.append(path)
-        return original(path, on_done, on_error)
+        return original(_paths, path, on_done, on_error)
 
     monkeypatch.setattr(workers_module, "run_inspect", _counting)
 
@@ -2015,9 +2015,9 @@ def test_detail_missing_folder_restores_on_return(
     inspects: list[Any] = []
     original = workers_module.run_inspect
 
-    def _counting(path: Any, on_done: Any, on_error: Any) -> Any:
+    def _counting(_paths: Any, path: Any, on_done: Any, on_error: Any) -> Any:
         inspects.append(path)
-        return original(path, on_done, on_error)
+        return original(_paths, path, on_done, on_error)
 
     monkeypatch.setattr(workers_module, "run_inspect", _counting)
     page.refresh()
@@ -2041,9 +2041,9 @@ def test_detail_refresh_tolerates_library_failure(
     inspects: list[Any] = []
     original = workers_module.run_inspect
 
-    def _counting(path: Any, on_done: Any, on_error: Any) -> Any:
+    def _counting(_paths: Any, path: Any, on_done: Any, on_error: Any) -> Any:
         inspects.append(path)
-        return original(path, on_done, on_error)
+        return original(_paths, path, on_done, on_error)
 
     monkeypatch.setattr(workers_module, "run_inspect", _counting)
 

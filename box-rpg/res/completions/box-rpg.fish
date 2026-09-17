@@ -19,6 +19,9 @@ complete -c box-rpg -n '__fish_seen_subcommand_from nwjs; and __fish_seen_subcom
 complete -c box-rpg -n '__fish_seen_subcommand_from nwjs; and __fish_seen_subcommand_from available install remove' -l architecture -d 'Use an NW.js architecture'
 complete -c box-rpg -n '__fish_seen_subcommand_from nwjs; and __fish_seen_subcommand_from available install remove' -l sdk -d 'Use an NW.js SDK build'
 complete -c box-rpg -n '__fish_seen_subcommand_from config' -a 'show set'
+complete -c box-rpg -n '__fish_seen_subcommand_from config; and __fish_seen_subcommand_from set' -a 'allowed-game-root preferred-runtime'
+complete -c box-rpg -n '__fish_seen_subcommand_from launch' -a '(__fish_complete_path)'
+complete -c box-rpg -n '__fish_seen_subcommand_from diagnose' -a '(__fish_complete_path)' -r
 complete -c box-rpg -n '__fish_seen_subcommand_from cleanup; and not __fish_seen_subcommand_from list remove all; and not contains -- --interactive (commandline -opc)' -a 'list remove all'
 complete -c box-rpg -n '__fish_seen_subcommand_from cleanup; and not __fish_seen_subcommand_from list remove all; and not contains -- --interactive (commandline -opc)' -l yes -d 'Delete immediately without prompting'
 complete -c box-rpg -n '__fish_seen_subcommand_from cleanup; and not __fish_seen_subcommand_from list remove all; and not contains -- --yes (commandline -opc)' -l interactive -d 'Open the interactive cleanup menu'

@@ -216,10 +216,13 @@ class FakeSandbox:
     def gamemode(self, proxy_host_path: Path) -> None:
         self.gamemode_paths.append(proxy_host_path)
 
-    def persistence(self, paths: AppPaths, game: GameInfo) -> None:
+    def persistence(self, paths: AppPaths, game: GameInfo, game_root: Path | None = None) -> None:
         pass
 
     def game_saves(self, game: GameInfo, descriptor: int) -> int:
+        return descriptor
+
+    def game_source_saves(self, source: GameInfo, descriptor: int) -> int:
         return descriptor
 
     def game_writable(self, descriptor: int) -> None:
@@ -330,6 +333,7 @@ def _patch_session(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         copy_root_files: tuple[str, ...] = (),
         *,
         game_descriptor: int | None = None,
+        game_root: Path | None = None,
     ) -> FakeSession:
         descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
         return FakeSession(descriptor)

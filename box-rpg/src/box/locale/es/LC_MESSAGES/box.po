@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-15 19:29-0400\n"
+"POT-Creation-Date: 2026-09-16 17:52-0400\n"
 "PO-Revision-Date: 2026-09-08 00:00+0000\n"
 "Last-Translator: Christopher Herasme <5632734-"
 "christvh@users.noreply.gitlab.com>\n"
@@ -488,33 +488,50 @@ msgstr "(ninguno)"
 msgid "supported keys: {allowed_root}, {preferred_runtime}"
 msgstr "claves compatibles: {allowed_root}, {preferred_runtime}"
 
-#: box-rpg/src/box/cli/inspect.py:15
+#: box-rpg/src/box/cli/inspect.py:16
 msgid "engine"
 msgstr "motor"
 
-#: box-rpg/src/box/cli/inspect.py:16
+#: box-rpg/src/box/cli/inspect.py:17
 msgid "root"
 msgstr "raíz"
 
-#: box-rpg/src/box/cli/inspect.py:17
+#: box-rpg/src/box/cli/inspect.py:18
 msgid "entrypoint"
 msgstr "punto de entrada"
 
-#: box-rpg/src/box/cli/inspect.py:18
+#: box-rpg/src/box/cli/inspect.py:19
 msgid "(not applicable)"
 msgstr "(no aplicable)"
 
-#: box-rpg/src/box/cli/inspect.py:19
+#: box-rpg/src/box/cli/inspect.py:20
 msgid "title"
 msgstr "título"
 
-#: box-rpg/src/box/cli/inspect.py:20
+#: box-rpg/src/box/cli/inspect.py:21
 msgid "(unknown)"
 msgstr "(desconocido)"
 
-#: box-rpg/src/box/cli/inspect.py:21
+#: box-rpg/src/box/cli/inspect.py:22
 msgid "plugins"
 msgstr "complementos"
+
+#: box-rpg/src/box/cli/main.py:39
+msgid ""
+"error: no supported RPG Maker game was found here; run box-rpg from the game "
+"directory."
+msgstr ""
+"error: no se encontró aquí ningún juego de RPG Maker compatible; ejecuta box-"
+"rpg desde el directorio del juego."
+
+#: box-rpg/src/box/cli/main.py:59
+msgid "error"
+msgstr "error"
+
+#: box-rpg/src/box/cli/main.py:128
+#, python-brace-format
+msgid "unsupported command: {command}"
+msgstr "comando no compatible: {command}"
 
 #: box-rpg/src/box/cli/menu.py:32
 msgid "(no entries)"
@@ -544,107 +561,6 @@ msgstr ", o [q] salir: "
 #: box-rpg/src/box/cli/runtime.py:249
 msgid "Selection cancelled."
 msgstr "Selección cancelada."
-
-#: box-rpg/src/box/cli/runtime.py:31
-msgid "no NW.js runtimes installed"
-msgstr "no hay entornos de ejecución de NW.js instalados"
-
-#: box-rpg/src/box/cli/runtime.py:44
-#, python-brace-format
-msgid "installed {version} ({flavor}) at {path}"
-msgstr "se instaló {version} ({flavor}) en {path}"
-
-#: box-rpg/src/box/cli/runtime.py:81 box-rpg/src/box/cli/runtime.py:214
-#, python-brace-format
-msgid "Could not load the version list: {error}"
-msgstr "No se pudo cargar la lista de versiones: {error}"
-
-#: box-rpg/src/box/cli/runtime.py:83 box-rpg/src/box/cli/runtime.py:216
-msgid "[r]etry this page, or [q]uit: "
-msgstr "[r] Reintentar esta página o [q] salir: "
-
-#: box-rpg/src/box/cli/runtime.py:93 box-rpg/src/box/cli/runtime.py:226
-msgid "Select 1-10, [n]ext, [p]revious, or [q]uit: "
-msgstr "Selecciona 1-10, [n] siguiente, [p] anterior o [q] salir: "
-
-#: box-rpg/src/box/cli/runtime.py:116
-#, python-brace-format
-msgid "Install NW.js {version} for {architecture}? [y/N] "
-msgstr "¿Instalar NW.js {version} para {architecture}? [y/N] "
-
-#: box-rpg/src/box/cli/runtime.py:127 box-rpg/src/box/cli/runtime.py:259
-msgid "Installation cancelled."
-msgstr "Instalación cancelada."
-
-#: box-rpg/src/box/cli/runtime.py:142
-#, python-brace-format
-msgid "Available NW.js versions (page {page}, {architecture}, {flavor}):"
-msgstr ""
-"Versiones disponibles de NW.js (página {page}, {architecture}, {flavor}):"
-
-#: box-rpg/src/box/cli/runtime.py:147
-msgid "  (no stable versions on this page)"
-msgstr "  (no hay versiones estables en esta página)"
-
-#: box-rpg/src/box/cli/runtime.py:153
-#, python-brace-format
-msgid "Install with: {command}"
-msgstr "Instala con: {command}"
-
-#: box-rpg/src/box/cli/runtime.py:163 box-rpg/src/box/api/cleanup.py:133
-#: box-rpg/src/box/api/launch.py:328
-msgid "standard"
-msgstr "estándar"
-
-#: box-rpg/src/box/cli/runtime.py:169
-#, python-brace-format
-msgid "removed {version}"
-msgstr "se eliminó {version}"
-
-#: box-rpg/src/box/cli/runtime.py:179
-msgid "no EasyRPG Player runtimes installed"
-msgstr "no hay entornos de ejecución de EasyRPG Player instalados"
-
-#: box-rpg/src/box/cli/runtime.py:186 box-rpg/src/box/cli/runtime.py:254
-#, python-brace-format
-msgid "installed EasyRPG Player {version} at {path}"
-msgstr "se instaló EasyRPG Player {version} en {path}"
-
-#: box-rpg/src/box/cli/runtime.py:193
-#, python-brace-format
-msgid "removed EasyRPG Player {version}"
-msgstr "se eliminó EasyRPG Player {version}"
-
-#: box-rpg/src/box/cli/runtime.py:244
-#, python-brace-format
-msgid "Install EasyRPG Player {version} for x64? [y/N] "
-msgstr "¿Instalar EasyRPG Player {version} para x64? [y/N] "
-
-#: box-rpg/src/box/cli/runtime.py:264
-#, python-brace-format
-msgid "Available EasyRPG Player versions (page {page}, x64):"
-msgstr "Versiones disponibles de EasyRPG Player (página {page}, x64):"
-
-#: box-rpg/src/box/cli/runtime.py:266
-msgid "  (no versions on this page)"
-msgstr "  (no hay versiones en esta página)"
-
-#: box-rpg/src/box/cli/main.py:39
-msgid ""
-"error: no supported RPG Maker game was found here; run box-rpg from the game "
-"directory."
-msgstr ""
-"error: no se encontró aquí ningún juego de RPG Maker compatible; ejecuta box-"
-"rpg desde el directorio del juego."
-
-#: box-rpg/src/box/cli/main.py:59
-msgid "error"
-msgstr "error"
-
-#: box-rpg/src/box/cli/main.py:126
-#, python-brace-format
-msgid "unsupported command: {command}"
-msgstr "comando no compatible: {command}"
 
 #: box-rpg/src/box/cli/parser.py:27
 msgid "Launch RPG Maker games with managed NW.js or EasyRPG Player runtimes."
@@ -846,6 +762,90 @@ msgstr "imprime un informe de diagnóstico local"
 #: box-rpg/src/box/cli/parser.py:251
 msgid "game directory to diagnose"
 msgstr "directorio del juego para diagnosticar"
+
+#: box-rpg/src/box/cli/runtime.py:31
+msgid "no NW.js runtimes installed"
+msgstr "no hay entornos de ejecución de NW.js instalados"
+
+#: box-rpg/src/box/cli/runtime.py:44
+#, python-brace-format
+msgid "installed {version} ({flavor}) at {path}"
+msgstr "se instaló {version} ({flavor}) en {path}"
+
+#: box-rpg/src/box/cli/runtime.py:81 box-rpg/src/box/cli/runtime.py:214
+#, python-brace-format
+msgid "Could not load the version list: {error}"
+msgstr "No se pudo cargar la lista de versiones: {error}"
+
+#: box-rpg/src/box/cli/runtime.py:83 box-rpg/src/box/cli/runtime.py:216
+msgid "[r]etry this page, or [q]uit: "
+msgstr "[r] Reintentar esta página o [q] salir: "
+
+#: box-rpg/src/box/cli/runtime.py:93 box-rpg/src/box/cli/runtime.py:226
+msgid "Select 1-10, [n]ext, [p]revious, or [q]uit: "
+msgstr "Selecciona 1-10, [n] siguiente, [p] anterior o [q] salir: "
+
+#: box-rpg/src/box/cli/runtime.py:116
+#, python-brace-format
+msgid "Install NW.js {version} for {architecture}? [y/N] "
+msgstr "¿Instalar NW.js {version} para {architecture}? [y/N] "
+
+#: box-rpg/src/box/cli/runtime.py:127 box-rpg/src/box/cli/runtime.py:259
+msgid "Installation cancelled."
+msgstr "Instalación cancelada."
+
+#: box-rpg/src/box/cli/runtime.py:142
+#, python-brace-format
+msgid "Available NW.js versions (page {page}, {architecture}, {flavor}):"
+msgstr ""
+"Versiones disponibles de NW.js (página {page}, {architecture}, {flavor}):"
+
+#: box-rpg/src/box/cli/runtime.py:147
+msgid "  (no stable versions on this page)"
+msgstr "  (no hay versiones estables en esta página)"
+
+#: box-rpg/src/box/cli/runtime.py:153
+#, python-brace-format
+msgid "Install with: {command}"
+msgstr "Instala con: {command}"
+
+#: box-rpg/src/box/cli/runtime.py:163 box-rpg/src/box/api/cleanup.py:133
+#: box-rpg/src/box/api/launch.py:334
+msgid "standard"
+msgstr "estándar"
+
+#: box-rpg/src/box/cli/runtime.py:169
+#, python-brace-format
+msgid "removed {version}"
+msgstr "se eliminó {version}"
+
+#: box-rpg/src/box/cli/runtime.py:179
+msgid "no EasyRPG Player runtimes installed"
+msgstr "no hay entornos de ejecución de EasyRPG Player instalados"
+
+#: box-rpg/src/box/cli/runtime.py:186 box-rpg/src/box/cli/runtime.py:254
+#, python-brace-format
+msgid "installed EasyRPG Player {version} at {path}"
+msgstr "se instaló EasyRPG Player {version} en {path}"
+
+#: box-rpg/src/box/cli/runtime.py:193
+#, python-brace-format
+msgid "removed EasyRPG Player {version}"
+msgstr "se eliminó EasyRPG Player {version}"
+
+#: box-rpg/src/box/cli/runtime.py:244
+#, python-brace-format
+msgid "Install EasyRPG Player {version} for x64? [y/N] "
+msgstr "¿Instalar EasyRPG Player {version} para x64? [y/N] "
+
+#: box-rpg/src/box/cli/runtime.py:264
+#, python-brace-format
+msgid "Available EasyRPG Player versions (page {page}, x64):"
+msgstr "Versiones disponibles de EasyRPG Player (página {page}, x64):"
+
+#: box-rpg/src/box/cli/runtime.py:266
+msgid "  (no versions on this page)"
+msgstr "  (no hay versiones en esta página)"
 
 #: box-rpg/src/box/config/reader.py:36
 msgid "configuration has unsafe type, ownership or permissions"
@@ -1186,6 +1186,326 @@ msgstr "la página de versiones de EasyRPG Player debe ser al menos 1"
 msgid "cannot stage EasyRPG Player archive {archive}: {error}"
 msgstr "no se puede preparar el archivo de EasyRPG Player {archive}: {error}"
 
+#: box-rpg/src/box/runtime/evb.py:147 box-rpg/src/box/runtime/evb.py:223
+#: box-rpg/src/box/runtime/evb.py:391
+#, python-brace-format
+msgid "cannot unpack game executable {path}: {error}"
+msgstr "no se puede desempaquetar el ejecutable del juego {path}: {error}"
+
+#: box-rpg/src/box/runtime/evb.py:403 box-rpg/src/box/runtime/evb.py:432
+#: box-rpg/src/box/runtime/evb_unpack.py:247
+#: box-rpg/src/box/runtime/evb_unpack.py:264
+#, python-brace-format
+msgid "cannot read packed executable {path}: {error}"
+msgstr "no se puede leer el ejecutable empaquetado {path}: {error}"
+
+#: box-rpg/src/box/runtime/evb.py:411 box-rpg/src/box/runtime/evb_unpack.py:253
+#, python-brace-format
+msgid "packed source is not a regular file: {path}"
+msgstr "el origen empaquetado no es un archivo regular: {path}"
+
+#: box-rpg/src/box/runtime/evb.py:415 box-rpg/src/box/runtime/evb_unpack.py:257
+#: box-rpg/src/box/runtime/evb_unpack.py:270
+#, python-brace-format
+msgid "packed executable exceeds source size budget: {path}"
+msgstr ""
+"el ejecutable empaquetado supera el presupuesto de tamaño del origen: {path}"
+
+#: box-rpg/src/box/runtime/evb.py:446 box-rpg/src/box/runtime/evb.py:450
+#, python-brace-format
+msgid "packed source changed during unpacking: {path}"
+msgstr "el origen empaquetado cambió durante el desempaquetado: {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:175
+#, python-brace-format
+msgid "not a packed executable: signature not found in {path}"
+msgstr "no es un ejecutable empaquetado: no se encontró la firma en {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:180
+#, python-brace-format
+msgid "file tree reconstruction skipped for {path}"
+msgstr "reconstrucción del árbol de archivos omitida para {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:182
+#, python-brace-format
+msgid "executable restoration skipped for {path}"
+msgstr "restauración del ejecutable omitida para {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:281
+#, python-brace-format
+msgid "cannot create output directory {path}: {error}"
+msgstr "no se puede crear el directorio de salida {path}: {error}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:289
+#, python-brace-format
+msgid "cannot inspect output directory {path}: {error}"
+msgstr "no se puede inspeccionar el directorio de salida {path}: {error}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:295
+#, python-brace-format
+msgid "refusing unsafe output directory: {path}"
+msgstr "se rechaza un directorio de salida no seguro: {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:346
+#, python-brace-format
+msgid "no valid file tree in {path} after trying {profiles}"
+msgstr ""
+"no hay un árbol de archivos válido en {path} después de probar {profiles}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:351
+#, python-brace-format
+msgid "empty extraction: no files recovered from {path}"
+msgstr "extracción vacía: no se recuperó ningún archivo de {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:540
+#: box-rpg/src/box/runtime/evb_unpack.py:623
+#: box-rpg/src/box/runtime/evb_unpack.py:712
+#: box-rpg/src/box/runtime/evb_unpack.py:1051
+#, python-brace-format
+msgid "packed executable exceeds entry count budget: {path}"
+msgstr ""
+"el ejecutable empaquetado supera el presupuesto de cantidad de entradas: "
+"{path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:549
+#: box-rpg/src/box/runtime/evb_unpack.py:964
+#: box-rpg/src/box/runtime/evb_unpack.py:1040
+#: box-rpg/src/box/runtime/evb_unpack.py:1045
+#, python-brace-format
+msgid "packed file exceeds per-file size budget: {path}"
+msgstr ""
+"el archivo empaquetado supera el presupuesto de tamaño por archivo: {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:554
+#, python-brace-format
+msgid "packed executable exceeds total size budget: {path}"
+msgstr ""
+"el ejecutable empaquetado supera el presupuesto de tamaño total: {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:575
+#, python-brace-format
+msgid "packed executable exceeds time budget: {path}"
+msgstr "el ejecutable empaquetado supera el presupuesto de tiempo: {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:658
+#: box-rpg/src/box/runtime/evb_unpack.py:692
+#, python-brace-format
+msgid "unknown directory entry ends enumeration in {path}"
+msgstr "una entrada de directorio desconocida termina la enumeración en {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:682
+#, python-brace-format
+msgid "packed executable exceeds tree depth budget: {path}"
+msgstr ""
+"el ejecutable empaquetado supera el presupuesto de profundidad del árbol: "
+"{path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:724
+#, python-brace-format
+msgid "refusing unsafe virtual name at offset {offset} in {path}"
+msgstr ""
+"se rechaza un nombre virtual no seguro en el desplazamiento {offset} en "
+"{path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:736
+#, python-brace-format
+msgid "unknown directory entry at offset {offset} in {path}"
+msgstr ""
+"entrada de directorio desconocida en el desplazamiento {offset} en {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:892
+#: box-rpg/src/box/runtime/evb_unpack.py:911
+#, python-brace-format
+msgid "size mismatch for {name}: stored {stored} bytes in {path}"
+msgstr ""
+"tamaño no coincidente para {name}: {stored} bytes almacenados en {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:977
+#, python-brace-format
+msgid "refusing to write {name} in {path}: {error}"
+msgstr "se rechaza escribir {name} en {path}: {error}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:995
+#, python-brace-format
+msgid "cannot decode {name} in {path}"
+msgstr "no se puede decodificar {name} en {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1008
+#, python-brace-format
+msgid "cannot write {name} in {path}: {error}"
+msgstr "no se puede escribir {name} en {path}: {error}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1015
+#, python-brace-format
+msgid "size mismatch for {name}: expected {expected} bytes, got {actual} bytes"
+msgstr ""
+"tamaño no coincidente para {name}: se esperaban {expected} bytes y se "
+"obtuvieron {actual} bytes"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1106
+#, python-brace-format
+msgid "cannot create directory {name} in {path}: {error}"
+msgstr "no se puede crear el directorio {name} en {path}: {error}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1114
+#, python-brace-format
+msgid "cannot inspect directory {name} in {path}: {error}"
+msgstr "no se puede inspeccionar el directorio {name} en {path}: {error}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1120
+#, python-brace-format
+msgid "refusing unsafe directory {name} in {path}"
+msgstr "se rechaza un directorio no seguro {name} en {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1132
+#, python-brace-format
+msgid "refusing path outside extraction root: {name}"
+msgstr "se rechaza una ruta fuera de la raíz de extracción: {name}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1144
+#, python-brace-format
+msgid "cannot inspect directory {name}"
+msgstr "no se puede inspeccionar el directorio {name}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1148
+#, python-brace-format
+msgid "refusing unsafe directory {name}"
+msgstr "se rechaza un directorio no seguro {name}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1152
+#, python-brace-format
+msgid "cannot create directory {name}"
+msgstr "no se puede crear el directorio {name}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1173
+#, python-brace-format
+msgid "cannot restore executable from {path}: not a valid executable"
+msgstr ""
+"no se puede restaurar el ejecutable desde {path}: no es un ejecutable válido"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1179
+#, python-brace-format
+msgid "likely not a packed executable: loader sections missing in {path}"
+msgstr ""
+"probablemente no es un ejecutable empaquetado: faltan las secciones del "
+"cargador en {path}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1366
+#, python-brace-format
+msgid "cannot restore executable from {path}: unsupported profile"
+msgstr "no se puede restaurar el ejecutable desde {path}: perfil no compatible"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1376
+#: box-rpg/src/box/runtime/evb_unpack.py:1385
+#: box-rpg/src/box/runtime/evb_unpack.py:1476
+#: box-rpg/src/box/runtime/evb_unpack.py:1672
+#: box-rpg/src/box/runtime/evb_unpack.py:1736
+#, python-brace-format
+msgid "cannot restore executable from {path}: truncated loader data"
+msgstr ""
+"no se puede restaurar el ejecutable desde {path}: datos del cargador "
+"truncados"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1396
+#, python-brace-format
+msgid ""
+"recovered import directory is empty in {path}; another profile may restore it"
+msgstr ""
+"el directorio de importación recuperado está vacío en {path}; otro perfil "
+"puede restaurarlo"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1402
+#, python-brace-format
+msgid ""
+"recovered import address is outside the preserved image in {path}; another "
+"profile may restore it"
+msgstr ""
+"la dirección de importación recuperada está fuera de la imagen preservada en "
+"{path}; otro perfil puede restaurarla"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1409
+#, python-brace-format
+msgid ""
+"recovered relocation directory is empty in {path}; another profile may "
+"restore it"
+msgstr ""
+"el directorio de reubicación recuperado está vacío en {path}; otro perfil "
+"puede restaurarlo"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1415
+#, python-brace-format
+msgid ""
+"recovered relocation address is outside the preserved image in {path}; "
+"another profile may restore it"
+msgstr ""
+"la dirección de reubicación recuperada está fuera de la imagen preservada en "
+"{path}; otro perfil puede restaurarla"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1457
+#: box-rpg/src/box/runtime/evb_unpack.py:1469
+#: box-rpg/src/box/runtime/evb_unpack.py:1750
+#: box-rpg/src/box/runtime/evb_unpack.py:1761
+#, python-brace-format
+msgid "cannot restore executable from {path}: corrupt section layout"
+msgstr ""
+"no se puede restaurar el ejecutable desde {path}: diseño de secciones dañado"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1463
+#, python-brace-format
+msgid "cannot restore executable from {path}: loader data missing"
+msgstr ""
+"no se puede restaurar el ejecutable desde {path}: faltan los datos del "
+"cargador"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1546
+#: box-rpg/src/box/runtime/evb_unpack.py:1661
+#, python-brace-format
+msgid "cannot restore executable from {path}: truncated headers"
+msgstr ""
+"no se puede restaurar el ejecutable desde {path}: encabezados truncados"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1566
+#, python-brace-format
+msgid ""
+"no usable exception records in {path}; exception handling in the restored "
+"program may be impaired"
+msgstr ""
+"no hay registros de excepciones utilizables en {path}; el control de "
+"excepciones en el programa restaurado puede verse afectado"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1575
+#, python-brace-format
+msgid ""
+"no unused space for exception records in {path}; exception handling in the "
+"restored program may be impaired"
+msgstr ""
+"no hay espacio sin usar para registros de excepciones en {path}; el control "
+"de excepciones en el programa restaurado puede verse afectado"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1680
+#, python-brace-format
+msgid "no thread template match in {path}; thread directory cleared"
+msgstr ""
+"sin coincidencia de plantilla de hilo en {path}; directorio de hilos borrado"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1781
+#, python-brace-format
+msgid "cannot restore executable from {path}: restoration failed"
+msgstr ""
+"no se puede restaurar el ejecutable desde {path}: la restauración falló"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1810
+#, python-brace-format
+msgid "cannot create restored executable directory {path}: {error}"
+msgstr ""
+"no se puede crear el directorio del ejecutable restaurado {path}: {error}"
+
+#: box-rpg/src/box/runtime/evb_unpack.py:1820
+#: box-rpg/src/box/runtime/evb_unpack.py:1829
+#, python-brace-format
+msgid "cannot write restored executable {path}: {error}"
+msgstr "no se puede escribir el ejecutable restaurado {path}: {error}"
+
 #: box-rpg/src/box/runtime/platform.py:30
 #, python-brace-format
 msgid "unsupported CPU architecture for NW.js: {architecture}"
@@ -1236,77 +1556,6 @@ msgstr "la ruta de sesión cambió antes de la limpieza: {path}"
 msgid "cannot remove launch session {path}: {error}"
 msgstr "no se puede eliminar la sesión de inicio {path}: {error}"
 
-#: box-rpg/src/box/launch/manifest.py:105
-msgid "a NW.js launch session requires a web game manifest and entrypoint"
-msgstr ""
-"una sesión de inicio de NW.js requiere un manifiesto del juego web y un "
-"punto de entrada"
-
-#: box-rpg/src/box/launch/manifest.py:133
-#: box-rpg/src/box/launch/manifest.py:140
-#, python-brace-format
-msgid "cannot write session manifest: {error}"
-msgstr "no se puede escribir el manifiesto de sesión: {error}"
-
-#: box-rpg/src/box/launch/manifest.py:143
-#, python-brace-format
-msgid "cannot create session manifest: {error}"
-msgstr "no se puede crear el manifiesto de sesión: {error}"
-
-#: box-rpg/src/box/launch/manifest.py:166
-msgid "game manifest must be in the game root"
-msgstr "el manifiesto del juego debe estar en la raíz del juego"
-
-#: box-rpg/src/box/launch/manifest.py:173
-#, python-brace-format
-msgid "cannot read game manifest {manifest}: {error}"
-msgstr "no se puede leer el manifiesto del juego {manifest}: {error}"
-
-#: box-rpg/src/box/launch/manifest.py:179
-#, python-brace-format
-msgid "game manifest is not a JSON object: {manifest}"
-msgstr "el manifiesto del juego no es un objeto JSON: {manifest}"
-
-#: box-rpg/src/box/launch/process.py:33
-#: box-rpg/src/box/launch/supervisor.py:579
-#: box-rpg/src/box/launch/supervisor.py:604
-#: box-rpg/src/box/launch/supervisor.py:751
-#: box-rpg/src/box/launch/supervisor.py:757
-#, python-brace-format
-msgid "cannot start game runtime: {error}"
-msgstr "no se puede iniciar el entorno de ejecución del juego: {error}"
-
-#: box-rpg/src/box/launch/profiles.py:33 box-rpg/src/box/launch/session.py:215
-#: box-rpg/src/box/api/launch.py:406
-#, python-brace-format
-msgid "cannot identify game root {root}: {error}"
-msgstr "no se puede identificar la raíz del juego {root}: {error}"
-
-#: box-rpg/src/box/launch/profiles.py:58 box-rpg/src/box/launch/profiles.py:86
-#, python-brace-format
-msgid "game profile directory is missing or unsafe: {path}"
-msgstr "el directorio del perfil del juego no existe o no es seguro: {path}"
-
-#: box-rpg/src/box/launch/profiles.py:67
-#, python-brace-format
-msgid "invalid game profile identifier: {identifier}"
-msgstr "identificador del perfil del juego no válido: {identifier}"
-
-#: box-rpg/src/box/launch/profiles.py:76
-#, python-brace-format
-msgid "invalid game profile directory: {path}"
-msgstr "directorio del perfil del juego no válido: {path}"
-
-#: box-rpg/src/box/launch/profiles.py:81
-#, python-brace-format
-msgid "refusing to manage unexpected game profile path: {path}"
-msgstr "se rechaza gestionar una ruta inesperada del perfil del juego: {path}"
-
-#: box-rpg/src/box/launch/profiles.py:102
-#, python-brace-format
-msgid "cannot securely open managed profiles: {error}"
-msgstr "no se pueden abrir de forma segura los perfiles gestionados: {error}"
-
 #: box-rpg/src/box/launch/gamemode.py:48
 msgid ""
 "GameMode requires gamemoderun (/usr/bin/gamemoderun); install GameMode or "
@@ -1328,8 +1577,8 @@ msgid ""
 "GameMode requires a session bus address ($DBUS_SESSION_BUS_ADDRESS or "
 "$XDG_RUNTIME_DIR/bus); retry without --gamemode"
 msgstr ""
-"GameMode requiere una dirección del bus de sesión ($DBUS_SESSION_BUS_ADDRESS o "
-"$XDG_RUNTIME_DIR/bus); reintenta sin --gamemode"
+"GameMode requiere una dirección del bus de sesión ($DBUS_SESSION_BUS_ADDRESS "
+"o $XDG_RUNTIME_DIR/bus); reintenta sin --gamemode"
 
 #: box-rpg/src/box/launch/gamemode.py:101
 msgid ""
@@ -1384,19 +1633,90 @@ msgid "cannot copy game-root file into session: {error}"
 msgstr ""
 "no se puede copiar el archivo de la raíz del juego a la sesión: {error}"
 
-#: box-rpg/src/box/launch/session.py:160
+#: box-rpg/src/box/launch/manifest.py:105
+msgid "a NW.js launch session requires a web game manifest and entrypoint"
+msgstr ""
+"una sesión de inicio de NW.js requiere un manifiesto del juego web y un "
+"punto de entrada"
+
+#: box-rpg/src/box/launch/manifest.py:133
+#: box-rpg/src/box/launch/manifest.py:140
+#, python-brace-format
+msgid "cannot write session manifest: {error}"
+msgstr "no se puede escribir el manifiesto de sesión: {error}"
+
+#: box-rpg/src/box/launch/manifest.py:143
+#, python-brace-format
+msgid "cannot create session manifest: {error}"
+msgstr "no se puede crear el manifiesto de sesión: {error}"
+
+#: box-rpg/src/box/launch/manifest.py:166
+msgid "game manifest must be in the game root"
+msgstr "el manifiesto del juego debe estar en la raíz del juego"
+
+#: box-rpg/src/box/launch/manifest.py:173
+#, python-brace-format
+msgid "cannot read game manifest {manifest}: {error}"
+msgstr "no se puede leer el manifiesto del juego {manifest}: {error}"
+
+#: box-rpg/src/box/launch/manifest.py:179
+#, python-brace-format
+msgid "game manifest is not a JSON object: {manifest}"
+msgstr "el manifiesto del juego no es un objeto JSON: {manifest}"
+
+#: box-rpg/src/box/launch/process.py:33
+#: box-rpg/src/box/launch/supervisor.py:579
+#: box-rpg/src/box/launch/supervisor.py:604
+#: box-rpg/src/box/launch/supervisor.py:751
+#: box-rpg/src/box/launch/supervisor.py:757
+#, python-brace-format
+msgid "cannot start game runtime: {error}"
+msgstr "no se puede iniciar el entorno de ejecución del juego: {error}"
+
+#: box-rpg/src/box/launch/profiles.py:33 box-rpg/src/box/launch/session.py:219
+#: box-rpg/src/box/api/launch.py:453
+#, python-brace-format
+msgid "cannot identify game root {root}: {error}"
+msgstr "no se puede identificar la raíz del juego {root}: {error}"
+
+#: box-rpg/src/box/launch/profiles.py:58 box-rpg/src/box/launch/profiles.py:86
+#, python-brace-format
+msgid "game profile directory is missing or unsafe: {path}"
+msgstr "el directorio del perfil del juego no existe o no es seguro: {path}"
+
+#: box-rpg/src/box/launch/profiles.py:67
+#, python-brace-format
+msgid "invalid game profile identifier: {identifier}"
+msgstr "identificador del perfil del juego no válido: {identifier}"
+
+#: box-rpg/src/box/launch/profiles.py:76
+#, python-brace-format
+msgid "invalid game profile directory: {path}"
+msgstr "directorio del perfil del juego no válido: {path}"
+
+#: box-rpg/src/box/launch/profiles.py:81
+#, python-brace-format
+msgid "refusing to manage unexpected game profile path: {path}"
+msgstr "se rechaza gestionar una ruta inesperada del perfil del juego: {path}"
+
+#: box-rpg/src/box/launch/profiles.py:102
+#, python-brace-format
+msgid "cannot securely open managed profiles: {error}"
+msgstr "no se pueden abrir de forma segura los perfiles gestionados: {error}"
+
+#: box-rpg/src/box/launch/session.py:163
 #: box-rpg/src/box/launch/supervisor.py:309
 #: box-rpg/src/box/launch/supervisor.py:321
 #, python-brace-format
 msgid "cannot create launch session: {error}"
 msgstr "no se puede crear la sesión de inicio: {error}"
 
-#: box-rpg/src/box/launch/session.py:228
+#: box-rpg/src/box/launch/session.py:232
 #, python-brace-format
 msgid "cannot create launch session directory: {error}"
 msgstr "no se puede crear el directorio de sesión de inicio: {error}"
 
-#: box-rpg/src/box/launch/session.py:233 box-rpg/src/box/launch/session.py:238
+#: box-rpg/src/box/launch/session.py:237 box-rpg/src/box/launch/session.py:242
 msgid "launch session directory has unsafe ownership or permissions"
 msgstr ""
 "el directorio de sesión de inicio tiene propiedad o permisos no seguros"
@@ -1571,7 +1891,7 @@ msgstr "%(prog)s: error: %(message)s\n"
 msgid "%(prog)s: warning: %(message)s\n"
 msgstr "%(prog)s: advertencia: %(message)s\n"
 
-#: box-rpg/src/box/api/diagnose.py:46
+#: box-rpg/src/box/api/diagnose.py:47
 #, python-brace-format
 msgid "{sdk} is only available for NW.js games"
 msgstr "{sdk} solo está disponible para juegos de NW.js"
@@ -1581,8 +1901,8 @@ msgstr "{sdk} solo está disponible para juegos de NW.js"
 msgid "Add {path} to allowed game roots? [y/N] "
 msgstr "¿Agregar {path} a los juegos permitidos? [y/N] "
 
-#: box-rpg/src/box/api/interaction.py:79 box-rpg/src/box/api/launch.py:378
-#: box-rpg/src/box/api/launch.py:380
+#: box-rpg/src/box/api/interaction.py:79 box-rpg/src/box/api/launch.py:420
+#: box-rpg/src/box/api/launch.py:422
 msgid "game root was not authorized"
 msgstr "la raíz del juego no fue autorizada"
 
@@ -1599,16 +1919,16 @@ msgstr ""
 msgid "Continue with X11? [y/N] "
 msgstr "¿Continuar con X11? [y/N] "
 
-#: box-rpg/src/box/api/interaction.py:92 box-rpg/src/box/api/launch.py:82
-#: box-rpg/src/box/api/launch.py:84
+#: box-rpg/src/box/api/interaction.py:92 box-rpg/src/box/api/launch.py:83
+#: box-rpg/src/box/api/launch.py:85
 msgid "X11 launch was not confirmed"
 msgstr "el inicio con X11 no fue confirmado"
 
 #: box-rpg/src/box/api/interaction.py:98 box-rpg/src/box/api/interaction.py:104
-#: box-rpg/src/box/api/interaction.py:113 box-rpg/src/box/api/launch.py:305
-#: box-rpg/src/box/api/launch.py:307 box-rpg/src/box/api/launch.py:309
-#: box-rpg/src/box/api/launch.py:335 box-rpg/src/box/api/launch.py:337
-#: box-rpg/src/box/api/launch.py:339
+#: box-rpg/src/box/api/interaction.py:113 box-rpg/src/box/api/launch.py:311
+#: box-rpg/src/box/api/launch.py:313 box-rpg/src/box/api/launch.py:315
+#: box-rpg/src/box/api/launch.py:341 box-rpg/src/box/api/launch.py:343
+#: box-rpg/src/box/api/launch.py:345
 msgid "runtime selection was cancelled"
 msgstr "se canceló la selección del entorno de ejecución"
 
@@ -1626,22 +1946,22 @@ msgstr ""
 "Selecciona un entorno de ejecución de NW.js 1-{count} (predeterminado 1) o "
 "[q] salir: "
 
-#: box-rpg/src/box/api/launch.py:74
+#: box-rpg/src/box/api/launch.py:75
 msgid "explicit consent is required for X11; run interactively to continue"
 msgstr ""
 "se requiere consentimiento explícito para X11; ejecuta de forma interactiva "
 "para continuar"
 
-#: box-rpg/src/box/api/launch.py:151
+#: box-rpg/src/box/api/launch.py:157
 #, python-brace-format
 msgid "{sdk} and {copy_root_file} are only available for NW.js games"
 msgstr "{sdk} y {copy_root_file} solo están disponibles para juegos de NW.js"
 
-#: box-rpg/src/box/api/launch.py:301
+#: box-rpg/src/box/api/launch.py:307
 msgid "Installed EasyRPG Player runtimes (x64):"
 msgstr "Entornos de ejecución de EasyRPG Player instalados (x64):"
 
-#: box-rpg/src/box/api/launch.py:329
+#: box-rpg/src/box/api/launch.py:335
 #, python-brace-format
 msgid "Installed NW.js runtimes ({architecture}, {flavor}):"
 msgstr "Entornos de ejecución de NW.js instalados ({architecture}, {flavor}):"
@@ -1696,73 +2016,85 @@ msgid "refusing to manage nested game profile path: {path}"
 msgstr "se rechaza gestionar una ruta anidada del perfil del juego: {path}"
 
 #: box-rpg/src/box/paths.py:186
+msgid "unpacked game"
+msgstr "juego desempaquetado"
+
+#: box-rpg/src/box/paths.py:191 box-rpg/src/box/paths.py:195
+#, python-brace-format
+msgid "refusing to manage nested unpacked game path: {path}"
+msgstr "se rechaza gestionar una ruta anidada de juego desempaquetado: {path}"
+
+#: box-rpg/src/box/paths.py:202
 msgid "EasyRPG runtime"
 msgstr "entorno de ejecución de EasyRPG"
 
-#: box-rpg/src/box/paths.py:197 box-rpg/src/box/paths.py:234
+#: box-rpg/src/box/paths.py:213 box-rpg/src/box/paths.py:250
 #, python-brace-format
 msgid "refusing to manage {label} outside cache: {path}"
 msgstr "se rechaza gestionar {label} fuera de la caché: {path}"
 
-#: box-rpg/src/box/paths.py:201
+#: box-rpg/src/box/paths.py:217
 #, python-brace-format
 msgid "refusing to manage cache root as a {label}: {path}"
 msgstr "se rechaza gestionar la raíz de la caché como {label}: {path}"
 
-#: box-rpg/src/box/paths.py:208 box-rpg/src/box/paths.py:309
-#: box-rpg/src/box/paths.py:334
+#: box-rpg/src/box/paths.py:224 box-rpg/src/box/paths.py:325
+#: box-rpg/src/box/paths.py:350
 #, python-brace-format
 msgid "managed directory must not be a symlink: {path}"
 msgstr "el directorio gestionado no debe ser un enlace simbólico: {path}"
 
-#: box-rpg/src/box/paths.py:218
+#: box-rpg/src/box/paths.py:234
 #, python-brace-format
 msgid "managed {label} path contains a symlink: {path}"
 msgstr "la ruta de {label} gestionada contiene un enlace simbólico: {path}"
 
-#: box-rpg/src/box/paths.py:227
+#: box-rpg/src/box/paths.py:243
 #, python-brace-format
 msgid "managed {label} directory has unsafe ownership or permissions: {path}"
 msgstr ""
 "el directorio de {label} gestionado tiene propiedad o permisos no seguros: "
 "{path}"
 
-#: box-rpg/src/box/paths.py:238
+#: box-rpg/src/box/paths.py:254
 #, python-brace-format
 msgid "managed {label} path contains upper-case components: {path}"
 msgstr ""
 "la ruta de {label} gestionada contiene componentes en mayúsculas: {path}"
 
-#: box-rpg/src/box/paths.py:267
+#: box-rpg/src/box/paths.py:283
 #, python-brace-format
 msgid "managed directory is unsafe: {name}"
 msgstr "el directorio gestionado no es seguro: {name}"
 
-#: box-rpg/src/box/paths.py:277
+#: box-rpg/src/box/paths.py:293
 #, python-brace-format
 msgid "cannot safely open managed directory: {name}"
 msgstr "no se puede abrir de forma segura el directorio gestionado: {name}"
 
-#: box-rpg/src/box/paths.py:283 box-rpg/src/box/paths.py:289
+#: box-rpg/src/box/paths.py:299 box-rpg/src/box/paths.py:305
 #, python-brace-format
 msgid "managed directory has unsafe ownership or permissions: {name}"
 msgstr "el directorio gestionado tiene propiedad o permisos no seguros: {name}"
 
-#: box-rpg/src/box/paths.py:325
+#: box-rpg/src/box/paths.py:341
 #, python-brace-format
 msgid "managed directory is not owned by the current user: {path}"
 msgstr "el directorio gestionado no pertenece al usuario actual: {path}"
 
-#: box-rpg/src/box/paths.py:329
+#: box-rpg/src/box/paths.py:345
 #, python-brace-format
 msgid "managed directory has unsafe permissions: {path}"
 msgstr "el directorio gestionado tiene permisos no seguros: {path}"
 
-#: box-rpg/src/box/paths.py:337
+#: box-rpg/src/box/paths.py:353
 #, python-brace-format
 msgid "cannot safely create managed directory {path}: {error}"
 msgstr ""
 "no se puede crear de forma segura el directorio gestionado {path}: {error}"
+
+#~ msgid "refusing unsafe unpacked game cache name"
+#~ msgstr "se rechaza un nombre de caché de juego desempaquetado no seguro"
 
 #, python-brace-format
 #~ msgid "removed {count} shell completions"

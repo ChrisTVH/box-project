@@ -1,0 +1,4 @@
+!evb/*.exe
+!evb/expected-README.txt
+!evb/README_packed.txt
+!evb/PackerProject.evb

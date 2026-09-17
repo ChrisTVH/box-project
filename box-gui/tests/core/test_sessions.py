@@ -208,3 +208,44 @@ def test_stop_session_calls_backend(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     stop_session(paths, entry, "s1")
 
     assert stopped == [(paths, identifier, "s1")]
+
+
+def test_packed_source_probes_use_source_keyed_identifier(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Packed folders probe and stop with the source-keyed session identifier.
+
+    The library keeps the source folder while launch keys sessions by the
+    source root, so Running badges and stop must use that same key for
+    packed games to show as running and stoppable.
+    """
+    import box.api.launch as launch_api
+    from box.games.identity import game_id
+
+    source = tmp_path / "game"
+    source.mkdir()
+    (source / "Game.exe").write_bytes(b"fake packed executable")
+    paths = _paths(tmp_path)
+    entry = _entry(source)
+    expected = game_id(source)
+    assert game_identifier(source) == expected
+    seen: list[str] = []
+
+    def _fake_listing(got_paths: Any, identifier: str) -> list[str]:
+        seen.append(identifier)
+        return ["s1"] if identifier == expected else []
+
+    monkeypatch.setattr(launch_api, "find_live_sessions", _fake_listing, raising=False)
+
+    assert live_session_names(paths, entry) == ("s1",)
+    assert seen == [expected]
+    assert is_session_running(paths, entry) is True
+
+    stopped: list[Any] = []
+    monkeypatch.setattr(
+        launch_api, "stop_session", lambda *args: stopped.append(args), raising=False
+    )
+
+    stop_session(paths, entry, "s1")
+
+    assert stopped == [(paths, expected, "s1")]

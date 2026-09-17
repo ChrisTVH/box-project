@@ -20,7 +20,13 @@ from box.games.inspector import Inspection, inspect_game
 from box.launch import manifest
 from box.launch.process import run_process, runtime_environment
 from box.models import EngineName, GameInfo
+from box.paths import AppPaths
 from box.utils.terminal import safe_terminal_text
+
+
+def _paths(tmp_path: Path) -> AppPaths:
+    """Build isolated launcher paths inside a temporary directory."""
+    return AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
 
 
 def test_terminal_controls_are_visible_without_changing_unicode() -> None:
@@ -44,7 +50,7 @@ def test_inspect_escapes_only_presentation(
         return inspection
 
     monkeypatch.setattr("box.api.inspect.inspect_game", inspect_stub)
-    assert inspect.execute(root) == 0
+    assert inspect.execute(_paths(tmp_path), root) == 0
     output = capsys.readouterr().out
     assert len(output.splitlines()) == 5
     assert "\\x0a\\x1b[2J" in output

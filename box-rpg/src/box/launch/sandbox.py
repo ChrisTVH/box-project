@@ -483,9 +483,9 @@ class Sandbox:
         self.options += ["--ro-bind", str(proxy_host_path), destination]
         self.options += ["--setenv", "DBUS_SESSION_BUS_ADDRESS", f"unix:path={destination}"]
 
-    def persistence(self, paths: AppPaths, game: GameInfo) -> None:
+    def persistence(self, paths: AppPaths, game: GameInfo, game_root: Path | None = None) -> None:
         """Mount only the disposable runtime profile from the launcher cache."""
-        profile = ProfileCatalog(paths).create_for_game(game)
+        profile = ProfileCatalog(paths).create_for_game(game, game_root)
         profile_descriptor = self.keep(
             paths.open_or_create_private_cache_directory("profiles", profile.name, "sandbox")
         )
@@ -526,6 +526,19 @@ class Sandbox:
         self._validate_game_directory(saves, path / "save")
         self.bind(saves, "/saves", writable=True)
         return saves
+
+    def game_source_saves(self, source: GameInfo, descriptor: int) -> int:
+        """Pin the consented source save/ directory for EasyRPG launches.
+
+        The unpacked game tree stays the read-only /game mount while saves
+        live in the user-pointed source folder; --save-path stays /game/save.
+        Only RPG Maker 2000/2003 games qualify (save/ at the root, no
+        entrypoint parts). Validation mirrors game_saves: descriptor pinning,
+        0700 creation, ownership and permission checks, and tree validation.
+        """
+        if source.engine is not EngineName.RPG_MAKER_2000_2003:
+            raise LaunchError("source saves are only available for RPG Maker 2000/2003 games")
+        return self.game_saves(source, descriptor)
 
     def _validate_game_directory(self, descriptor: int, path: Path) -> None:
         """Reject an ancestor or save directory relocated while it was being opened."""

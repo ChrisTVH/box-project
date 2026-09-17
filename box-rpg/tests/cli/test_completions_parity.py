@@ -30,8 +30,9 @@ def _launch_flags() -> set[str]:
 
 
 def _bash_launch_flags(text: str) -> set[str]:
-    """Extract flags from the launch compgen list in the bash completion."""
-    match = re.search(r"launch\)\s*\n\s*COMPREPLY=\(\$\(compgen -W '([^']+)'", text)
+    """Extract flags from the first launch compgen list in bash completion."""
+    start = text.index("launch)")
+    match = re.search(r"compgen -W '([^']+)'", text[start:])
     assert match is not None, "launch completion missing in bash source"
     return set(FLAG_RE.findall(match.group(1)))
 
@@ -72,3 +73,18 @@ def test_launch_completion_matches_parser(name: str) -> None:
         advertised = _zsh_launch_flags(text)
     assert expected <= advertised, f"{name} missing {sorted(expected - advertised)}"
     assert advertised <= expected, f"{name} advertises unknown {sorted(advertised - expected)}"
+
+
+@pytest.mark.parametrize("name", ["box-rpg.bash", "box-rpg.fish", "_box-rpg"])
+def test_positional_path_completion(name: str) -> None:
+    """launch/diagnose complete game paths and config set completes its keys."""
+    text = (COMPLETIONS_DIR / name).read_text(encoding="utf-8")
+    if name == "box-rpg.bash":
+        assert "compgen -f" in text, "bash offers no path completion"
+        assert "allowed-game-root preferred-runtime" in text
+    elif name == "box-rpg.fish":
+        assert "__fish_complete_path" in text, "fish offers no path completion"
+        assert "allowed-game-root preferred-runtime" in text
+    else:
+        assert "_files" in text, "zsh offers no path completion"
+        assert "allowed-game-root preferred-runtime" in text

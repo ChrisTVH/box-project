@@ -299,7 +299,7 @@ class GameDetailPage(Adw.NavigationPage):
             return
         self._set_busy(True, _("Inspecting {path} …").format(path=self._entry.path))
         self._ensure_session_poll()
-        run_inspect(self._entry.path, self._on_inspect_done, self._on_inspect_error)
+        run_inspect(self._paths, self._entry.path, self._on_inspect_done, self._on_inspect_error)
 
     def _record_sighting(self) -> bool:
         """Persist one advisory missing-folder sighting; True means reachable.
@@ -431,11 +431,20 @@ class GameDetailPage(Adw.NavigationPage):
         return tuple(dict.fromkeys(versions))
 
     def _root_file_options(self, game: GameInfo) -> tuple[str, ...]:
-        """List candidate extra-root filenames, tolerating unreadable roots."""
+        """List candidate extra-root filenames, tolerating unreadable roots.
+
+        Packed single-executable sources resolve against their unpacked
+        profile tree (the tree sessions copy from), not the source folder
+        holding only the packed executable. When unpacking fails, fall
+        back to the source listing so plain folders still offer files.
+        """
         try:
-            names = tuple(list_root_files(game))
+            names = tuple(list_root_files(game, self._paths))
         except BoxError, OSError:
-            return ()
+            try:
+                names = tuple(list_root_files(game))
+            except BoxError, OSError:
+                return ()
         return tuple(
             name for name in names if Path(name).suffix.lower() not in _SKIPPED_ROOT_SUFFIXES
         )
@@ -1086,7 +1095,9 @@ class GameDetailPage(Adw.NavigationPage):
         except ImportError as exc:
             self._show_alert(_("Unexpected Error"), str(exc) or exc.__class__.__name__)
             return
-        run_inspect(Path(path), self._on_locate_inspect_done, self._on_locate_inspect_error)
+        run_inspect(
+            self._paths, Path(path), self._on_locate_inspect_done, self._on_locate_inspect_error
+        )
 
     def _on_locate_inspect_done(self, inspection: Inspection) -> None:
         """Relocate this entry onto the inspected folder, clearing its ghost streak."""

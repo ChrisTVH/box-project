@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 from pathlib import Path
 
 import pytest
@@ -50,13 +51,13 @@ def test_find_executables_unreadable_root_returns_empty(
     def _fail(_game: GameInfo) -> tuple[str, ...]:
         raise OSError("simulated unreadable root")
 
-    monkeypatch.setattr(game_icon_module, "list_root_files", _fail)
+    monkeypatch.setattr(game_icon_module, "list_executables", _fail)
 
     assert find_game_executables(_make_game(tmp_path)) == ()
 
 
 def test_find_executables_empty(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(game_icon_module, "list_root_files", lambda _game: ())
+    monkeypatch.setattr(game_icon_module, "list_executables", lambda _game: ())
 
     assert find_game_executables(_make_game(tmp_path)) == ()
 
@@ -64,10 +65,10 @@ def test_find_executables_empty(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
 def test_find_executables_filters_exe_only_sorted(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Only `.exe` names survive a mixed list_root_files result, sorted and rooted."""
+    """Only `.exe` names survive a mixed list_executables result, sorted and rooted."""
     monkeypatch.setattr(
         game_icon_module,
-        "list_root_files",
+        "list_executables",
         lambda _game: (
             "readme.txt",
             "RPG_RT.exe",
@@ -82,6 +83,23 @@ def test_find_executables_filters_exe_only_sorted(
         tmp_path / "game.EXE",
         tmp_path / "RPG_RT.exe",
     )
+
+
+def test_find_executables_packed_source_returns_source_exe(tmp_path: Path) -> None:
+    """A packed single-.exe source lists its own .exe without AppPaths.
+
+    Icon discovery calls list_executables without paths, so the packed source
+    root stays the icon source even after unpacking moves launches to the
+    profile cache tree. No size cap applies: packed executables larger than
+    the copy-candidate limit stay eligible.
+    """
+    source = tmp_path / "source-game"
+    source.mkdir()
+    executable = source / "My Custom Game.exe"
+    executable.write_bytes(b"fake packed executable")
+    os.truncate(executable, 17 * 1024 * 1024)
+
+    assert find_game_executables(_make_game(source)) == (executable,)
 
 
 def test_icon_path_lives_in_cache_dir(tmp_path: Path) -> None:

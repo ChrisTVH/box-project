@@ -103,6 +103,7 @@ def create_session(
     copy_root_files: tuple[str, ...] = (),
     *,
     game_descriptor: int | None = None,
+    game_root: Path | None = None,
 ) -> LaunchSession:
     """Create an isolated manifest and game link under the XDG cache."""
     paths.ensure()
@@ -116,8 +117,10 @@ def create_session(
             os.close(game_descriptor)
         raise
     try:
-        identifier = _game_identifier(game)
-        profile_root = ProfileCatalog(paths).create_for_game(game, game_reference_path)
+        identifier = _game_identifier(game, game_root)
+        profile_root = ProfileCatalog(paths).create_for_game(
+            game, game_reference_path if game_root is None else game_root
+        )
     except Exception:
         if owns_game_descriptor:
             os.close(game_descriptor)
@@ -206,13 +209,14 @@ def create_session(
     )
 
 
-def _game_identifier(game: GameInfo) -> str:
+def _game_identifier(game: GameInfo, game_root: Path | None = None) -> str:
     """Convert a missing or racing game path into a launch-domain error."""
     try:
-        return game_id(game.root)
+        return game_id(game.root if game_root is None else game_root)
     except (OSError, RuntimeError) as exc:
+        root = game.root if game_root is None else game_root
         raise LaunchError(
-            _("cannot identify game root {root}: {error}").format(root=game.root, error=exc)
+            _("cannot identify game root {root}: {error}").format(root=root, error=exc)
         ) from exc
 
 

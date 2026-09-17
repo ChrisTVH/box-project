@@ -45,8 +45,15 @@ _box_rpg() {
             ;;
         config)
             case "${words[2]}" in
-                show|set)
+                show)
                     COMPREPLY=($(compgen -W '--help' -- "$cur"))
+                    ;;
+                set)
+                    if [[ -z "${words[3]}" ]]; then
+                        COMPREPLY=($(compgen -W 'allowed-game-root preferred-runtime --help' -- "$cur"))
+                    else
+                        COMPREPLY=($(compgen -W '--help' -- "$cur"))
+                    fi
                     ;;
                 *)
                     COMPREPLY=($(compgen -W 'show set --help' -- "$cur"))
@@ -94,10 +101,18 @@ _box_rpg() {
             esac
             ;;
         launch)
-            COMPREPLY=($(compgen -W '--runtime --sdk --copy-root-file --allow-network --allow-game-writes --x11 --gamemode --help' -- "$cur"))
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=($(compgen -W '--runtime --sdk --copy-root-file --allow-network --allow-game-writes --x11 --gamemode --help' -- "$cur"))
+            else
+                COMPREPLY=($(compgen -f -- "$cur"))
+            fi
             ;;
         diagnose)
-            COMPREPLY=($(compgen -W '--runtime --sdk --help' -- "$cur"))
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=($(compgen -W '--runtime --sdk --help' -- "$cur"))
+            else
+                COMPREPLY=($(compgen -f -- "$cur"))
+            fi
             ;;
         *)
             COMPREPLY=($(compgen -W 'cleanup inspect runtime launch config diagnose --help --version' -- "$cur"))

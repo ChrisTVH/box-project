@@ -113,7 +113,7 @@ def _install_fake_inspect(monkeypatch: pytest.MonkeyPatch, factory: Any) -> Any:
     calls: list[Any] = []
     module = types.ModuleType("box_gui.gtk.workers")
 
-    def _run_inspect(path: Any, on_done: Any, on_error: Any) -> None:
+    def _run_inspect(_paths: Any, path: Any, on_done: Any, on_error: Any) -> None:
         calls.append(path)
         on_done(factory(path))
         return None
@@ -145,7 +145,7 @@ def _install_fake_launch_workers(
     inspect_calls: list[Any] = []
     module = types.ModuleType("box_gui.gtk.workers")
 
-    def _run_inspect(path: Any, on_done: Any, on_error: Any) -> None:
+    def _run_inspect(_paths: Any, path: Any, on_done: Any, on_error: Any) -> None:
         inspect_calls.append(path)
         if inspect_error is not None:
             on_error(inspect_error)
@@ -363,7 +363,7 @@ def test_inspect_and_add_pushes_detail(monkeypatch: pytest.MonkeyPatch, tmp_path
     root.mkdir()
     _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, "Picked Game"))
     opened: list[Any] = []
-    page = LibraryPage(library=repository, on_open_game=opened.append)
+    page = LibraryPage(library=repository, on_open_game=opened.append, paths=_make_paths(tmp_path))
 
     page.inspect_and_add(root)
 
@@ -382,7 +382,7 @@ def test_folder_chosen_starts_add(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     repository = _make_repository(tmp_path)
     calls = _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, "Chosen Game"))
     opened: list[Any] = []
-    page = LibraryPage(library=repository, on_open_game=opened.append)
+    page = LibraryPage(library=repository, on_open_game=opened.append, paths=_make_paths(tmp_path))
     root = tmp_path / "chosen"
     root.mkdir()
 
@@ -466,7 +466,7 @@ def test_duplicate_add_shows_library_alert(monkeypatch: pytest.MonkeyPatch, tmp_
     repository.add(root, "Same")
     _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, "Same"))
     opened: list[Any] = []
-    page = LibraryPage(library=repository, on_open_game=opened.append)
+    page = LibraryPage(library=repository, on_open_game=opened.append, paths=_make_paths(tmp_path))
 
     page.inspect_and_add(root)
 
@@ -1654,7 +1654,7 @@ def test_locate_invalid_stays_ghost_with_error(
     monkeypatch.setattr(
         sys.modules["box_gui.gtk.workers"],
         "run_inspect",
-        lambda path, on_done, on_error: on_error(BoxError("not a game")),
+        lambda _paths, path, on_done, on_error: on_error(BoxError("not a game")),
     )
     page, _paths = _make_wired_page(tmp_path, repository)
 
@@ -1981,7 +1981,7 @@ def _make_detail_navigation_page(
     state: dict[str, Any] = {"stops": []}
     module = types.ModuleType("box_gui.gtk.workers")
 
-    def _run_inspect(path: Any, on_done: Any, on_error: Any) -> None:
+    def _run_inspect(_paths: Any, path: Any, on_done: Any, on_error: Any) -> None:
         on_done(_make_inspection(path, path.name))
         return None
 

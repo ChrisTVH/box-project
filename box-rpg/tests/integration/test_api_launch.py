@@ -108,11 +108,15 @@ class FakeSandbox:
     def audio(self) -> None:
         self.calls.append("audio")
 
-    def persistence(self, paths: AppPaths, game: GameInfo) -> None:
+    def persistence(self, paths: AppPaths, game: GameInfo, game_root: Path | None = None) -> None:
         self.calls.append("persistence")
 
     def game_saves(self, game: GameInfo, descriptor: int) -> int:
         self.calls.append("game_saves")
+        return descriptor
+
+    def game_source_saves(self, source: GameInfo, descriptor: int) -> int:
+        self.calls.append("game_source_saves")
         return descriptor
 
     def game_writable(self, descriptor: int) -> None:
@@ -232,6 +236,7 @@ def _patch_session(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[Fake
         copy_root_files: tuple[str, ...] = (),
         *,
         game_descriptor: int | None = None,
+        game_root: Path | None = None,
     ) -> FakeSession:
         descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
         session = FakeSession(descriptor, tmp_path / "session")
@@ -650,5 +655,24 @@ def test_list_root_files_forwards_to_links_layer(
     monkeypatch.setattr("box.api.launch._list_root_files", fake_list_root_files)
     game = GameInfo(EngineName.RPG_MAKER_MZ, tmp_path / "game")
     result = list_root_files(game)
+    assert result is sentinel
+    assert captured["root"] == game.root
+
+
+def test_list_executables_forwards_to_links_layer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from box.api import launch as api_launch
+
+    captured: dict[str, object] = {}
+    sentinel = ("Game.exe",)
+
+    def fake_list_executables(root: Path) -> tuple[str, ...]:
+        captured["root"] = root
+        return sentinel
+
+    monkeypatch.setattr(api_launch, "_list_root_executables", fake_list_executables)
+    game = GameInfo(EngineName.RPG_MAKER_MZ, tmp_path / "game")
+    result = api_launch.list_executables(game)
     assert result is sentinel
     assert captured["root"] == game.root

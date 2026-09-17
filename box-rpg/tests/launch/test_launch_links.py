@@ -4,7 +4,13 @@ from pathlib import Path
 import pytest
 
 from box.errors import LaunchError
-from box.launch.links import copy_game_root_file, list_root_files, open_game_root
+from box.games.files import MAX_GAME_FILE_BYTES
+from box.launch.links import (
+    copy_game_root_file,
+    list_root_executables,
+    list_root_files,
+    open_game_root,
+)
 
 
 def test_open_game_root_rejects_symlinked_ancestor(tmp_path: Path) -> None:
@@ -104,3 +110,25 @@ def test_list_root_files_rejects_symlinked_ancestor(tmp_path: Path) -> None:
     alias.symlink_to(target, target_is_directory=True)
     with pytest.raises(LaunchError, match="unsafe"):
         list_root_files(alias / "game")
+
+
+def test_list_root_executables_keeps_large_packed_exe(tmp_path: Path) -> None:
+    """Icon discovery applies no size cap, unlike copy candidates."""
+    game = tmp_path / "game"
+    game.mkdir()
+    (game / "small.exe").write_bytes(b"MZ")
+    (game / "Big Packed Game.EXE").write_bytes(b"MZ")
+    os.truncate(game / "Big Packed Game.EXE", MAX_GAME_FILE_BYTES + 1)
+    (game / "readme.txt").write_bytes(b"docs")
+    (game / "lib.dll").write_bytes(b"dll")
+    (game / "subdir").mkdir()
+    (game / "link.exe").symlink_to(game / "small.exe")
+    (game / "game").write_bytes(b"x")
+    os.mkfifo(game / "pipe")
+
+    assert list_root_executables(game) == ("Big Packed Game.EXE", "small.exe")
+
+
+def test_list_root_executables_missing_root_raises(tmp_path: Path) -> None:
+    with pytest.raises(LaunchError, match="unsafe"):
+        list_root_executables(tmp_path / "missing")

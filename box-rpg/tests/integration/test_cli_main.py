@@ -73,7 +73,7 @@ def test_inspect_does_not_create_xdg_paths(tmp_path: Path, monkeypatch: pytest.M
     cache_home = tmp_path / "cache"
     calls: list[Path] = []
 
-    def inspect_game(game_path: Path) -> int:
+    def inspect_game(_paths: AppPaths, game_path: Path) -> int:
         calls.append(game_path)
         return 0
 

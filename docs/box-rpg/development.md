@@ -2,7 +2,7 @@
 
 This guide shows how to set up a reproducible development environment and build `box-rpg` safely.
 
-Use CPython 3.14 on Linux x86_64 with glibc 2.17 or newer. The locks were resolved with Python 3.14.7. Other versions, architectures, and musl need a separate resolution. Runtime `dependencies` stay empty.
+Use CPython 3.14 on Linux x86_64 with glibc 2.17 or newer. The locks were resolved with Python 3.14.7. Other versions, architectures, and musl need a separate resolution. Runtime `dependencies` stay empty: packed-executable headers are parsed in-house with the standard library, and payload decompression uses only `zlib`.
 
 ## Prepare an environment
 

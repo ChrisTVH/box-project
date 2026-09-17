@@ -15,7 +15,7 @@ import gi
 
 gi.require_version("GdkPixbuf", "2.0")
 
-from box.api.launch import list_root_files  # noqa: E402
+from box.api.launch import list_executables  # noqa: E402
 from box.models import GameInfo  # noqa: E402
 from icoextract import IconExtractor, IconExtractorError  # noqa: E402
 
@@ -33,9 +33,17 @@ MAX_ICON_SIDE: int = 256
 
 
 def find_game_executables(game: GameInfo) -> tuple[Path, ...]:
-    """Return .exe filenames from the game root, via list_root_files."""
+    """Return .exe filenames from the game root, via list_executables.
+
+    The packed source root is the intentional icon source: for packed
+    single-executable games this lists the packed ``*.exe`` beside the
+    source folder (never executed, only read for its icon), while the
+    unpacked profile tree stays reserved for launch file candidates.
+    Unlike copy candidates, icon discovery applies no size cap, so
+    large packed executables stay eligible.
+    """
     try:
-        names = list_root_files(game)
+        names = list_executables(game)
     except Exception:
         return ()
     exes = sorted((name for name in names if name.lower().endswith(".exe")), key=str.lower)

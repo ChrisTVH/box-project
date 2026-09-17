@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "box-rpg"
-version = "26.9.32"
+version = "26.9.33"
 description = "A safe launcher for RPG Maker 2000/2003/MV/MZ projects"
 readme = "README.md"
 requires-python = ">=3.14"
