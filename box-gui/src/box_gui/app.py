@@ -2,25 +2,43 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from box.api import AppPaths, ConfigRepository  # noqa: E402
-from box.api.interaction import Interaction  # noqa: E402
-from box.errors import ConfigurationError  # noqa: E402
+try:
+    from box.api import AppPaths, ConfigRepository
+    from box.api.interaction import Interaction
+    from box.errors import ConfigurationError
+except ImportError:
+    # Backend not installed: the setup page guides the install, so startup
+    # must survive without box. Repos stay None until the restart lands.
+    AppPaths = None  # type: ignore[assignment,misc]
+    ConfigRepository = None  # type: ignore[assignment,misc]
+    Interaction = None  # type: ignore[assignment,misc]
+    ConfigurationError = None  # type: ignore[assignment,misc]
 from gi.repository import Adw, Gdk, Gio, Gtk  # noqa: E402
 
-from box_gui.core.defaults import DefaultsRepository  # noqa: E402
-from box_gui.core.library import LibraryEntry, LibraryRepository  # noqa: E402
+from box_gui.core.backend_check import BackendStatus, check_backend  # noqa: E402
 from box_gui.i18n import _  # noqa: E402
 from box_gui.i18n import configure as configure_app_translations  # noqa: E402
-from box_gui.pages.game_detail_page import GameDetailPage  # noqa: E402
-from box_gui.pages.library_page import LibraryPage  # noqa: E402
+from box_gui.pages.backend_setup_page import BackendSetupPage  # noqa: E402
+
+if TYPE_CHECKING:
+    from box.api import AppPaths as AppPathsT
+    from box.api import ConfigRepository as ConfigRepositoryT
+    from box.api.interaction import Interaction as InteractionT
+    from box.errors import ConfigurationError as ConfigurationErrorT
+
+    from box_gui.core.defaults import DefaultsRepository
+    from box_gui.core.library import LibraryEntry, LibraryRepository
+    from box_gui.pages.library_page import LibraryPage
 
 try:
     from box_gui.gtk.interaction import GtkInteraction
@@ -51,6 +69,11 @@ def _register_bundled_icons() -> None:
     Gtk.IconTheme.get_for_display(display).add_search_path(str(icons_dir))
 
 
+def _restart_process() -> None:
+    """Replace this process with a fresh instance of the same command."""
+    os.execv(sys.executable, [sys.executable, *sys.argv])
+
+
 class BoxRpgApplication(Adw.Application):
     """GTK application presenting the library navigation view."""
 
@@ -60,25 +83,45 @@ class BoxRpgApplication(Adw.Application):
             flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
         )
         _configure_translations()
-        self._paths: AppPaths | None = None
-        self._repository: ConfigRepository | None = None
+        self._paths: AppPathsT | None = None
+        self._repository: ConfigRepositoryT | None = None
         self._library: LibraryRepository | None = None
         self._defaults_repository: DefaultsRepository | None = None
-        self._interaction: Interaction | None = None
-        self._startup_error: ConfigurationError | None = None
+        self._interaction: InteractionT | None = None
+        self._startup_error: ConfigurationErrorT | None = None
         self._navigation: Adw.NavigationView | None = None
         self._css_provider: Gtk.CssProvider | None = None
+        self._backend_status: BackendStatus = check_backend()
+        app_paths_cls = AppPaths
+        config_repository_cls = ConfigRepository
+        interaction_cls = Interaction
+        error_cls = ConfigurationError
+        if (
+            app_paths_cls is None
+            or config_repository_cls is None
+            or interaction_cls is None
+            or error_cls is None
+        ):
+            # Backend not installed: repos stay None and the setup page
+            # guides the install; nothing backend-backed is touched here.
+            return
         try:
-            paths = AppPaths.from_environment()
+            from box_gui.core.defaults import DefaultsRepository
+            from box_gui.core.library import LibraryRepository
+
+            paths = app_paths_cls.from_environment()
             paths.ensure()
             self._paths = paths
-            self._repository = ConfigRepository(paths)
+            self._repository = config_repository_cls(paths)
             self._library = LibraryRepository(paths)
             self._defaults_repository = DefaultsRepository(paths)
             if GtkInteraction is not None:
                 self._interaction = GtkInteraction(parent=None)
-        except ConfigurationError as exc:
-            self._startup_error = exc
+        except Exception as exc:
+            if isinstance(exc, error_cls):
+                self._startup_error = exc
+            else:
+                raise
 
     def _ensure_runtime_pill_style(self) -> None:
         """Load the theme-aware runtime pill background once per display."""
@@ -138,13 +181,6 @@ class BoxRpgApplication(Adw.Application):
             return
         window = self.props.active_window
         if window is None:
-            paths = self._paths
-            repository = self._repository
-            library = self._library
-            interaction = self._interaction
-            if paths is None or repository is None or library is None:
-                self.quit()
-                return
             window = Adw.ApplicationWindow(
                 application=self,
                 title=_("Box RPG Maker"),
@@ -153,19 +189,16 @@ class BoxRpgApplication(Adw.Application):
             )
             navigation = Adw.NavigationView()
             navigation.connect("popped", self._refresh_library_on_return)
-            library_page = LibraryPage(
-                library=library,
-                on_open_game=self._open_game,
-                on_open_settings=self.present_settings,
-                paths=paths,
-                repository=repository,
-                interaction=interaction,
-                defaults_repository=self._defaults_repository,
-            )
-            navigation.push(library_page)
+            library_page = self._build_library_page()
+            if library_page is None:
+                navigation.push(
+                    BackendSetupPage(self._backend_status, on_ready=self._restart_for_backend)
+                )
+            else:
+                navigation.push(library_page)
             window.set_content(navigation)
             self._navigation = navigation
-            setter = getattr(interaction, "set_parent", None)
+            setter = getattr(self._interaction, "set_parent", None)
             if callable(setter):
                 setter(window)
         window.present()
@@ -175,12 +208,49 @@ class BoxRpgApplication(Adw.Application):
         navigation: Adw.NavigationView, _popped: Adw.NavigationPage
     ) -> None:
         """Reload the library list when navigating back to it."""
+        try:
+            from box_gui.pages.library_page import LibraryPage
+        except ImportError:
+            return
         visible = navigation.get_visible_page()
         if isinstance(visible, LibraryPage):
             visible.refresh()
 
+    def _build_library_page(self) -> LibraryPage | None:
+        """Build the library root page, or None while the backend gate holds."""
+        if self._backend_status.needs_setup:
+            return None
+        from box_gui.pages.library_page import LibraryPage
+
+        library = self._library
+        paths = self._paths
+        repository = self._repository
+        if library is None or paths is None or repository is None:
+            return None
+        return LibraryPage(
+            library=library,
+            on_open_game=self._open_game,
+            on_open_settings=self.present_settings,
+            paths=paths,
+            repository=repository,
+            interaction=self._interaction,
+            defaults_repository=self._defaults_repository,
+        )
+
+    def _restart_for_backend(self) -> None:
+        """Restart after a verified install so the fresh backend loads.
+
+        The setup page calls this only after confirming the installed
+        version equals the expected tag, so startup lands straight in the
+        library. os.execv only returns on failure; the setup page then
+        surfaces the error and stays put instead of guessing.
+        """
+        _restart_process()
+
     def _open_game(self, entry: LibraryEntry) -> None:
         """Push the detail page for one library entry, if possible."""
+        from box_gui.pages.game_detail_page import GameDetailPage
+
         navigation = self._navigation
         paths = self._paths
         repository = self._repository

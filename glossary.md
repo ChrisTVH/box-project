@@ -124,3 +124,10 @@ Terms taken from the `box-rpg-maker` catalog; if a msgid contains a backend term
 | Add root | Añadir raíz | Acción de autorización; `root` aquí es forma corta de «game root». |
 | external link | enlace externo | En diálogo de confirmación antes de abrir una URL. |
 | project repository | repositorio del proyecto | Enlace del pie de la biblioteca; la URL queda literal. |
+| backend | backend | Masculino («el backend», «backend instalado»); no traducir. Precedente del catálogo. |
+| dependency | dependencia | En la página de configuración del backend. |
+| expected version | versión esperada | En el control de versiones del backend. |
+| clone (verb) | clonar | En «Cloning {url} …»; la URL queda literal. |
+| repository | repositorio | En mensajes de clonado; las URL quedan literales. |
+| detection | detección | En «Detection Failed» → «Detección fallida». |
+| install (verb/button) | instalar | Botón y acción: «Instalar», «Instalando…», «Instalado», «Reintentar». |

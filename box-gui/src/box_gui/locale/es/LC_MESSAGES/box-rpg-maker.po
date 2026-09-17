@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg-maker 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-17 12:13-0400\n"
+"POT-Creation-Date: 2026-09-17 15:54-0400\n"
 "PO-Revision-Date: 2026-09-14 00:00+0000\n"
 "Last-Translator: Christopher Herasme <5632734-"
 "christvh@users.noreply.gitlab.com>\n"
@@ -25,6 +25,112 @@ msgstr "Detener no es compatible con el backend instalado."
 #: box-gui/src/box_gui/core/sessions.py:160
 msgid "There is no running session to stop."
 msgstr "No hay ninguna sesión en ejecución que detener."
+
+#: box-gui/src/box_gui/core/backend_check.py:99
+msgid "The box-rpg backend is not installed. Install it to open your library."
+msgstr "El backend box-rpg no está instalado. Instálalo para abrir tu biblioteca."
+
+#: box-gui/src/box_gui/core/backend_check.py:123
+msgid ""
+"The box-rpg backend is installed but its version cannot be determined. "
+"Reinstall it to open your library."
+msgstr ""
+"El backend box-rpg está instalado, pero no se pudo determinar su versión. "
+"Reinstálalo para abrir tu biblioteca."
+
+#: box-gui/src/box_gui/core/backend_check.py:132
+#, python-brace-format
+msgid "box-rpg {version} is ready."
+msgstr "box-rpg {version} está listo."
+
+#: box-gui/src/box_gui/core/backend_check.py:139
+#, python-brace-format
+msgid ""
+"Installed box-rpg {installed} does not match the expected version "
+"{expected}. Install the expected version to open your library."
+msgstr ""
+"El box-rpg instalado {installed} no coincide con la versión esperada "
+"{expected}. Instala la versión esperada para abrir tu biblioteca."
+
+#: box-gui/src/box_gui/core/backend_check.py:165
+msgid "Python 3.14+"
+msgstr "Python 3.14+"
+
+#: box-gui/src/box_gui/core/backend_check.py:180
+#: box-gui/src/box_gui/core/backend_check.py:266
+msgid "available"
+msgstr "disponible"
+
+#: box-gui/src/box_gui/core/backend_check.py:180
+#: box-gui/src/box_gui/core/backend_check.py:226
+msgid "missing"
+msgstr "ausente"
+
+#: box-gui/src/box_gui/core/backend_check.py:223
+msgid "ready to launch games"
+msgstr "listo para iniciar juegos"
+
+#: box-gui/src/box_gui/core/backend_check.py:227
+msgid "installed but does not run"
+msgstr "instalado pero no se ejecuta"
+
+#: box-gui/src/box_gui/core/backend_check.py:228
+msgid "user namespaces are blocked"
+msgstr "los espacios de nombres de usuario están bloqueados"
+
+#: box-gui/src/box_gui/core/backend_check.py:266
+msgid "not available"
+msgstr "no disponible"
+
+#: box-gui/src/box_gui/core/backend_install.py:76
+msgid "Installing…"
+msgstr "Instalando…"
+
+#: box-gui/src/box_gui/core/backend_install.py:78
+msgid "Retry"
+msgstr "Reintentar"
+
+#: box-gui/src/box_gui/core/backend_install.py:80
+msgid "Installed"
+msgstr "Instalado"
+
+#: box-gui/src/box_gui/core/backend_install.py:81
+#, python-brace-format
+msgid "Install box-rpg {version}"
+msgstr "Instalar box-rpg {version}"
+
+#: box-gui/src/box_gui/core/backend_install.py:170
+#, python-brace-format
+msgid "Cloning {url} …"
+msgstr "Clonando {url} …"
+
+#: box-gui/src/box_gui/core/backend_install.py:187
+#, python-brace-format
+msgid "Could not clone the repository at {tag}: {errors}"
+msgstr "No se pudo clonar el repositorio en {tag}: {errors}"
+
+#: box-gui/src/box_gui/core/backend_install.py:192
+#: box-gui/src/box_gui/core/backend_install.py:192
+#: box-gui/src/box_gui/pages/backend_setup_page.py:314
+#, python-brace-format
+msgid "Installing box-rpg {tag} …"
+msgstr "Instalando box-rpg {tag} …"
+
+#: box-gui/src/box_gui/core/backend_install.py:195
+#, python-brace-format
+msgid "Install failed with exit code {code}."
+msgstr "La instalación falló con el código de salida {code}."
+
+#: box-gui/src/box_gui/core/backend_install.py:198
+msgid "Could not confirm the installed box-rpg version."
+msgstr "No se pudo confirmar la versión instalada de box-rpg."
+
+#: box-gui/src/box_gui/core/backend_install.py:202
+#, python-brace-format
+msgid ""
+"Installed box-rpg {installed} does not match the expected version {tag}."
+msgstr ""
+"El box-rpg instalado {installed} no coincide con la versión esperada {tag}."
 
 #: box-gui/src/box_gui/gtk/interaction.py:154
 msgid "Continue with X11?"
@@ -123,6 +229,7 @@ msgstr "Diagnóstico fallido"
 #: box-gui/src/box_gui/pages/library_page.py:1120
 #: box-gui/src/box_gui/pages/library_page.py:1125
 #: box-gui/src/box_gui/pages/library_page.py:1148
+#: box-gui/src/box_gui/pages/backend_setup_page.py:361
 msgid "Unexpected Error"
 msgstr "Error inesperado"
 
@@ -183,7 +290,8 @@ msgstr "Diagnóstico fallido."
 #: box-gui/src/box_gui/pages/game_detail_page.py:1243
 #: box-gui/src/box_gui/pages/game_detail_page.py:1260
 #: box-gui/src/box_gui/pages/library_page.py:1167
-#: box-gui/src/box_gui/app.py:124
+#: box-gui/src/box_gui/pages/backend_setup_page.py:369
+#: box-gui/src/box_gui/app.py:167
 msgid "Close"
 msgstr "Cerrar"
 
@@ -803,15 +911,18 @@ msgstr ""
 "añadir tu primer juego."
 
 #: box-gui/src/box_gui/pages/library_page.py:256
+#: box-gui/src/box_gui/pages/backend_setup_page.py:199
 msgid "Created with"
 msgstr "Creado con"
 
 #: box-gui/src/box_gui/pages/library_page.py:261
+#: box-gui/src/box_gui/pages/backend_setup_page.py:204
 #, python-brace-format
-msgid "love by {author}"
-msgstr "amor por {author}"
+msgid "by {author}"
+msgstr "por {author}"
 
 #: box-gui/src/box_gui/pages/library_page.py:266
+#: box-gui/src/box_gui/pages/backend_setup_page.py:209
 msgid "Open project repository"
 msgstr "Abrir repositorio del proyecto"
 
@@ -830,6 +941,49 @@ msgstr "En ejecución"
 #: box-gui/src/box_gui/pages/library_page.py:601
 msgid "Reorder or remove"
 msgstr "Reordenar o quitar"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:42
+msgid "Backend Update Required"
+msgstr "Actualización del backend requerida"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:44
+msgid "Backend Check Failed"
+msgstr "Comprobación del backend fallida"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:45
+msgid "Backend Required"
+msgstr "Backend requerido"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:53
+#, python-brace-format
+msgid "Required dependency missing: {names}."
+msgstr "Falta la dependencia requerida: {names}."
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:101
+#: box-gui/src/box_gui/pages/backend_setup_page.py:140
+msgid "Backend Setup"
+msgstr "Configuración del backend"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:115
+msgid "Dependencies"
+msgstr "Dependencias"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:151
+msgid "Installation output"
+msgstr "Salida de la instalación"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:293
+msgid "Detection Failed"
+msgstr "Detección fallida"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:345
+#, python-brace-format
+msgid "box-rpg {version} installed and verified."
+msgstr "box-rpg {version} instalado y verificado."
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:361
+msgid "Installation Failed"
+msgstr "Instalación fallida"
 
 #: box-gui/src/box_gui/widgets/exe_picker.py:32
 msgid "Select the game executable."
@@ -856,11 +1010,11 @@ msgstr "Estás a punto de abrir {url}."
 msgid "Open"
 msgstr "Abrir"
 
-#: box-gui/src/box_gui/app.py:120 box-gui/src/box_gui/app.py:150
+#: box-gui/src/box_gui/app.py:163 box-gui/src/box_gui/app.py:186
 msgid "Box RPG Maker"
 msgstr "Box RPG Maker"
 
-#: box-gui/src/box_gui/app.py:123
+#: box-gui/src/box_gui/app.py:166
 msgid "Configuration Error"
 msgstr "Error de configuración"
 
