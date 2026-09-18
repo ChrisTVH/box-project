@@ -15,25 +15,23 @@ Example: `26.8.5` -> 2026, August, 5th commit of August.
 
 ## How to compute it
 
-Run the script against the repo:
+Run the module from the monorepo (or the thin wrapper, which forwards to it):
 
 ```bash
-bash scripts/get_version.sh /path/to/repo
+python3 -m tools.versioning [path-to-repo]
 ```
 
-If no path is given, it uses the current directory. The script counts commits reachable from `HEAD` from the 1st of the current month until now and builds the string automatically — don't count commits by hand.
+```bash
+bash .agents/skills/version-standard/scripts/get_version.sh [path-to-repo]
+```
+
+If no path is given, it uses the current directory and walks up until it finds `.git`, so passing the monorepo root, `box-rpg/`, or `box-gui/` all yields the same number. The command counts commits reachable from `HEAD` from the 1st of the current month until now and prints the version — don't count commits by hand.
+
+Both packages always share the same number because it is computed from the monorepo root, never from a subdirectory.
 
 ## Notes
 
+- The version is NEVER written into source files. It is computed at build/CI time from git history and pinned into the artifact (e.g. a generated `_version.py` via `write_version_file()`); the source tree stays version-free.
 - The count is by calendar month, not the last 30 days.
-- If the repo has multiple branches, the script counts commits reachable from `HEAD` (the active branch). If the user wants a different branch, `git checkout` it first, or adjust the script's `--since`/`--until`.
+- If the repo has multiple branches, the count covers commits reachable from `HEAD` (the active branch). If the user wants a different branch, `git checkout` it first.
 - If the user asks for "the version of commit X", use `git log --since=... --until=<date of that commit> --oneline | wc -l` with that commit's date instead of "now".
-- Because the version is a raw commit count, splitting a large change into
-  several properly typed commits (see `commit-standard`'s "Release-alignment
-  commits" section) advances the version further than landing it as one
-  giant commit. That's expected and desirable — don't collapse commits just
-  to keep the version number lower.
-- When a release is planned as several commits, the target version is the
-  script count now plus the number of commits about to land, including the
-  release-alignment commit itself; after landing, the script must report
-  exactly the released version.

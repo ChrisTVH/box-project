@@ -1,15 +1,9 @@
 #!/bin/bash
-# Computes the version using the year.month.commit-count-in-month scheme
+# Thin wrapper around tools/versioning.py -- keep all logic in Python.
 # Usage: ./get_version.sh [path-to-repo]
 set -e
 
-REPO_PATH="${1:-.}"
-cd "$REPO_PATH"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 
-YEAR=$(date +%y)
-MONTH=$(date +%-m)
-FIRST_DAY=$(date +%Y-%m-01)
-
-COUNT=$(git log --since="$FIRST_DAY 00:00:00" --oneline | wc -l | tr -d ' ')
-
-echo "${YEAR}.${MONTH}.${COUNT}"
+PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m tools.versioning "$@"
