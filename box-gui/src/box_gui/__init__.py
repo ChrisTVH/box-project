@@ -7,7 +7,7 @@ try:
 except ImportError:
     try:
         # Lazy import so installed layouts without tools/ still import.
-        from tools.versioning import compute_version
+        from tools.versioning import compute_version  # pyright: ignore[reportMissingImports]
 
         # Resolve from the package location (monorepo root) so box-gui
         # reports the same number as box-rpg whatever the cwd is.

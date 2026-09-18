@@ -22,7 +22,7 @@ try:
     _availability_available = True
 except Exception:
     availability_module: Any = None
-    WARNING_ICON_NAME: Any = None
+    WARNING_ICON_NAME: Any = None  # pyright: ignore[reportConstantRedefinition]
     RowAvailability: Any = None
     _availability_available = False
 
