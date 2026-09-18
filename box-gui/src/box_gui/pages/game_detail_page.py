@@ -29,6 +29,7 @@ from box_gui.core.game_icon import (  # noqa: E402
     find_game_executables,
     icon_path_for_game,
     install_image_as_icon,
+    is_icoextract_available,
     rekey_cached_icon,
 )
 from box_gui.core.library import (  # noqa: E402
@@ -41,10 +42,11 @@ from box_gui.core.sessions import (  # noqa: E402
     is_session_running,
     live_session_names,
 )
-from box_gui.gtk.icons import FOLDER_ICON_NAME, WARNING_ICON_NAME  # noqa: E402
+from box_gui.gtk.icons import FOLDER_ICON_NAME  # noqa: E402
 from box_gui.gtk.interaction import AllowX11Interaction as AllowX11Interaction  # noqa: E402
 from box_gui.i18n import _  # noqa: E402
 from box_gui.pages.diagnose_dialog import DiagnoseDialog  # noqa: E402
+from box_gui.widgets.availability import RowAvailability  # noqa: E402
 from box_gui.widgets.exe_picker import ExesChoice, present_exe_picker  # noqa: E402
 from box_gui.widgets.icon_widget import build_game_icon  # noqa: E402
 
@@ -154,6 +156,7 @@ class GameDetailPage(Adw.NavigationPage):
         self._change_icon_button.set_valign(Gtk.Align.CENTER)
         self._change_icon_button.connect("clicked", self._on_change_icon_clicked)
         self._icon_row.add_suffix(self._change_icon_button)
+        self._icon_availability = RowAvailability(self._icon_row)
         self._icon_file_dialog: Gtk.FileDialog | None = None
         self._engine_row = Adw.ActionRow(title=_("Engine"), subtitle="—")
         self._root_row = Adw.ActionRow(title=_("Root"), subtitle="—")
@@ -169,13 +172,13 @@ class GameDetailPage(Adw.NavigationPage):
             subtitle=_("Use a case-insensitive view for this game when available."),
         )
         self._ci_mount_row.connect("notify::active", self._on_ci_mount_toggled)
-        self._ci_mount_warning: Gtk.Image | None = None
+        self._ci_mount_availability = RowAvailability(self._ci_mount_row)
         self._gamemode_row = Adw.SwitchRow(
             title=_("GameMode"),
             subtitle=_("Boost performance with GameMode when available."),
         )
         self._gamemode_row.connect("notify::active", self._on_gamemode_toggled)
-        self._gamemode_warning: Gtk.Image | None = None
+        self._gamemode_availability = RowAvailability(self._gamemode_row)
         self._files_group = Adw.PreferencesGroup(
             title=_("Additional files"),
             description=_(
@@ -206,6 +209,7 @@ class GameDetailPage(Adw.NavigationPage):
         self._loading = False
         self._sync_gamemode_availability()
         self._sync_ci_mount_availability()
+        self._sync_icoextract_warning()
         self.connect("map", self._on_mapped)
         self.connect("unmap", self._on_unmapped)
         self.connect("destroy", self._on_unmapped)
@@ -217,6 +221,43 @@ class GameDetailPage(Adw.NavigationPage):
         if self._inspection is not None:
             return self._inspection.game.root
         return self._entry.path
+
+    @property
+    def _gamemode_warning(self) -> Gtk.Image | None:
+        """Return the GameMode warning icon for tests and introspection."""
+        return self._gamemode_availability.warning
+
+    @property
+    def _ci_mount_warning(self) -> Gtk.Image | None:
+        """Return the mount warning icon for tests and introspection."""
+        return self._ci_mount_availability.warning
+
+    @property
+    def _icon_warning(self) -> Gtk.Image | None:
+        """Return the Icon warning icon for tests and introspection."""
+        return self._icon_availability.warning
+
+    def _set_loading(self, loading: bool) -> None:
+        """Set the loading guard that ignores programmatic toggle changes."""
+        self._loading = loading
+
+    def _persist_gamemode_disabled(self) -> None:
+        """Persist use_gamemode=False when a stale True remains stored."""
+        if self._entry.use_gamemode:
+            self._persist(replace(self._entry, use_gamemode=False))
+
+    def _persist_ci_mount_disabled(self) -> None:
+        """Persist use_ci_mount=False when a stale True remains stored."""
+        if self._entry.use_ci_mount:
+            self._persist(replace(self._entry, use_ci_mount=False))
+
+    @staticmethod
+    def _icoextract_reason() -> str:
+        """Return the tooltip explaining the missing icoextract package."""
+        return _(
+            "Game icon extraction needs the optional icoextract package, "
+            "which is not installed. Install it with pip install --user icoextract."
+        )
 
     def _build_view(self) -> Adw.ToolbarView:
         """Assemble the header, status row, and detail groups."""
@@ -422,6 +463,7 @@ class GameDetailPage(Adw.NavigationPage):
         self._missing = False
         self._sync_gamemode_availability()
         self._sync_ci_mount_availability()
+        self._sync_icoextract_warning()
         self._set_busy(False, "")
         self._sync_running_state()
 
@@ -538,40 +580,35 @@ class GameDetailPage(Adw.NavigationPage):
         persisted choice and drops the warning icon.
         """
         if self._is_gamemode_available():
-            self._clear_gamemode_warning()
-            self._gamemode_row.set_sensitive(True)
-            if self._gamemode_row.get_active() != self._entry.use_gamemode:
-                self._loading = True
-                try:
-                    self._gamemode_row.set_active(self._entry.use_gamemode)
-                finally:
-                    self._loading = False
+            self._gamemode_availability.enable_switch(self._entry.use_gamemode, self._set_loading)
             return
-        self._loading = True
+        self._gamemode_availability.disable_switch(
+            _("This feature is not available on your system."),
+            self._set_loading,
+            self._persist_gamemode_disabled,
+        )
+
+    @staticmethod
+    def _is_icoextract_available() -> bool:
+        """Return True when executable icon extraction can run.
+
+        Any failure means unavailable, never a crash.
+        """
         try:
-            self._gamemode_row.set_active(False)
-        finally:
-            self._loading = False
-        self._gamemode_row.set_sensitive(False)
-        if self._entry.use_gamemode:
-            self._persist(replace(self._entry, use_gamemode=False))
-        self._ensure_gamemode_warning()
+            return bool(is_icoextract_available())
+        except Exception:
+            return False
 
-    def _ensure_gamemode_warning(self) -> None:
-        """Attach the unavailable-feature warning icon exactly once."""
-        if self._gamemode_warning is not None:
-            return
-        warning = Gtk.Image.new_from_icon_name(WARNING_ICON_NAME)
-        warning.set_tooltip_text(_("This feature is not available on your system."))
-        self._gamemode_row.add_suffix(warning)
-        self._gamemode_warning = warning
+    def _sync_icoextract_warning(self) -> None:
+        """Reflect extraction support on the Icon row, warning when unavailable.
 
-    def _clear_gamemode_warning(self) -> None:
-        """Detach the warning icon now that GameMode is available."""
-        if self._gamemode_warning is None:
+        Unavailable grays the row with the specific install hint; available
+        clears the warning and re-enables the row.
+        """
+        if self._is_icoextract_available():
+            self._icon_availability.mark_available()
             return
-        self._gamemode_row.remove(self._gamemode_warning)
-        self._gamemode_warning = None
+        self._icon_availability.mark_unavailable(self._icoextract_reason())
 
     def _on_gamemode_toggled(self, row: Adw.SwitchRow, _pspec: object) -> None:
         """Persist GameMode picks without touching other fields."""
@@ -619,52 +656,20 @@ class GameDetailPage(Adw.NavigationPage):
         else:
             is_easyrpg = self._entry.engine == EngineName.RPG_MAKER_2000_2003.value
         if is_easyrpg:
-            self._loading = True
-            try:
-                self._ci_mount_row.set_active(False)
-            finally:
-                self._loading = False
-            self._ci_mount_row.set_sensitive(False)
-            if self._entry.use_ci_mount:
-                self._persist(replace(self._entry, use_ci_mount=False))
-            self._ensure_ci_mount_warning(_("Not available for EasyRPG games."))
+            self._ci_mount_availability.disable_switch(
+                _("Not available for EasyRPG games."),
+                self._set_loading,
+                self._persist_ci_mount_disabled,
+            )
             return
         if self._is_ci_mount_available():
-            self._clear_ci_mount_warning()
-            self._ci_mount_row.set_sensitive(True)
-            if self._ci_mount_row.get_active() != self._entry.use_ci_mount:
-                self._loading = True
-                try:
-                    self._ci_mount_row.set_active(self._entry.use_ci_mount)
-                finally:
-                    self._loading = False
+            self._ci_mount_availability.enable_switch(self._entry.use_ci_mount, self._set_loading)
             return
-        self._loading = True
-        try:
-            self._ci_mount_row.set_active(False)
-        finally:
-            self._loading = False
-        self._ci_mount_row.set_sensitive(False)
-        if self._entry.use_ci_mount:
-            self._persist(replace(self._entry, use_ci_mount=False))
-        self._ensure_ci_mount_warning(_("This feature is not available on your system."))
-
-    def _ensure_ci_mount_warning(self, reason: str) -> None:
-        """Attach the unavailable-feature warning icon exactly once."""
-        if self._ci_mount_warning is not None:
-            self._ci_mount_warning.set_tooltip_text(reason)
-            return
-        warning = Gtk.Image.new_from_icon_name(WARNING_ICON_NAME)
-        warning.set_tooltip_text(reason)
-        self._ci_mount_row.add_suffix(warning)
-        self._ci_mount_warning = warning
-
-    def _clear_ci_mount_warning(self) -> None:
-        """Detach the warning icon now that the mount is available."""
-        if self._ci_mount_warning is None:
-            return
-        self._ci_mount_row.remove(self._ci_mount_warning)
-        self._ci_mount_warning = None
+        self._ci_mount_availability.disable_switch(
+            _("This feature is not available on your system."),
+            self._set_loading,
+            self._persist_ci_mount_disabled,
+        )
 
     def _on_ci_mount_toggled(self, row: Adw.SwitchRow, _pspec: object) -> None:
         """Persist case-insensitive mount picks without touching other fields."""
@@ -856,7 +861,13 @@ class GameDetailPage(Adw.NavigationPage):
             self._icon_slot.append(preview)
 
     def _on_change_icon_clicked(self, _button: Gtk.Button) -> None:
-        """Offer the executables or the engine default as the game icon."""
+        """Offer the executables or the engine default as the game icon.
+
+        The insensitive row already blocks clicks when extraction is
+        unavailable; the guard stays as defense-in-depth.
+        """
+        if not self._is_icoextract_available():
+            return
         inspection = self._inspection
         exes = find_game_executables(inspection.game) if inspection is not None else ()
         if exes or self._entry.icon_path is not None:
@@ -865,7 +876,11 @@ class GameDetailPage(Adw.NavigationPage):
             self._pick_image_file()
 
     def _on_exe_chosen(self, chosen: ExesChoice) -> None:
-        """Apply the picked executable icon, default, or cancel."""
+        """Apply the picked executable icon, default, or cancel.
+
+        Extraction failures stay silent: the unavailable row already
+        explains the missing package through its warning tooltip.
+        """
         if chosen is None:
             return
         if chosen == "default":

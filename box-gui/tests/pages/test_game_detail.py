@@ -862,6 +862,7 @@ def test_detail_change_icon_single_exe(monkeypatch: pytest.MonkeyPatch, tmp_path
 
     import box_gui.pages.game_detail_page
 
+    monkeypatch.setattr(GameDetailPage, "_is_icoextract_available", staticmethod(lambda: True))
     game = tmp_path / "game"
     game.mkdir(exist_ok=True)
     (game / "Game.exe").write_bytes(b"fake")
@@ -903,6 +904,7 @@ def test_detail_change_icon_default_reverts(
 
     import box_gui.pages.game_detail_page
 
+    monkeypatch.setattr(GameDetailPage, "_is_icoextract_available", staticmethod(lambda: True))
     game = tmp_path / "game"
     game.mkdir(exist_ok=True)
     (game / "Game.exe").write_bytes(b"fake")
@@ -936,6 +938,7 @@ def test_detail_change_icon_without_exes_but_icon_offers_default(
     """Without executables but with a cached icon, Change still offers the default."""
     import box_gui.pages.game_detail_page
 
+    monkeypatch.setattr(GameDetailPage, "_is_icoextract_available", staticmethod(lambda: True))
     offered: list[Any] = []
 
     def _fake_present(parent: Any, exes: Any, on_chosen: Any) -> None:
@@ -960,6 +963,7 @@ def test_detail_change_icon_asks_when_multiple_exes(
     """Change with several executables extracts the picked one."""
     import box_gui.pages.game_detail_page
 
+    monkeypatch.setattr(GameDetailPage, "_is_icoextract_available", staticmethod(lambda: True))
     game = tmp_path / "game"
     game.mkdir(exist_ok=True)
     for name in ("a.exe", "b.exe"):
@@ -994,6 +998,7 @@ def test_detail_change_icon_without_exes_picks_image(
     """Change without executables falls back to the image picker."""
     import box_gui.pages.game_detail_page
 
+    monkeypatch.setattr(GameDetailPage, "_is_icoextract_available", staticmethod(lambda: True))
     called: list[bool] = []
     monkeypatch.setattr(
         box_gui.pages.game_detail_page.GameDetailPage,
@@ -1071,6 +1076,7 @@ def test_detail_icon_pick_never_writes_into_game_root(
     """Picking an icon leaves the game directory byte-for-byte untouched."""
     import box_gui.pages.game_detail_page
 
+    monkeypatch.setattr(GameDetailPage, "_is_icoextract_available", staticmethod(lambda: True))
     game = tmp_path / "game"
     game.mkdir(exist_ok=True)
     (game / "Game.exe").write_bytes(b"fake")
@@ -1106,6 +1112,7 @@ def test_detail_icon_cache_is_disjoint_from_root_files(
 
     import box_gui.pages.game_detail_page
 
+    monkeypatch.setattr(GameDetailPage, "_is_icoextract_available", staticmethod(lambda: True))
     game = tmp_path / "game"
     game.mkdir(exist_ok=True)
     (game / "Game.exe").write_bytes(b"fake")
@@ -1229,6 +1236,23 @@ def _gamemode_warning_images(page: Any) -> list[Any]:
     return images
 
 
+def _icon_warning_images(page: Any) -> list[Any]:
+    """Collect warning icons currently attached below the Icon row."""
+    from gi.repository import Gtk
+
+    images: list[Any] = []
+    pending: list[Any] = [page._icon_row]
+    while pending:
+        widget = pending.pop()
+        if isinstance(widget, Gtk.Image) and widget.get_icon_name() == ("box-rpg-warning-symbolic"):
+            images.append(widget)
+        child = widget.get_first_child()
+        while child is not None:
+            pending.append(child)
+            child = child.get_next_sibling()
+    return images
+
+
 def test_gamemode_unavailable_disables_row_with_warning(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1300,6 +1324,105 @@ def test_gamemode_warning_removed_when_available(
     assert page._gamemode_warning is None
     assert _gamemode_warning_images(page) == []
     assert page._gamemode_row.get_sensitive() is True
+
+
+def test_icoextract_unavailable_warns_on_icon_row(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Without icoextract the Icon row grays out with the specific tooltip."""
+    monkeypatch.setattr(GameDetailPage, "_is_icoextract_available", staticmethod(lambda: False))
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    expected = (
+        "Game icon extraction needs the optional icoextract package, "
+        "which is not installed. Install it with pip install --user icoextract."
+    )
+
+    assert page._icon_warning is not None
+    assert page._icon_warning.get_icon_name() == "box-rpg-warning-symbolic"
+    assert page._icon_warning.get_tooltip_text() == expected
+    assert page._icon_row.get_sensitive() is False
+    assert len(_icon_warning_images(page)) == 1
+
+    page._sync_icoextract_warning()
+
+    assert len(_icon_warning_images(page)) == 1
+    assert page._icon_row.get_sensitive() is False
+
+    monkeypatch.setattr(GameDetailPage, "_is_icoextract_available", staticmethod(lambda: True))
+    page._sync_icoextract_warning()
+
+    assert page._icon_warning is None
+    assert _icon_warning_images(page) == []
+    assert page._icon_row.get_sensitive() is True
+
+
+def test_exe_pick_without_icoextract_stays_silent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Picking an executable without icoextract stays silent with a grayed row."""
+    monkeypatch.setattr(GameDetailPage, "_is_icoextract_available", staticmethod(lambda: False))
+    page, _library, entry = _make_page(monkeypatch, tmp_path)
+    presented = _capture_alerts(monkeypatch)
+
+    import box_gui.pages.game_detail_page
+
+    monkeypatch.setattr(
+        box_gui.pages.game_detail_page, "extract_icon_png", lambda chosen, dest: False
+    )
+
+    page._on_exe_chosen(entry.path / "Game.exe")
+
+    assert presented == []
+    assert page._icon_row.get_sensitive() is False
+    assert page._icon_warning is not None
+
+
+def test_change_icon_blocked_without_icoextract(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Change clicks are ignored while extraction is unavailable."""
+    import box_gui.pages.game_detail_page
+
+    monkeypatch.setattr(GameDetailPage, "_is_icoextract_available", staticmethod(lambda: False))
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+    called: list[bool] = []
+
+    def _fake_present(parent: Any, exes: Any, on_chosen: Any) -> None:
+        called.append(True)
+
+    def _fake_pick(self: Any) -> None:
+        called.append(True)
+
+    monkeypatch.setattr(box_gui.pages.game_detail_page, "present_exe_picker", _fake_present)
+    monkeypatch.setattr(
+        box_gui.pages.game_detail_page.GameDetailPage,
+        "_pick_image_file",
+        _fake_pick,
+    )
+
+    page._on_change_icon_clicked(page._change_icon_button)
+
+    assert called == []
+    assert page._icon_row.get_sensitive() is False
+
+
+def test_exe_pick_failure_stays_silent_with_icoextract(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A corrupt executable still fails silently when extraction is supported."""
+    monkeypatch.setattr(GameDetailPage, "_is_icoextract_available", staticmethod(lambda: True))
+    page, _library, entry = _make_page(monkeypatch, tmp_path)
+    presented = _capture_alerts(monkeypatch)
+
+    import box_gui.pages.game_detail_page
+
+    monkeypatch.setattr(
+        box_gui.pages.game_detail_page, "extract_icon_png", lambda chosen, dest: False
+    )
+
+    page._on_exe_chosen(entry.path / "Game.exe")
+
+    assert presented == []
 
 
 def test_easyrpg_launch_forwards_gamemode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
