@@ -2,3 +2,5 @@
 !/box_gui/**/py.typed
 !/box_gui/**/locale/**/*.po
 !/box_gui/**/locale/**/*.mo
+# Generated dynamic version pin (tools/build_backend.py); never commit.
+/box_gui/_version.py

@@ -1,10 +1,14 @@
 [build-system]
 requires = ["setuptools==84.0.0"]
+# Same as box-rpg: the shared stamper (tools/build_backend.py) cannot be
+# referenced as build-backend because PEP 517 backend-path entries must live
+# inside the source tree. Stamp box_gui/_version.py first
+# (python3 tools/build_backend.py from the monorepo root).
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "box-rpg-maker"
-version = "26.9.71"
+dynamic = ["version"]
 description = "A safe GUI launcher for RPG Maker 2000/2003/MV/MZ projects"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -20,7 +24,9 @@ classifiers = [
     "Environment :: X11 Applications :: GTK",
 ]
 dependencies = [
-    "box-rpg>=26.9.71",
+    # Unpinned: the real gate is backend_check.py at runtime, and a pin
+    # would rot every month under dynamic versioning.
+    "box-rpg",
     "PyGObject",
     "pycairo",
     "icoextract",
@@ -41,6 +47,10 @@ package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Version is computed from git history at build time (see tools/versioning.py).
+[tool.setuptools.dynamic]
+version = {attr = "box_gui._version.__version__"}
 
 [tool.setuptools.package-data]
 box_gui = ["locale/**/*.mo"]
