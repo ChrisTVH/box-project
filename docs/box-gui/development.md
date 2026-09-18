@@ -97,6 +97,12 @@ python3 -m tools.build_appimage --check
 python3 -m tools.build_appimage --yes --appdir-only --output dist/AppDir
 ```
 
+Dirty-tree test builds use `--test-build`: the builder fingerprints the real repo (HEAD, status, tag list), copies the tree to `/tmp` minus caches and artifacts, tmp-commits there, and re-runs itself with `--yes --no-create-tag` inside the snapshot, resolving `--tag` beforehand and forwarding it verbatim so the snapshot tmp-commit never shifts the month count, then verifies the real repo is unchanged. The default artifact is `tools/target/box-rpg-maker-test.appimage` (git-ignored); any other in-repo `--output` is refused. The snapshot is removed automatically, so the artifact must live outside it. Offline smoke without network:
+
+```sh
+python3 -m tools.build_appimage --test-build --yes --appdir-only
+```
+
 ## Tests and checks
 
 - `tests/conftest.py` provides `_install_auto_answer` for `AlertDialog.present` and `_run_from_worker` as a `MainLoop` stand-in with safeguards. Display tests gate on a display check. Import-surface, icon, and gettext coverage checks stay headless-safe.

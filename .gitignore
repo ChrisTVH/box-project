@@ -25,6 +25,7 @@
 *.pyc
 *.egg-info/
 /dist/
+/tools/target/
 /build/
 /.pytest_cache/
 /.ruff_cache/

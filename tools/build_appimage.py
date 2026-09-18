@@ -45,6 +45,15 @@ no shell scripts are involved)::
     python3 -m tools.build_appimage --print-tag
     python3 -m tools.build_appimage --yes
     python3 -m tools.build_appimage --yes --appdir-only --output dist/AppDir
+    python3 -m tools.build_appimage --test-build --yes --appdir-only
+    python3 -m tools.build_appimage --test-build --tag 26.9.71 --force
+
+Test builds snapshot the dirty tree to a temporary directory, tmp-commit
+there, and re-run this module with ``--yes --no-create-tag`` inside the
+snapshot, so the real repo only sees read-only git commands and keeps its
+HEAD, status, and tags unchanged. The default test artifact is
+``tools/target/box-rpg-maker-test.appimage`` (git-ignored); any other
+in-repo ``--output`` is refused.
 
 CI triggers are manual only (``workflow_dispatch`` on GitHub Actions,
 ``when: manual`` on GitLab CI), never on push.
@@ -94,6 +103,9 @@ APPIMAGETOOL_URL = (
     "appimagetool-x86_64.AppImage"
 )
 APPIMAGETOOL_MIN_BYTES = 1024 * 1024
+TEST_ARTIFACT_NAME = "box-rpg-maker-test.appimage"
+TEST_DEFAULT_OUTPUT = REPO_ROOT / "tools" / "target" / TEST_ARTIFACT_NAME
+_SNAPSHOT_EXCLUDE_DIRS = frozenset({".venv", "__pycache__", ".pytest_cache", ".ruff_cache"})
 
 
 def is_linux() -> bool:
@@ -150,8 +162,8 @@ def run(args: list[str], cwd: Path | None = None) -> int:
     return proc.returncode
 
 
-def _run_git(args: list[str]) -> str:
-    """Run one git command, returning stripped stdout or raising on failure."""
+def _git_output(directory: Path, args: list[str]) -> str:
+    """Run one git command in directory, returning stripped stdout."""
     try:
         proc = subprocess.run(
             ["git", *args],
@@ -159,13 +171,191 @@ def _run_git(args: list[str]) -> str:
             capture_output=True,
             text=True,
             env=_command_environment(),
-            cwd=REPO_ROOT,
+            cwd=directory,
         )
     except OSError as exc:
         raise RuntimeError(f"git unavailable: {exc}") from exc
     if proc.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {proc.stderr.strip()}")
     return proc.stdout.strip()
+
+
+def _run_git(args: list[str]) -> str:
+    """Run one git command in the real repo, returning stripped stdout."""
+    return _git_output(REPO_ROOT, args)
+
+
+def _run_git_in(directory: Path, args: list[str]) -> str:
+    """Run one git command inside the snapshot, returning stripped stdout."""
+    return _git_output(directory, args)
+
+
+def _repo_fingerprint() -> tuple[str, str, tuple[str, ...]]:
+    """Capture read-only real-repo state to prove test builds leave it alone."""
+    head = _run_git(["rev-parse", "HEAD"])
+    status = _run_git(["status", "--porcelain"])
+    tags_raw = _run_git(["tag", "-l"])
+    tags = tuple(sorted(line.strip() for line in tags_raw.splitlines() if line.strip()))
+    return (head, status, tags)
+
+
+def _resolve_test_output(output: Path | None) -> Path:
+    """Resolve the test-build output, refusing in-repo paths except the default."""
+    if output is None:
+        return TEST_DEFAULT_OUTPUT
+    candidate = output if output.is_absolute() else Path.cwd() / output
+    try:
+        resolved = candidate.resolve()
+    except OSError:
+        resolved = candidate.absolute()
+    try:
+        default_resolved = TEST_DEFAULT_OUTPUT.resolve()
+    except OSError:
+        default_resolved = TEST_DEFAULT_OUTPUT.absolute()
+    if resolved == default_resolved:
+        return default_resolved
+    try:
+        repo_resolved = REPO_ROOT.resolve()
+    except OSError:
+        repo_resolved = REPO_ROOT.absolute()
+    try:
+        resolved.relative_to(repo_resolved)
+    except ValueError:
+        return resolved
+    raise RuntimeError(
+        f"refusing in-repo --output for --test-build: {output} (only {TEST_DEFAULT_OUTPUT} allowed)"
+    )
+
+
+def _is_within(path: Path, directory: Path) -> bool:
+    """Return True when path sits inside directory, following symlinks."""
+    try:
+        resolved = directory.resolve()
+    except OSError:
+        return False
+    except ValueError:
+        return False
+    try:
+        path.relative_to(resolved)
+    except ValueError:
+        return False
+    return True
+
+
+def _snapshot_ignore(directory: str, entries: list[str]) -> set[str]:
+    """Exclude caches and build artifacts from the test snapshot."""
+    try:
+        relative = Path(directory).relative_to(REPO_ROOT)
+    except ValueError:
+        relative = Path("_outside")
+    ignored: set[str] = set()
+    for entry in entries:
+        if (
+            entry in _SNAPSHOT_EXCLUDE_DIRS
+            or entry.endswith(".appimage")
+            or (relative == Path(".") and entry == "dist")
+            or (relative == Path("tools") and entry == "target")
+        ):
+            ignored.add(entry)
+    return ignored
+
+
+def snapshot_tree(dest: Path) -> Path:
+    """Copy the working tree to dest minus caches and build artifacts."""
+    if dest.exists():
+        raise FileExistsError(f"snapshot destination already exists: {dest}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(REPO_ROOT, dest, ignore=_snapshot_ignore, symlinks=True)
+    return dest
+
+
+def test_build(
+    tag: str | None,
+    output: Path | None,
+    *,
+    appdir_only: bool,
+    force: bool,
+    appimagetool: Path | None,
+    appimagetool_url: str,
+    appimagetool_mode: str,
+) -> Path:
+    """Snapshot the dirty tree and build a throwaway artifact in /tmp.
+
+    The real repo only sees read-only git commands; the snapshot gets the
+    ``git add -A`` plus throwaway commit, then re-runs this module with
+    ``--yes --no-create-tag`` (resolving ``--tag`` beforehand and forwarding
+    it verbatim, so the snapshot tmp-commit never shifts the month count)
+    inside it. The real-repo fingerprint must be unchanged afterwards,
+    proving no tags or commits leaked out. The output parent is created
+    upfront (git-ignored for the default), so an empty directory may remain
+    when a later step fails.
+    """
+    if (REPO_ROOT / ".git").is_file():
+        raise RuntimeError("refusing --test-build from a linked worktree (.git is a file)")
+    before = _repo_fingerprint()
+    resolved_tag = tag or expected_version()
+    if not is_valid_tag(resolved_tag):
+        raise RuntimeError(f"refusing malformed tag: {resolved_tag!r}")
+    resolved_output = _resolve_test_output(output)
+    resolved_output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="box-rpg-maker-test-") as tmp:
+        if _is_within(resolved_output, Path(tmp)):
+            raise RuntimeError(
+                f"refusing --output inside the snapshot workspace: {resolved_output}"
+            )
+        snapshot = Path(tmp) / "tree"
+        snapshot_tree(snapshot)
+        _run_git_in(snapshot, ["add", "-A"])
+        _run_git_in(
+            snapshot,
+            [
+                "-c",
+                "user.name=box-rpg-maker-test",
+                "-c",
+                "user.email=box-rpg-maker-test@local",
+                "commit",
+                "-m",
+                "throwaway test build (do not push)",
+                "--no-verify",
+            ],
+        )
+        command = [
+            sys.executable,
+            "-m",
+            "tools.build_appimage",
+            "--yes",
+            "--no-create-tag",
+            "--tag",
+            resolved_tag,
+            "--output",
+            str(resolved_output),
+        ]
+        if appdir_only:
+            command.append("--appdir-only")
+        if force:
+            command.append("--force")
+        if appimagetool is not None:
+            tool_path = appimagetool if appimagetool.is_absolute() else Path.cwd() / appimagetool
+            command.extend(["--appimagetool", str(tool_path)])
+        command.extend(["--appimagetool-url", appimagetool_url])
+        command.extend(["--appimagetool-mode", appimagetool_mode])
+        if run(command, cwd=snapshot) != 0:
+            raise RuntimeError(
+                f"test build for tag {resolved_tag} failed in snapshot "
+                f"(see output above); no artifact at {resolved_output}"
+            )
+        after = _repo_fingerprint()
+        if after != before:
+            parts = [
+                name
+                for name, old, new in zip(("HEAD", "status", "tags"), before, after, strict=True)
+                if old != new
+            ]
+            raise RuntimeError(
+                "real repo changed during --test-build "
+                f"({', '.join(parts)} differ); refusing to continue"
+            )
+        return resolved_output
 
 
 def expected_version(now: datetime | None = None) -> str:
@@ -556,10 +746,17 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("dist") / ARTIFACT_NAME,
-        help="artifact file (or AppDir directory with --appdir-only)",
+        default=None,
+        help="artifact file (or AppDir directory with --appdir-only; "
+        "default dist/box-rpg-maker.appimage, "
+        "or tools/target/box-rpg-maker-test.appimage with --test-build)",
     )
     parser.add_argument("--tag", help="stable tag to build (default: computed from git)")
+    parser.add_argument(
+        "--test-build",
+        action="store_true",
+        help="snapshot the dirty tree to /tmp and build there without touching the repo",
+    )
     parser.add_argument(
         "--no-create-tag",
         action="store_true",
@@ -607,6 +804,39 @@ def main() -> int:
         )
         return 1
 
+    if args.print_tag:
+        try:
+            printed = args.tag or expected_version()
+        except RuntimeError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        if not is_valid_tag(printed):
+            print(f"error: refusing malformed tag: {printed!r}", file=sys.stderr)
+            return 1
+        print(printed)
+        return 0
+
+    if args.test_build and args.check:
+        print("error: --test-build and --check are mutually exclusive", file=sys.stderr)
+        return 1
+
+    if args.test_build:
+        try:
+            artifact = test_build(
+                args.tag,
+                args.output,
+                appdir_only=args.appdir_only,
+                force=args.force,
+                appimagetool=args.appimagetool,
+                appimagetool_url=args.appimagetool_url,
+                appimagetool_mode=args.appimagetool_mode,
+            )
+        except (OSError, RuntimeError, FileExistsError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(f"AppImage ready at {artifact}")
+        return 0
+
     try:
         tag = args.tag or expected_version()
     except RuntimeError as exc:
@@ -615,9 +845,7 @@ def main() -> int:
     if not is_valid_tag(tag):
         print(f"error: refusing malformed tag: {tag!r}", file=sys.stderr)
         return 1
-    if args.print_tag:
-        print(tag)
-        return 0
+    output = args.output if args.output is not None else Path("dist") / ARTIFACT_NAME
 
     backend_version = repo_version()
     frontend_version = gui_repo_version()
@@ -654,8 +882,8 @@ def main() -> int:
         print("Check passed: nothing changed.")
         return 0
 
-    if args.output.exists() and not args.force:
-        print(f"error: output already exists: {args.output} (pass --force)", file=sys.stderr)
+    if output.exists() and not args.force:
+        print(f"error: output already exists: {output} (pass --force)", file=sys.stderr)
         return 1
     if not args.yes:
         if args.no_create_tag:
@@ -678,18 +906,18 @@ def main() -> int:
             stage_appdir(appdir, tag)
             print(f"OK: AppDir staged (frontend only, tag {tag}).")
             if args.appdir_only:
-                if args.output.exists():
+                if output.exists():
                     if not args.force:
-                        raise RuntimeError(f"output already exists: {args.output}")
-                    shutil.rmtree(args.output)
-                shutil.copytree(appdir, args.output)
-                print(f"AppDir ready at {args.output}")
+                        raise RuntimeError(f"output already exists: {output}")
+                    shutil.rmtree(output)
+                shutil.copytree(appdir, output)
+                print(f"AppDir ready at {output}")
                 return 0
             tool = ensure_appimagetool(args.appimagetool, args.appimagetool_url, workspace)
             runner = (
                 tool if args.appimagetool_mode == "run" else extract_appimagetool(tool, workspace)
             )
-            artifact = build_artifact(runner, appdir, args.output)
+            artifact = build_artifact(runner, appdir, output)
     except (OSError, RuntimeError, FileExistsError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

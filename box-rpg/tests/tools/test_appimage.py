@@ -640,3 +640,480 @@ def test_apprun_probe_classifies_candidates(monkeypatch: pytest.MonkeyPatch) -> 
 
     monkeypatch.setattr(subprocess, "run", timeout_run)
     assert probe("/opt/python3") == "unusable"
+
+
+def _stable_test_git(args: list[str]) -> str:
+    """Read-only git answers for test-build fingerprint tests."""
+    if args == ["rev-parse", "HEAD"]:
+        return "abc123deadbeef"
+    if args == ["status", "--porcelain"]:
+        return " M dirty.txt"
+    if args == ["tag", "-l"]:
+        return "26.9.1\n26.9.2"
+    if args[0] == "log":
+        return "aaa one\n"
+    raise AssertionError(f"unexpected git call: {args}")
+
+
+def _mock_snapshot_fs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Replace snapshot copy and snapshot git writes with headless fakes."""
+
+    def fake_snapshot(dest: Path) -> Path:
+        dest.mkdir(parents=True)
+        (dest / "marker.txt").write_text("snapshot")
+        return dest
+
+    def fake_git_in(directory: Path, args: list[str]) -> str:
+        assert directory != build_appimage.REPO_ROOT
+        assert args[0] in ("add", "-c", "commit")
+        return ""
+
+    monkeypatch.setattr(build_appimage, "snapshot_tree", fake_snapshot)
+    monkeypatch.setattr(build_appimage, "_run_git_in", fake_git_in)
+
+
+def test_snapshot_tree_excludes_build_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Caches, dist, tools/target, and AppImages never enter the snapshot."""
+    fake_root = tmp_path / "fake-root"
+    (fake_root / "keep").mkdir(parents=True)
+    (fake_root / "keep" / "file.txt").write_text("keep")
+    (fake_root / ".venv" / "lib").mkdir(parents=True)
+    (fake_root / ".venv" / "lib" / "x.py").write_text("x")
+    (fake_root / "pkg" / "__pycache__").mkdir(parents=True)
+    (fake_root / "pkg" / "__pycache__" / "c.pyc").write_bytes(b"x")
+    (fake_root / ".pytest_cache" / "v").mkdir(parents=True)
+    (fake_root / ".pytest_cache" / "v" / "cache").write_text("x")
+    (fake_root / ".ruff_cache").mkdir()
+    (fake_root / ".ruff_cache" / "r").write_text("x")
+    (fake_root / "dist").mkdir()
+    (fake_root / "dist" / "old.appimage").write_text("x")
+    (fake_root / "tools" / "target").mkdir(parents=True)
+    (fake_root / "tools" / "target" / "prev.appimage").write_text("x")
+    (fake_root / "tools" / "keep.py").write_text("x")
+    (fake_root / "sub" / "nested.appimage").parent.mkdir(parents=True)
+    (fake_root / "sub" / "nested.appimage").write_text("x")
+    (fake_root / "sub" / "ok.txt").write_text("ok")
+    monkeypatch.setattr(build_appimage, "REPO_ROOT", fake_root)
+
+    dest = tmp_path / "snap"
+    build_appimage.snapshot_tree(dest)
+
+    assert (dest / "keep" / "file.txt").is_file()
+    assert (dest / "tools" / "keep.py").is_file()
+    assert (dest / "sub" / "ok.txt").is_file()
+    assert not (dest / ".venv").exists()
+    assert not (dest / "pkg" / "__pycache__").exists()
+    assert not (dest / ".pytest_cache").exists()
+    assert not (dest / ".ruff_cache").exists()
+    assert not (dest / "dist").exists()
+    assert not (dest / "tools" / "target").exists()
+    assert not list(dest.rglob("*.appimage"))
+
+
+def test_test_build_forwards_explicit_tag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An explicit tag reaches the inner snapshot build verbatim."""
+    monkeypatch.setattr(build_appimage, "_run_git", _stable_test_git)
+    _mock_snapshot_fs(monkeypatch)
+    captured: dict[str, object] = {}
+
+    def fake_run(args: list[str], cwd: Path | None = None) -> int:
+        captured["args"] = list(args)
+        captured["cwd"] = cwd
+        return 0
+
+    monkeypatch.setattr(build_appimage, "run", fake_run)
+    output = tmp_path / "out" / "box-rpg-maker-test.appimage"
+
+    result = build_appimage.test_build(
+        TAG,
+        output,
+        appdir_only=False,
+        force=False,
+        appimagetool=None,
+        appimagetool_url=build_appimage.APPIMAGETOOL_URL,
+        appimagetool_mode="extract",
+    )
+
+    assert result == output.resolve()
+    command = captured["args"]
+    assert isinstance(command, list)
+    assert command[:3] == [sys.executable, "-m", "tools.build_appimage"]
+    assert "--yes" in command
+    assert "--no-create-tag" in command
+    assert "--tag" in command
+    assert command[command.index("--tag") + 1] == TAG
+    assert "--output" in command
+    assert captured["cwd"] is not None
+    assert captured["cwd"] != build_appimage.REPO_ROOT
+
+
+def test_test_build_resolves_tag_when_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An empty tag is resolved in the real repo before snapshotting."""
+    monkeypatch.setattr(build_appimage, "_run_git", _stable_test_git)
+    monkeypatch.setattr(build_appimage, "expected_version", lambda now=None: TAG)
+    _mock_snapshot_fs(monkeypatch)
+    captured: dict[str, object] = {}
+
+    def fake_run(args: list[str], cwd: Path | None = None) -> int:
+        captured["args"] = list(args)
+        return 0
+
+    monkeypatch.setattr(build_appimage, "run", fake_run)
+    output = tmp_path / "out.appimage"
+
+    build_appimage.test_build(
+        None,
+        output,
+        appdir_only=False,
+        force=False,
+        appimagetool=None,
+        appimagetool_url=build_appimage.APPIMAGETOOL_URL,
+        appimagetool_mode="extract",
+    )
+
+    command = captured["args"]
+    assert isinstance(command, list)
+    assert command[command.index("--tag") + 1] == TAG
+
+
+def test_test_build_refuses_in_repo_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Explicit in-repo outputs other than the test default are refused."""
+    monkeypatch.setattr(build_appimage, "_run_git", _stable_test_git)
+
+    def forbidden_snapshot(dest: Path) -> Path:
+        raise AssertionError("refused output must not snapshot")
+
+    monkeypatch.setattr(build_appimage, "snapshot_tree", forbidden_snapshot)
+    bad = build_appimage.REPO_ROOT / "dist" / "custom.appimage"
+    with pytest.raises(RuntimeError, match="in-repo"):
+        build_appimage.test_build(
+            TAG,
+            bad,
+            appdir_only=False,
+            force=False,
+            appimagetool=None,
+            appimagetool_url=build_appimage.APPIMAGETOOL_URL,
+            appimagetool_mode="extract",
+        )
+    assert build_appimage._resolve_test_output(None) == build_appimage.TEST_DEFAULT_OUTPUT
+    allowed = build_appimage._resolve_test_output(build_appimage.TEST_DEFAULT_OUTPUT)
+    assert allowed == build_appimage.TEST_DEFAULT_OUTPUT.resolve()
+
+
+def test_test_build_verifies_fingerprint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A changed HEAD, status, or tag count after the build fails closed."""
+    calls = {"count": 0}
+
+    def changing_git(args: list[str]) -> str:
+        calls["count"] += 1
+        if args == ["rev-parse", "HEAD"]:
+            return "after-head" if calls["count"] > 3 else "before-head"
+        return _stable_test_git(args)
+
+    monkeypatch.setattr(build_appimage, "_run_git", changing_git)
+    _mock_snapshot_fs(monkeypatch)
+    monkeypatch.setattr(build_appimage, "run", lambda args, cwd=None: 0)
+
+    with pytest.raises(RuntimeError, match="changed during"):
+        build_appimage.test_build(
+            TAG,
+            tmp_path / "out.appimage",
+            appdir_only=False,
+            force=False,
+            appimagetool=None,
+            appimagetool_url=build_appimage.APPIMAGETOOL_URL,
+            appimagetool_mode="extract",
+        )
+
+
+def test_test_build_creates_no_tags(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The real repo only sees reads; writes stay inside the snapshot."""
+    seen: list[list[str]] = []
+    snapshot_dirs: list[Path] = []
+
+    def recording_git(args: list[str]) -> str:
+        seen.append(list(args))
+        return _stable_test_git(args)
+
+    def recording_git_in(directory: Path, args: list[str]) -> str:
+        snapshot_dirs.append(directory)
+        assert directory != build_appimage.REPO_ROOT
+        return ""
+
+    monkeypatch.setattr(build_appimage, "_run_git", recording_git)
+    monkeypatch.setattr(build_appimage, "_run_git_in", recording_git_in)
+
+    def fake_snapshot(dest: Path) -> Path:
+        dest.mkdir(parents=True)
+        return dest
+
+    monkeypatch.setattr(build_appimage, "snapshot_tree", fake_snapshot)
+    monkeypatch.setattr(build_appimage, "run", lambda args, cwd=None: 0)
+
+    build_appimage.test_build(
+        TAG,
+        tmp_path / "out.appimage",
+        appdir_only=False,
+        force=False,
+        appimagetool=None,
+        appimagetool_url=build_appimage.APPIMAGETOOL_URL,
+        appimagetool_mode="extract",
+    )
+
+    assert seen, "expected read-only git probes"
+    for args in seen:
+        assert args[0] in ("rev-parse", "status", "tag", "log")
+        assert args[:2] != ["tag", "-a"]
+    assert snapshot_dirs, "expected snapshot-local add and commit"
+
+
+def test_test_build_cleans_tempdir_on_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed inner build still removes the TemporaryDirectory snapshot."""
+    monkeypatch.setattr(build_appimage, "_run_git", _stable_test_git)
+    monkeypatch.setattr(build_appimage, "_run_git_in", lambda directory, args: "")
+    captured: dict[str, object] = {}
+
+    def fake_run(args: list[str], cwd: Path | None = None) -> int:
+        captured["cwd"] = cwd
+        return 1
+
+    monkeypatch.setattr(build_appimage, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="failed in snapshot"):
+        build_appimage.test_build(
+            TAG,
+            tmp_path / "out.appimage",
+            appdir_only=False,
+            force=False,
+            appimagetool=None,
+            appimagetool_url=build_appimage.APPIMAGETOOL_URL,
+            appimagetool_mode="extract",
+        )
+
+    snapshot = captured["cwd"]
+    assert isinstance(snapshot, Path)
+    assert not snapshot.exists()
+    assert not snapshot.parent.exists()
+
+
+def test_test_build_passes_appdir_only_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AppDir-only, force, and tool selection reach the inner command."""
+    monkeypatch.setattr(build_appimage, "_run_git", _stable_test_git)
+    _mock_snapshot_fs(monkeypatch)
+    captured: dict[str, object] = {}
+
+    def fake_run(args: list[str], cwd: Path | None = None) -> int:
+        captured["args"] = list(args)
+        return 0
+
+    monkeypatch.setattr(build_appimage, "run", fake_run)
+    tool = tmp_path / "tool"
+    tool.write_text("x")
+    output = tmp_path / "AppDir"
+
+    build_appimage.test_build(
+        TAG,
+        output,
+        appdir_only=True,
+        force=True,
+        appimagetool=tool,
+        appimagetool_url="https://example.invalid/tool",
+        appimagetool_mode="run",
+    )
+
+    command = captured["args"]
+    assert isinstance(command, list)
+    assert "--appdir-only" in command
+    assert "--force" in command
+    assert "--appimagetool" in command
+    assert command[command.index("--appimagetool") + 1] == str(tool)
+    assert "--appimagetool-url" in command
+    assert command[command.index("--appimagetool-url") + 1] == "https://example.invalid/tool"
+    assert "--appimagetool-mode" in command
+    assert command[command.index("--appimagetool-mode") + 1] == "run"
+    assert "--no-create-tag" in command
+
+
+def test_test_build_refuses_linked_worktree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A .git file (linked worktree) fails before any snapshot exists."""
+    fake_root = tmp_path / "linked"
+    fake_root.mkdir()
+    (fake_root / ".git").write_text("gitdir: /elsewhere")
+    monkeypatch.setattr(build_appimage, "REPO_ROOT", fake_root)
+
+    def forbidden_git(args: list[str]) -> str:
+        raise AssertionError("refused worktree must not run git")
+
+    monkeypatch.setattr(build_appimage, "_run_git", forbidden_git)
+
+    with pytest.raises(RuntimeError, match="linked worktree"):
+        build_appimage.test_build(
+            TAG,
+            tmp_path / "out.appimage",
+            appdir_only=False,
+            force=False,
+            appimagetool=None,
+            appimagetool_url=build_appimage.APPIMAGETOOL_URL,
+            appimagetool_mode="extract",
+        )
+
+
+def test_test_build_resolves_relative_appimagetool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A relative tool path is anchored at the caller cwd, not the snapshot."""
+    monkeypatch.setattr(build_appimage, "_run_git", _stable_test_git)
+    _mock_snapshot_fs(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    captured: dict[str, object] = {}
+
+    def fake_run(args: list[str], cwd: Path | None = None) -> int:
+        captured["args"] = list(args)
+        return 0
+
+    monkeypatch.setattr(build_appimage, "run", fake_run)
+
+    build_appimage.test_build(
+        TAG,
+        tmp_path / "out.appimage",
+        appdir_only=False,
+        force=False,
+        appimagetool=Path("rel-tool"),
+        appimagetool_url=build_appimage.APPIMAGETOOL_URL,
+        appimagetool_mode="extract",
+    )
+
+    command = captured["args"]
+    assert isinstance(command, list)
+    assert command[command.index("--appimagetool") + 1] == str(tmp_path / "rel-tool")
+
+
+def test_test_build_detects_tag_rename_with_same_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A tag rename (same count, different list) fails the fingerprint."""
+    calls = {"count": 0}
+
+    def renaming_git(args: list[str]) -> str:
+        calls["count"] += 1
+        if args == ["tag", "-l"]:
+            return "26.9.1\n26.9.2" if calls["count"] <= 3 else "26.9.1\n26.9.3"
+        return _stable_test_git(args)
+
+    monkeypatch.setattr(build_appimage, "_run_git", renaming_git)
+    _mock_snapshot_fs(monkeypatch)
+    monkeypatch.setattr(build_appimage, "run", lambda args, cwd=None: 0)
+
+    with pytest.raises(RuntimeError, match="tags differ"):
+        build_appimage.test_build(
+            TAG,
+            tmp_path / "out.appimage",
+            appdir_only=False,
+            force=False,
+            appimagetool=None,
+            appimagetool_url=build_appimage.APPIMAGETOOL_URL,
+            appimagetool_mode="extract",
+        )
+
+
+def test_test_build_refuses_output_inside_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An output inside the snapshot workspace is refused before snapshotting."""
+    monkeypatch.setattr(build_appimage, "_run_git", _stable_test_git)
+    workspace = tmp_path / "ws"
+
+    class _FixedTmp:
+        def __enter__(self) -> str:
+            workspace.mkdir(parents=True, exist_ok=True)
+            return str(workspace)
+
+        def __exit__(self, *exc: object) -> bool:
+            return False
+
+    monkeypatch.setattr(
+        build_appimage.tempfile, "TemporaryDirectory", lambda prefix="": _FixedTmp()
+    )
+
+    def forbidden_snapshot(dest: Path) -> Path:
+        raise AssertionError("refused output must not snapshot")
+
+    monkeypatch.setattr(build_appimage, "snapshot_tree", forbidden_snapshot)
+
+    with pytest.raises(RuntimeError, match="snapshot workspace"):
+        build_appimage.test_build(
+            TAG,
+            workspace / "tree" / "out.appimage",
+            appdir_only=False,
+            force=False,
+            appimagetool=None,
+            appimagetool_url=build_appimage.APPIMAGETOOL_URL,
+            appimagetool_mode="extract",
+        )
+
+
+def test_test_build_tmp_commit_carries_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The snapshot commit pins an author so identity-less hosts still work."""
+    monkeypatch.setattr(build_appimage, "_run_git", _stable_test_git)
+    _mock_snapshot_fs(monkeypatch)
+    monkeypatch.setattr(build_appimage, "run", lambda args, cwd=None: 0)
+    commands: list[list[str]] = []
+    real_git_in = build_appimage._run_git_in
+
+    def recording_git_in(directory: Path, args: list[str]) -> str:
+        commands.append(list(args))
+        return real_git_in(directory, args)
+
+    monkeypatch.setattr(build_appimage, "_run_git_in", recording_git_in)
+
+    build_appimage.test_build(
+        TAG,
+        tmp_path / "out.appimage",
+        appdir_only=False,
+        force=False,
+        appimagetool=None,
+        appimagetool_url=build_appimage.APPIMAGETOOL_URL,
+        appimagetool_mode="extract",
+    )
+
+    commits = [args for args in commands if "commit" in args]
+    assert len(commits) == 1
+    assert "-c" in commits[0]
+    assert "user.name=box-rpg-maker-test" in commits[0]
+
+
+def test_snapshot_tree_preserves_symlinks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Links stay links instead of materializing their targets in the snapshot."""
+    fake_root = tmp_path / "fake-root"
+    (fake_root / "real").mkdir(parents=True)
+    (fake_root / "real" / "file.txt").write_text("data")
+    (fake_root / "link").symlink_to(fake_root / "real", target_is_directory=True)
+    monkeypatch.setattr(build_appimage, "REPO_ROOT", fake_root)
+
+    dest = tmp_path / "snap"
+    build_appimage.snapshot_tree(dest)
+
+    assert (dest / "link").is_symlink()
+    assert (dest / "link" / "file.txt").read_text() == "data"
+
+
+def test_main_rejects_test_build_with_check(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """--test-build combined with --check fails instead of building."""
+    monkeypatch.setattr(sys, "argv", ["build_appimage.py", "--test-build", "--check"])
+
+    assert build_appimage.main() == 1
+    assert "mutually exclusive" in capsys.readouterr().err
