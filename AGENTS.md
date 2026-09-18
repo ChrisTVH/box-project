@@ -1,6 +1,6 @@
 # Mono-repository architecture
 
-The versions of both projects are aligned and updated simultaneously via a commit.
+The version is computed dynamically at build/CI time from git history (see `version-standard`); there are no alignment commits.
 Based on the `commit-standard`, `version-standard` and `documentation-writer` skills.
 
 ## Documentation for both projects

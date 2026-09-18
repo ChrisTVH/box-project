@@ -68,29 +68,9 @@ refactor(core): extract SSH connection logic into its own module
 chore(deps): update minor dependencies
 ```
 
-## Release-alignment commits (`chore(release)`)
+## Historical note
 
-In monorepos where sibling projects share a version number (see the
-`version-standard` skill), a `chore(release): align <a> and <b> at <version>`
-commit exists only to bump the version — it must carry no logic changes.
-
-- Never fold the actual feature/fix/refactor work into the release-alignment
-  commit. Land it first as its own properly typed commit(s) (`feat`, `fix`,
-  `refactor`, ...), then follow with the `chore(release)` commit containing
-  only version bumps (and, if unavoidable, generated artifacts like compiled
-  locale files).
-- A large, multi-part change (e.g. "add X, fix Y, complete Z") is a signal to
-  split into one commit per logical piece before aligning versions — not a
-  reason to bundle everything into one oversized commit. Large single commits
-  are harder to review, bisect, and roll back in isolation.
-- If asked to write a `chore(release)` commit message for a diff that
-  clearly contains non-trivial logic changes, point this out and suggest
-  splitting before writing the message.
-- When the user asks to commit work *and* raise the version in one
-  request, that means the full flow above: one commit per logical piece
-  first, then the release-alignment commit. Never land everything as a
-  single `chore(release)` commit — bundling the work into it loses the
-  `feat`/`fix` history that review, bisect, and rollback rely on.
+`chore(release)` version-bump commits were used before dynamic versioning; versions are now computed at build/CI time from git history (see the `version-standard` skill), so no such commit is needed.
 
 ## How to apply this skill
 
@@ -100,4 +80,3 @@ When the user asks for a commit message:
 3. Write the description in imperative mood, short, no trailing period.
 4. If the change breaks compatibility, mark it with `!` and add `BREAKING CHANGE:` in the footer.
 5. One commit = one logical change; if the user describes several unrelated changes, suggest splitting into multiple commits.
-6. If the change is a version bump (`chore(release)`), confirm it doesn't also carry feature/fix work — see "Release-alignment commits" above.
