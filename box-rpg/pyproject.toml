@@ -1,10 +1,17 @@
 [build-system]
 requires = ["setuptools==84.0.0"]
+# The stock setuptools backend stays wired here on purpose. The shared
+# stamper (tools/build_backend.py) cannot be referenced as build-backend:
+# PEP 517 backend-path entries must live inside the project source tree and
+# pip/build reject anything outside ("paths must be inside source tree"),
+# while staged installer sources and sdists ship no tools/ directory.
+# Stamp box/_version.py first (python3 tools/build_backend.py from the
+# monorepo root) so the dynamic attr below always resolves.
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "box-rpg"
-version = "26.9.71"
+dynamic = ["version"]
 description = "A safe launcher for RPG Maker 2000/2003/MV/MZ projects"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -39,6 +46,9 @@ build = [
 
 [tool.setuptools]
 package-dir = { "" = "src" }
+
+[tool.setuptools.dynamic]
+version = {attr = "box._version.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]

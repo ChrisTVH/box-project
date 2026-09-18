@@ -4,3 +4,5 @@
 !/box/**/locale/**/*.mo
 !/box/runtime/keys/*.asc
 !/box/runtime/keys/README.md
+# Generated dynamic version pin (tools/build_backend.py); never commit.
+/box/_version.py
