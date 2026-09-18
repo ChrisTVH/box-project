@@ -14,7 +14,10 @@ explicitly started with the Install button.
 
 from __future__ import annotations
 
+import os
 import shutil
+import site
+import stat
 import subprocess
 import sys
 import tempfile
@@ -39,6 +42,7 @@ __all__ = [
     "is_externally_managed_failure",
     "query_installed_version",
     "run_command_streaming",
+    "user_site_problems",
 ]
 
 CLONE_URLS: tuple[str, str] = (
@@ -188,6 +192,48 @@ def query_installed_version(python: str) -> str | None:
     return text[0] if text else None
 
 
+def user_site_problems(home: Path | None = None, user_site: Path | None = None) -> tuple[str, ...]:
+    """List user-site ancestors violating the installer ownership rule.
+
+    Mirrors the read-only half of install.py's user-site bootstrap guard:
+    every existing directory from the home directory down to the user
+    site-packages must be owned by the current user with no group or
+    other write permission, and the site must live inside the home
+    directory. Missing directories are fine (pip creates them). Returns
+    the offending paths, empty when the install can proceed.
+    """
+    base = home.resolve() if home is not None else Path.home().resolve()
+    site_dir = (
+        user_site.resolve() if user_site is not None else Path(site.getusersitepackages()).resolve()
+    )
+    if (
+        not base.is_absolute()
+        or not site_dir.is_absolute()
+        or site_dir == base
+        or base not in site_dir.parents
+    ):
+        return (str(site_dir),)
+    problems: list[str] = []
+    current = Path("/")
+    for component in site_dir.parts[1:]:
+        current = current / component
+        if not current.is_relative_to(base):
+            continue
+        try:
+            entry = os.lstat(current)
+        except FileNotFoundError:
+            break
+        except OSError:
+            problems.append(str(current))
+            break
+        if not stat.S_ISDIR(entry.st_mode) or stat.S_ISLNK(entry.st_mode):
+            problems.append(str(current))
+            break
+        if entry.st_uid != os.geteuid() or entry.st_mode & 0o022:
+            problems.append(str(current))
+    return tuple(problems)
+
+
 def install_backend(
     tag: str,
     *,
@@ -204,6 +250,13 @@ def install_backend(
     version is confirmed to equal the tag.
     """
     notify: Callable[[str], None] = on_status if on_status is not None else (lambda _m: None)
+    site_problems = user_site_problems()
+    if site_problems:
+        raise BackendInstallError(
+            _(
+                "Cannot install to your Python user site: {paths}. Each directory must be owned by you with no group or other write permission (for example: chown USERNAME PATH and chmod go-w PATH); adjust them and retry."
+            ).format(paths=", ".join(site_problems))
+        )
     with tempfile.TemporaryDirectory(prefix="box-rpg-backend-") as directory:
         repository = Path(directory) / "box-project"
         clone_errors: list[str] = []

@@ -22,6 +22,7 @@ from box_gui.core.backend_install import (
     is_externally_managed_failure,
     query_installed_version,
     run_command_streaming,
+    user_site_problems,
 )
 
 
@@ -301,6 +302,64 @@ def test_externally_managed_marker_matches_token_only() -> None:
     assert is_externally_managed_failure(["ERROR: EXTERNALLY-MANAGED-ENVIRONMENT"])
     assert not is_externally_managed_failure(["error: pip install failed"])
     assert not is_externally_managed_failure([])
+
+
+def test_user_site_problems_accepts_clean_tree(tmp_path: Path) -> None:
+    """A user-owned tree without group/other write passes the probe."""
+    home = tmp_path / "home"
+    site_packages = home / ".local" / "lib" / "site-packages"
+    site_packages.mkdir(parents=True)
+
+    assert user_site_problems(home, site_packages) == ()
+
+
+def test_user_site_problems_ignores_missing_tail(tmp_path: Path) -> None:
+    """Missing directories are fine; pip creates them itself."""
+    home = tmp_path / "home"
+    home.mkdir()
+
+    assert user_site_problems(home, home / ".local" / "lib" / "site-packages") == ()
+
+
+def test_user_site_problems_flags_group_writable_ancestor(tmp_path: Path) -> None:
+    """One group-writable ancestor fails the probe with its path."""
+    home = tmp_path / "home"
+    site_packages = home / ".local" / "lib" / "site-packages"
+    site_packages.mkdir(parents=True)
+    (home / ".local").chmod(0o775)
+
+    assert user_site_problems(home, site_packages) == (str(home / ".local"),)
+
+
+def test_user_site_problems_refuses_outside_home(tmp_path: Path) -> None:
+    """A site outside the home directory is refused entirely."""
+    home = tmp_path / "home"
+    home.mkdir()
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+
+    assert user_site_problems(home, outside) == (str(outside),)
+
+
+def test_install_backend_prefights_user_site(monkeypatch: Any, tmp_path: Path) -> None:
+    """A bad user site fails before any clone attempt."""
+    home = tmp_path / "home"
+    home.mkdir()
+    home.chmod(0o775)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.setattr(
+        backend_install_module.site,
+        "getusersitepackages",
+        lambda: str(home / ".local" / "lib" / "site-packages"),
+    )
+
+    def _no_clone(command: list[str], on_line: Any, *, cwd: Any = None) -> int:
+        raise AssertionError(f"must not run anything, got {command[0]}")
+
+    monkeypatch.setattr(backend_install_module, "run_command_streaming", _no_clone)
+
+    with pytest.raises(BackendInstallError, match="user site"):
+        install_backend("26.9.43", python="/usr/bin/python3", on_line=lambda _l: None)
 
 
 def test_install_backend_reports_missing_git(monkeypatch: Any) -> None:
