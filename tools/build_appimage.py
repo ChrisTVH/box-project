@@ -42,6 +42,7 @@ Usage (run from the monorepo root; CI invokes the same entry point, so
 no shell scripts are involved)::
 
     python3 -m tools.build_appimage --check
+    python3 -m tools.build_appimage --print-tag
     python3 -m tools.build_appimage --yes
     python3 -m tools.build_appimage --yes --appdir-only --output dist/AppDir
 
@@ -217,12 +218,15 @@ def create_tag(tag: str) -> None:
 def ensure_on_tag(tag: str, *, create: bool) -> None:
     """Create the tag when missing, then verify HEAD is exactly that tag.
 
-    Fails closed: an existing tag pointing elsewhere, a missing tag with
-    creation disabled, or a HEAD that does not describe to the tag all
-    raise instead of building from an arbitrary checkout.
+    Fails closed: an existing tag pointing elsewhere, a missing tag, or a
+    HEAD that does not describe to the tag all raise instead of building
+    from an arbitrary checkout. With create=False (local test builds)
+    nothing is created or verified; the resolved tag is only embedded.
     """
     if not is_valid_tag(tag):
         raise RuntimeError(f"refusing malformed tag: {tag!r}")
+    if not create:
+        return
     if tag_exists(tag):
         if tag_commit(tag) != head_commit():
             raise RuntimeError(f"tag {tag} already exists on another commit; not moving it")
@@ -450,7 +454,12 @@ def main() -> int:
     parser.add_argument(
         "--no-create-tag",
         action="store_true",
-        help="only verify the tag exists at HEAD instead of creating it",
+        help="embed without creating or verifying tags (local test builds)",
+    )
+    parser.add_argument(
+        "--print-tag",
+        action="store_true",
+        help="print the resolved tag and exit without changing anything",
     )
     parser.add_argument("--appimagetool", type=Path, help="existing appimagetool binary")
     parser.add_argument(
@@ -497,6 +506,9 @@ def main() -> int:
     if not is_valid_tag(tag):
         print(f"error: refusing malformed tag: {tag!r}", file=sys.stderr)
         return 1
+    if args.print_tag:
+        print(tag)
+        return 0
 
     backend_version = repo_version()
     frontend_version = gui_repo_version()
@@ -521,17 +533,15 @@ def main() -> int:
     print("OK: working tree is clean.")
 
     if args.check:
-        try:
-            described = describe_head()
-            print(f"HEAD tag: {described}")
-            if described != tag:
-                print(f"error: HEAD tag is {described}, expected {tag}", file=sys.stderr)
-                return 1
-        except RuntimeError:
-            if args.no_create_tag:
-                print(f"error: tag {tag} is not at HEAD", file=sys.stderr)
-                return 1
-            print(f"Tag {tag} would be created at HEAD.")
+        if not args.no_create_tag:
+            try:
+                described = describe_head()
+                print(f"HEAD tag: {described}")
+                if described != tag:
+                    print(f"error: HEAD tag is {described}, expected {tag}", file=sys.stderr)
+                    return 1
+            except RuntimeError:
+                print(f"Tag {tag} would be created at HEAD.")
         print("Check passed: nothing changed.")
         return 0
 
@@ -539,7 +549,11 @@ def main() -> int:
         print(f"error: output already exists: {args.output} (pass --force)", file=sys.stderr)
         return 1
     if not args.yes:
-        answer = _prompt(f"\nCreate tag {tag} at HEAD and build the AppImage? [y/N] ")
+        if args.no_create_tag:
+            question = f"\nBuild the AppImage for tag {tag} without creating it? [y/N] "
+        else:
+            question = f"\nCreate tag {tag} at HEAD and build the AppImage? [y/N] "
+        answer = _prompt(question)
         if answer not in ("y", "yes"):
             if answer is not None:
                 print("Aborted.")
@@ -547,7 +561,8 @@ def main() -> int:
 
     try:
         ensure_on_tag(tag, create=not args.no_create_tag)
-        print(f"OK: HEAD is exactly at tag {tag}.")
+        if not args.no_create_tag:
+            print(f"OK: HEAD is exactly at tag {tag}.")
         with tempfile.TemporaryDirectory(prefix="box-rpg-maker-appimage-") as directory:
             workspace = Path(directory)
             appdir = workspace / "AppDir"

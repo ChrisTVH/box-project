@@ -181,18 +181,6 @@ def test_ensure_on_tag_requires_exact_describe(monkeypatch: pytest.MonkeyPatch) 
         build_appimage.ensure_on_tag(TAG, create=True)
 
 
-def test_ensure_on_tag_respects_disabled_creation(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_git(args: list[str]) -> str:
-        if args[:2] == ["rev-parse", "--verify"]:
-            raise RuntimeError("no such tag")
-        raise AssertionError(f"unexpected git call: {args}")
-
-    monkeypatch.setattr(build_appimage, "_run_git", fake_git)
-
-    with pytest.raises(RuntimeError, match="creation is disabled"):
-        build_appimage.ensure_on_tag(TAG, create=False)
-
-
 def _mock_build_prerequisites(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(build_appimage, "working_tree_clean", lambda: True)
     monkeypatch.setattr(build_appimage, "describe_head", lambda: TAG)
@@ -211,6 +199,29 @@ def test_main_check_passes_without_mutation(
 
     assert build_appimage.main() == 0
     assert "Check passed" in capsys.readouterr().out
+
+
+def test_main_print_tag_resolves_without_mutation(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """--print-tag reports the tag without touching git state or disk."""
+    monkeypatch.setattr(build_appimage.sys, "argv", ["build_appimage.py", "--print-tag"])
+
+    assert build_appimage.main() == 0
+    assert capsys.readouterr().out.strip() == build_appimage.expected_version()
+
+
+def test_ensure_on_tag_without_creation_touches_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Local test builds embed without creating or verifying any tag."""
+
+    def forbidden(args: list[str]) -> str:
+        raise AssertionError(f"must not call git, got {args}")
+
+    monkeypatch.setattr(build_appimage, "_run_git", forbidden)
+
+    assert build_appimage.ensure_on_tag(TAG, create=False) is None
 
 
 def test_main_refuses_misaligned_versions(
