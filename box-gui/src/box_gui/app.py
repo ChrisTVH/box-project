@@ -184,8 +184,8 @@ class BoxRpgApplication(Adw.Application):
             window = Adw.ApplicationWindow(
                 application=self,
                 title=_("Box RPG Maker"),
-                default_width=640,
-                default_height=480,
+                default_width=880,
+                default_height=640,
             )
             navigation = Adw.NavigationView()
             navigation.connect("popped", self._refresh_library_on_return)
