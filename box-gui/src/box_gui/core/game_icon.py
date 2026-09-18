@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import gi
 
@@ -17,7 +17,15 @@ gi.require_version("GdkPixbuf", "2.0")
 
 from box.api.launch import list_executables  # noqa: E402
 from box.models import GameInfo  # noqa: E402
-from icoextract import IconExtractor, IconExtractorError  # noqa: E402
+
+try:
+    from icoextract import IconExtractor, IconExtractorError
+except ImportError:
+    # icoextract is an optional frontend extra (the AppImage never bundles
+    # it): without it executable icons stay unavailable and callers fall
+    # back to the engine icon, instead of breaking the library import.
+    IconExtractor = cast(Any, None)
+    IconExtractorError = cast(Any, OSError)
 
 __all__ = [
     "MAX_ICON_SIDE",
@@ -25,11 +33,17 @@ __all__ = [
     "find_game_executables",
     "icon_path_for_game",
     "install_image_as_icon",
+    "is_icoextract_available",
     "rekey_cached_icon",
 ]
 
 MAX_ICON_SIDE: int = 256
 """Longest side kept when writing icon files, to bound their size."""
+
+
+def is_icoextract_available() -> bool:
+    """Return True when executable icon extraction can run."""
+    return IconExtractor is not None
 
 
 def find_game_executables(game: GameInfo) -> tuple[Path, ...]:
@@ -81,6 +95,8 @@ def rekey_cached_icon(config_root: Path, old_icon: Path | None, new_game_path: P
 
 def extract_icon_png(exe: Path, dest: Path) -> bool:
     """Write the first icon of one executable as PNG, or False on failure."""
+    if IconExtractor is None:
+        return False
     try:
         data = IconExtractor(str(exe)).get_icon().getvalue()
     except IconExtractorError, OSError:

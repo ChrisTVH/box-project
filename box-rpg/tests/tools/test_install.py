@@ -294,6 +294,26 @@ def test_fuse3_problem_reports_missing_no_device_and_ok(
     assert install.fuse3_problem() is None
 
 
+def test_icoextract_problem_reports_missing_and_ok(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def failing(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess([], 1)
+
+    def passing(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess([], 0)
+
+    def boom(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise OSError("interpreter unavailable")
+
+    monkeypatch.setattr(install.subprocess, "run", failing)
+    assert install.icoextract_problem() == "missing"
+    monkeypatch.setattr(install.subprocess, "run", boom)
+    assert install.icoextract_problem() == "missing"
+    monkeypatch.setattr(install.subprocess, "run", passing)
+    assert install.icoextract_problem() is None
+
+
 def _mock_install_prerequisites(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(install, "is_linux", lambda: True)
     monkeypatch.setattr(install, "_check_python_version", lambda: True)
@@ -301,6 +321,7 @@ def _mock_install_prerequisites(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(install, "bwrap_problem", lambda: None)
     monkeypatch.setattr(install, "gpg_problem", lambda: None)
     monkeypatch.setattr(install, "fuse3_problem", lambda: None)
+    monkeypatch.setattr(install, "icoextract_problem", lambda: None)
     monkeypatch.setattr(install, "gtk_problem", lambda: None)
 
 
@@ -362,6 +383,29 @@ def test_main_warns_but_installs_without_fuse_device(
     assert install.main() == 0
     assert "warning:" in capsys.readouterr().err
     assert calls == ["all"]
+
+
+def test_main_warns_but_installs_without_icoextract_on_cli(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _mock_install_prerequisites(monkeypatch)
+    monkeypatch.setattr(install, "icoextract_problem", lambda: "missing")
+    monkeypatch.setattr(
+        install.sys, "argv", ["install.py", "--install", "--yes", "--target", "cli"]
+    )
+    monkeypatch.setattr(install, "installed_version", _fixed_installed_version(None))
+    monkeypatch.setattr(install, "repo_version", lambda: "1.0.0")
+    calls: list[str] = []
+
+    def succeed(target: str = "all") -> bool:
+        calls.append(target)
+        return True
+
+    monkeypatch.setattr(install, "run_install", succeed)
+
+    assert install.main() == 0
+    assert "icoextract" in capsys.readouterr().err
+    assert calls == ["cli"]
 
 
 def test_main_uninstall_skips_runtime_tool_checks(

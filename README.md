@@ -14,7 +14,7 @@ Supported games, and nothing else by decision:
 
 - Linux with Python 3.14+, pip, and GnuPG (`/usr/bin/gpg`) for NW.js signature checks.
 - Bubblewrap (`/usr/bin/bwrap`) with working user namespaces. There is no unsandboxed mode.
-- The GUI additionally needs GTK 4 and libadwaita typelibs.
+- The GUI additionally needs GTK 4 and libadwaita typelibs. Game icon extraction from executables wants the optional `icoextract` package; without it the GUI falls back to engine icons.
 - Wayland is recommended. X11 and XWayland sessions work with per-launch consent. On Wayland, EasyRPG still asks once per launch when it runs through XWayland.
 - Running the AppImage additionally needs `libfuse3` with `/dev/fuse`; `libfuse2` is never required. `box-rpg` already needs `libfuse3` for `--ci-mount`, so this is nothing new.
 

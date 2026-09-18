@@ -128,7 +128,7 @@ def _fixed_probe(key: str, *, available: bool, required: bool = True) -> Any:
 
 
 def test_probe_dependencies_collects_every_probe(monkeypatch: Any) -> None:
-    """Detection aggregates python, pip, bwrap, and gamemode in order."""
+    """Detection aggregates python, pip, bwrap, gamemode, and icoextract in order."""
     monkeypatch.setattr(
         backend_check_module, "_probe_python", _fixed_probe("python", available=True)
     )
@@ -141,12 +141,18 @@ def test_probe_dependencies_collects_every_probe(monkeypatch: Any) -> None:
         "_probe_gamemode",
         _fixed_probe("gamemode", available=False, required=False),
     )
+    monkeypatch.setattr(
+        backend_check_module,
+        "_probe_icoextract",
+        _fixed_probe("icoextract", available=False, required=False),
+    )
 
     probed = probe_dependencies()
 
-    assert [item.key for item in probed] == ["python", "pip", "bwrap", "gamemode"]
-    assert [item.available for item in probed] == [True, True, False, False]
+    assert [item.key for item in probed] == ["python", "pip", "bwrap", "gamemode", "icoextract"]
+    assert [item.available for item in probed] == [True, True, False, False, False]
     assert probed[3].required is False
+    assert probed[4].required is False
 
 
 def test_probe_dependencies_degrades_per_probe(monkeypatch: Any) -> None:
@@ -165,6 +171,11 @@ def test_probe_dependencies_degrades_per_probe(monkeypatch: Any) -> None:
         backend_check_module,
         "_probe_gamemode",
         _fixed_probe("gamemode", available=True, required=False),
+    )
+    monkeypatch.setattr(
+        backend_check_module,
+        "_probe_icoextract",
+        _fixed_probe("icoextract", available=True, required=False),
     )
 
     probed = {item.key: item for item in probe_dependencies()}
@@ -223,6 +234,27 @@ def test_gamemode_probe_falls_back_to_host_without_backend(monkeypatch: Any) -> 
     monkeypatch.setattr(backend_check_module.shutil, "which", lambda name: None)
 
     assert backend_check_module._is_gamemode_available() is False
+
+
+def test_icoextract_probe_maps_importability(monkeypatch: Any) -> None:
+    """The icoextract probe is optional and never raises."""
+    monkeypatch.setattr(backend_check_module.importlib.util, "find_spec", lambda name: object())
+
+    probed = backend_check_module._probe_icoextract()
+
+    assert (probed.key, probed.label, probed.available, probed.required) == (
+        "icoextract",
+        "icoextract",
+        True,
+        False,
+    )
+
+    monkeypatch.setattr(backend_check_module.importlib.util, "find_spec", lambda name: None)
+
+    probed = backend_check_module._probe_icoextract()
+
+    assert probed.available is False
+    assert probed.required is False
 
 
 def test_bwrap_probe_maps_install_problems(monkeypatch: Any, tmp_path: Path) -> None:

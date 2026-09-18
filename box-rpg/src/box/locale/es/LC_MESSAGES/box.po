@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-17 12:22-0400\n"
+"POT-Creation-Date: 2026-09-17 20:59-0400\n"
 "PO-Revision-Date: 2026-09-08 00:00+0000\n"
 "Last-Translator: Christopher Herasme <5632734-"
 "christvh@users.noreply.gitlab.com>\n"
@@ -18,67 +18,67 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: install.py:692
+#: install.py:699
 msgid "error: refusing to run as root"
 msgstr "error: se rechaza ejecutar como root"
 
-#: install.py:708
+#: install.py:715
 #, python-brace-format
 msgid "warning: completion source missing: {source}"
 msgstr "advertencia: falta el origen del autocompletado: {source}"
 
-#: install.py:716
+#: install.py:723
 #, python-brace-format
 msgid "error: cannot install completion {target}: {error}"
 msgstr "error: no se pudo instalar el autocompletado en {target}: {error}"
 
-#: install.py:724
+#: install.py:731
 #, python-brace-format
 msgid "installed {count} shell completions"
 msgstr "se instalaron {count} autocompletados del shell"
 
-#: install.py:754
+#: install.py:761
 #, python-brace-format
 msgid "warning: GUI source missing: {source}"
 msgstr "advertencia: falta el origen de la GUI: {source}"
 
-#: install.py:762
+#: install.py:769
 #, python-brace-format
 msgid "error: cannot install GUI file {target}: {error}"
 msgstr "error: no se pudo instalar el archivo de la GUI en {target}: {error}"
 
-#: install.py:770
+#: install.py:777
 #, python-brace-format
 msgid "installed {count} GUI files"
 msgstr "se instalaron {count} archivos de la GUI"
 
-#: install.py:790 install.py:800
+#: install.py:797 install.py:807
 msgid ""
 "error: uninstall requires a verified user-site package and a non-root user"
 msgstr ""
 "error: la desinstalación requiere un paquete verificado de user-site y un "
 "usuario no root"
 
-#: install.py:805
+#: install.py:812
 msgid "error: pip uninstall failed"
 msgstr "error: falló la desinstalación con pip"
 
-#: install.py:818
+#: install.py:825
 #, python-brace-format
 msgid "error: failed to remove managed file {target}: {error}"
 msgstr "error: no se pudo eliminar el archivo gestionado {target}: {error}"
 
-#: install.py:826
+#: install.py:833
 #, python-brace-format
 msgid "removed {count} managed files"
 msgstr "se eliminaron {count} archivos gestionados"
 
-#: install.py:841 install.py:949 install.py:1104 install.py:1110
-#: install.py:1116
+#: install.py:848 install.py:956 install.py:1120 install.py:1126
+#: install.py:1132
 msgid "Aborted."
 msgstr "Se canceló."
 
-#: install.py:850
+#: install.py:857
 msgid ""
 "Install box-rpg on the system.\n"
 "\n"
@@ -110,62 +110,62 @@ msgstr ""
 "seleccionados y sus archivos.\n"
 "Pasa --target {cli,gui,all} para seleccionar qué distribuciones gestionar."
 
-#: install.py:865
+#: install.py:872
 msgid "actually install (default is a dry run)"
 msgstr "instala realmente (de forma predeterminada, se hace una simulación)"
 
-#: install.py:870
+#: install.py:877
 msgid "uninstall the selected packages and their files"
 msgstr "desinstala los paquetes seleccionados y sus archivos"
 
-#: install.py:875
+#: install.py:882
 msgid "skip the confirmation prompts"
 msgstr "omite las solicitudes de confirmación"
 
-#: install.py:885
+#: install.py:892
 msgid "reinstall the package even when the same version is installed"
 msgstr "reinstala el paquete incluso cuando ya está instalada la misma versión"
 
-#: install.py:891
+#: install.py:898
 msgid "select which distributions to manage: cli, gui, or all"
 msgstr "selecciona qué distribuciones gestionar: cli, gui o all"
 
-#: install.py:896
+#: install.py:903
 msgid "show the exact commands that would run"
 msgstr "muestra los comandos exactos que se ejecutarían"
 
-#: install.py:903
+#: install.py:910
 msgid "error: --install and --uninstall are mutually exclusive"
 msgstr "error: --install y --uninstall son mutuamente excluyentes"
 
-#: install.py:907
+#: install.py:914
 msgid "error: this script requires Linux"
 msgstr "error: este script requiere Linux"
 
-#: install.py:909
+#: install.py:916
 msgid "OK: Linux system detected."
 msgstr "OK: se detectó un sistema Linux."
 
-#: install.py:913
+#: install.py:920
 #, python-brace-format
 msgid "error: Python 3.14+ required, found {major}.{minor}"
 msgstr ""
 "error: se requiere Python 3.14 o posterior; se encontró {major}.{minor}"
 
-#: install.py:920
+#: install.py:927
 #, python-brace-format
 msgid "OK: Python {major}.{minor} found."
 msgstr "OK: se encontró Python {major}.{minor}."
 
-#: install.py:926
+#: install.py:933
 msgid "error: pip is required for the system Python"
 msgstr "error: se requiere pip para el Python del sistema"
 
-#: install.py:928
+#: install.py:935
 msgid "OK: pip found for the system Python."
 msgstr "OK: se encontró pip para el Python del sistema."
 
-#: install.py:932
+#: install.py:939
 #, python-brace-format
 msgid ""
 "\n"
@@ -174,12 +174,12 @@ msgstr ""
 "\n"
 "Instalado:   {installed}"
 
-#: install.py:933
+#: install.py:940
 #, python-brace-format
 msgid "Repo:      {repo}"
 msgstr "Repositorio: {repo}"
 
-#: install.py:935
+#: install.py:942
 #, python-brace-format
 msgid ""
 "\n"
@@ -188,21 +188,21 @@ msgstr ""
 "\n"
 "GUI instalada:   {installed}"
 
-#: install.py:936
+#: install.py:943
 #, python-brace-format
 msgid "Repo GUI:      {repo}"
 msgstr "Repositorio GUI: {repo}"
 
-#: install.py:941
+#: install.py:948
 #, python-brace-format
 msgid "error: {package} is not installed"
 msgstr "error: {package} no está instalado"
 
-#: install.py:944
+#: install.py:951
 msgid "Uninstall commands that would be run:"
 msgstr "Comandos de desinstalación que se ejecutarían:"
 
-#: install.py:946
+#: install.py:953
 msgid ""
 "\n"
 "Proceed with uninstall? [y/N] "
@@ -210,17 +210,17 @@ msgstr ""
 "\n"
 "¿Continuar con la desinstalación? [y/N] "
 
-#: install.py:957
+#: install.py:964
 #, python-brace-format
 msgid "error: Bubblewrap ({bwrap}) is required to launch games"
 msgstr "error: se requiere Bubblewrap ({bwrap}) para iniciar juegos"
 
-#: install.py:963
+#: install.py:970
 #, python-brace-format
 msgid "error: Bubblewrap ({bwrap}) is installed but does not run"
 msgstr "error: Bubblewrap ({bwrap}) está instalado pero no se ejecuta"
 
-#: install.py:970
+#: install.py:977
 msgid ""
 "error: user namespaces are blocked, so the game sandbox cannot start (check: "
 "sysctl kernel.unprivileged_userns_clone)"
@@ -229,27 +229,27 @@ msgstr ""
 "entorno aislado del juego no puede iniciarse (comprueba: sysctl "
 "kernel.unprivileged_userns_clone)"
 
-#: install.py:976
+#: install.py:983
 msgid "OK: Bubblewrap is ready to launch games."
 msgstr "OK: Bubblewrap está listo para iniciar juegos."
 
-#: install.py:980
+#: install.py:987
 #, python-brace-format
 msgid "error: GnuPG ({gpg}) is required to install verified runtimes"
 msgstr ""
 "error: se requiere GnuPG ({gpg}) para instalar entornos de ejecución "
 "verificados"
 
-#: install.py:986
+#: install.py:993
 #, python-brace-format
 msgid "error: GnuPG ({gpg}) is installed but does not run"
 msgstr "error: GnuPG ({gpg}) está instalado pero no se ejecuta"
 
-#: install.py:990
+#: install.py:997
 msgid "OK: GnuPG found."
 msgstr "OK: se encontró GnuPG."
 
-#: install.py:996
+#: install.py:1003
 msgid ""
 "warning: libfuse3 not found; the case-insensitive mount (--ci-mount) will be "
 "unavailable"
@@ -257,7 +257,7 @@ msgstr ""
 "advertencia: no se encontró libfuse3; el montaje insensible a mayúsculas y "
 "minúsculas (--ci-mount) no estará disponible"
 
-#: install.py:1003
+#: install.py:1010
 msgid ""
 "warning: /dev/fuse not found; the case-insensitive mount (--ci-mount) will "
 "be unavailable"
@@ -265,13 +265,23 @@ msgstr ""
 "advertencia: no se encontró /dev/fuse; el montaje insensible a mayúsculas y "
 "minúsculas (--ci-mount) no estará disponible"
 
-#: install.py:1008
+#: install.py:1015
 msgid "OK: libfuse3 found for the case-insensitive mount."
 msgstr ""
 "OK: se encontró libfuse3 para el montaje insensible a mayúsculas y "
 "minúsculas."
 
-#: install.py:1014
+#: install.py:1020
+msgid "warning: icoextract not found; game icon extraction will be unavailable"
+msgstr ""
+"advertencia: no se encontró icoextract; la extracción de iconos del juego "
+"no estará disponible"
+
+#: install.py:1024
+msgid "OK: icoextract found for game icon extraction."
+msgstr "OK: se encontró icoextract para la extracción de iconos del juego."
+
+#: install.py:1030
 msgid ""
 "error: GTK 4 and libadwaita typelibs are required to install the GUI (needs "
 "PyGObject with Gtk 4.0 and Adw 1)"
@@ -279,44 +289,44 @@ msgstr ""
 "error: se requieren los typelibs de GTK 4 y libadwaita para instalar la GUI "
 "(se necesita PyGObject con Gtk 4.0 y Adw 1)"
 
-#: install.py:1020
+#: install.py:1036
 msgid "OK: GTK 4 and libadwaita found."
 msgstr "OK: se encontraron GTK 4 y libadwaita."
 
-#: install.py:1024
+#: install.py:1040
 msgid "Install commands that would be run:"
 msgstr "Comandos de instalación que se ejecutarían:"
 
-#: install.py:1026
+#: install.py:1042
 msgid "Install plan:"
 msgstr "Plan de instalación:"
 
-#: install.py:1029 install.py:1037
+#: install.py:1045 install.py:1053
 #, python-brace-format
 msgid "  - Build {package} {repo} in a private directory."
 msgstr "  - Compila {package} {repo} en un directorio privado."
 
-#: install.py:1033
+#: install.py:1049
 msgid "  - Install it for your user."
 msgstr "  - Se instala solo para tu usuario."
 
-#: install.py:1034
+#: install.py:1050
 #, python-brace-format
 msgid "  - Install {count} shell completions."
 msgstr "  - Instala {count} autocompletados del shell."
 
-#: install.py:1041
+#: install.py:1057
 msgid "  - Install it for your user with its runtime dependencies."
 msgstr ""
 "  - Se instala solo para tu usuario con sus dependencias del entorno de "
 "ejecución."
 
-#: install.py:1042
+#: install.py:1058
 #, python-brace-format
 msgid "  - Install {count} GUI files."
 msgstr "  - Instala {count} archivos de la GUI."
 
-#: install.py:1058
+#: install.py:1074
 #, python-brace-format
 msgid ""
 "\n"
@@ -326,7 +336,7 @@ msgstr ""
 "Hay una actualización disponible (instalado: {installed}, repositorio: "
 "{repo})."
 
-#: install.py:1066
+#: install.py:1082
 #, python-brace-format
 msgid ""
 "\n"
@@ -336,7 +346,7 @@ msgstr ""
 "La versión instalada ({installed}) es más reciente que la del repositorio "
 "({repo})."
 
-#: install.py:1072
+#: install.py:1088
 #, python-brace-format
 msgid ""
 "\n"
@@ -345,7 +355,7 @@ msgstr ""
 "\n"
 "Reinstalando la misma versión ({installed}) según lo solicitado."
 
-#: install.py:1079
+#: install.py:1095
 #, python-brace-format
 msgid ""
 "\n"
@@ -354,7 +364,7 @@ msgstr ""
 "\n"
 "Ya está instalada la misma versión ({installed})."
 
-#: install.py:1085
+#: install.py:1101
 msgid ""
 "\n"
 "Run with --install to actually install."
@@ -362,11 +372,11 @@ msgstr ""
 "\n"
 "Ejecuta con --install para instalar realmente."
 
-#: install.py:1087
+#: install.py:1103
 msgid "To remove it instead, run with --uninstall."
 msgstr "Para eliminarlo, ejecuta con --uninstall."
 
-#: install.py:1096
+#: install.py:1112
 #, python-brace-format
 msgid ""
 "\n"
@@ -377,7 +387,7 @@ msgstr ""
 "{package} ya está instalado. [r] Reinstalar/actualizar, [u] Desinstalar, [c] "
 "Cancelar [r/u/c] "
 
-#: install.py:1101
+#: install.py:1117
 msgid ""
 "\n"
 "Confirm uninstall? [y/N] "
@@ -385,7 +395,7 @@ msgstr ""
 "\n"
 "¿Confirmar la desinstalación? [y/N] "
 
-#: install.py:1113
+#: install.py:1129
 msgid ""
 "\n"
 "Proceed with installation? [y/N] "
@@ -393,7 +403,7 @@ msgstr ""
 "\n"
 "¿Continuar con la instalación? [y/N] "
 
-#: install.py:1124
+#: install.py:1140
 #, python-brace-format
 msgid "warning: {bindir} is not on PATH; add it to run {prog} from anywhere"
 msgstr ""

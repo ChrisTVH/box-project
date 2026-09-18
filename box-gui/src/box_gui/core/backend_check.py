@@ -16,6 +16,7 @@ marshals results back to the main loop.
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -289,13 +290,25 @@ def _probe_gamemode() -> DependencyStatus:
     )
 
 
+def _probe_icoextract() -> DependencyStatus:
+    """Report optional executable icon extraction; never required, never a crash."""
+    available = importlib.util.find_spec("icoextract") is not None
+    return DependencyStatus(
+        key="icoextract",
+        label="icoextract",
+        available=available,
+        required=False,
+        detail=_("available") if available else _("not available"),
+    )
+
+
 def probe_dependencies() -> tuple[DependencyStatus, ...]:
     """Probe every setup-page dependency, degrading gracefully per probe.
 
     Individual probe failures report that dependency as unavailable with
     the raw detail instead of aborting the whole detection.
     """
-    probes = (_probe_python, _probe_pip, _probe_bwrap, _probe_gamemode)
+    probes = (_probe_python, _probe_pip, _probe_bwrap, _probe_gamemode, _probe_icoextract)
     results: list[DependencyStatus] = []
     for probe in probes:
         try:

@@ -94,6 +94,9 @@ def _all_ok_dependencies() -> tuple[Any, ...]:
         DependencyStatus(
             key="gamemode", label="GameMode", available=True, required=False, detail="available"
         ),
+        DependencyStatus(
+            key="icoextract", label="icoextract", available=True, required=False, detail="available"
+        ),
     )
 
 
@@ -274,6 +277,7 @@ def test_detection_enables_install(monkeypatch: pytest.MonkeyPatch) -> None:
         "pip",
         "Bubblewrap",
         "GameMode",
+        "icoextract",
     ]
     assert page._action_button.get_sensitive() is True
     assert page._action_button.get_label() == "Install box-rpg 26.9.43"

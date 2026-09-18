@@ -373,6 +373,13 @@ def fuse3_problem() -> str | None:
     return None
 
 
+def icoextract_problem() -> str | None:
+    """Return None when game icon extraction is available, else a reason."""
+    if not _tool_runs([system_python(), "-I", "-c", "import icoextract"]):
+        return "missing"
+    return None
+
+
 allow_system_packages = False
 force_reinstall = False
 
@@ -1006,6 +1013,15 @@ Pass --target {cli,gui,all} to select which distributions to manage."""
         )
     else:
         print(_("OK: libfuse3 found for the case-insensitive mount."))
+
+    icoextract_issue = icoextract_problem()
+    if icoextract_issue == "missing":
+        print(
+            _("warning: icoextract not found; game icon extraction will be unavailable"),
+            file=sys.stderr,
+        )
+    else:
+        print(_("OK: icoextract found for game icon extraction."))
 
     if args.target in ("gui", "all"):
         if gtk_problem() == "missing":

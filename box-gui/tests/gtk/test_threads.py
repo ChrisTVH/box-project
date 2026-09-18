@@ -66,7 +66,7 @@ def test_probes_survive_missing_backend(monkeypatch: pytest.MonkeyPatch) -> None
 
     found = {item.key: item for item in probe_dependencies()}
 
-    assert set(found) == {"python", "pip", "bwrap", "gamemode"}
+    assert set(found) == {"python", "pip", "bwrap", "gamemode", "icoextract"}
     assert found["gamemode"].available is True
 
     monkeypatch.setattr(Path, "is_file", lambda self: False)
