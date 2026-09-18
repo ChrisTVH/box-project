@@ -27,7 +27,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from collections.abc import Generator, Sequence
+from collections.abc import Callable, Generator, Sequence
 from ctypes.util import find_library
 from pathlib import Path
 from typing import cast
@@ -38,8 +38,6 @@ GUI_ROOT = REPO_ROOT / "box-gui"
 PACKAGE = "box-rpg"
 GUI_PACKAGE = "box-rpg-maker"
 PACKAGES = (PACKAGE, GUI_PACKAGE)
-INIT_PY = CLI_ROOT / "src/box/__init__.py"
-GUI_INIT_PY = GUI_ROOT / "src/box_gui/__init__.py"
 DESKTOP_FILE_NAME = "io.gitlab.christvh.BoxRpgApp.desktop"
 BWRAP = Path("/usr/bin/bwrap")
 GPG = Path("/usr/bin/gpg")
@@ -194,24 +192,58 @@ def _check_python_version() -> bool:
     return sys.version_info >= (3, 14)
 
 
-def repo_version() -> str:
-    """Return the package version from src/box/__init__.py."""
+def _versioning_helpers() -> tuple[Callable[[Path], str], Callable[[Path, str], None]] | None:
+    """Load (compute_version, write_version_file) from the monorepo tools.
+
+    Tries the ``tools`` package first (normal ``./install.py`` runs from the
+    repo root) then the top-level ``versioning`` module (contexts like the
+    test suite that put ``tools/`` itself on ``sys.path``). Returns None
+    when neither is importable. The declared return type keeps strict
+    type-checking exact at the call sites.
+    """
     try:
-        content = INIT_PY.read_text(encoding="utf-8")
-    except OSError:
+        from tools.versioning import compute_version, write_version_file
+
+        return compute_version, write_version_file
+    except ImportError:
+        pass
+    try:
+        from versioning import compute_version as _compute  # type: ignore[no-redef]
+        from versioning import write_version_file as _write  # type: ignore[no-redef]
+
+        return cast(
+            "tuple[Callable[[Path], str], Callable[[Path, str], None]]",
+            (_compute, _write),
+        )
+    except ImportError:
+        return None
+
+
+def _dynamic_repo_version() -> str:
+    """Return the checkout version computed from git history.
+
+    Never reads installed metadata: callers compare Repo against Installed
+    to detect updates, so both sides must stay independent. Returns
+    ``"unknown"`` outside a git checkout.
+    """
+    helpers = _versioning_helpers()
+    if helpers is None:
         return "unknown"
-    match = re.search(r'__version__\s*=\s*"([^"]+)"', content)
-    return match.group(1) if match else "unknown"
+    compute_version, _ = helpers
+    try:
+        return compute_version(REPO_ROOT)
+    except Exception:
+        return "unknown"
+
+
+def repo_version() -> str:
+    """Return the checkout version for the box-rpg distribution."""
+    return _dynamic_repo_version()
 
 
 def gui_repo_version() -> str:
-    """Return the GUI package version from src/box_gui/__init__.py."""
-    try:
-        content = GUI_INIT_PY.read_text(encoding="utf-8")
-    except OSError:
-        return "unknown"
-    match = re.search(r'__version__\s*=\s*"([^"]+)"', content)
-    return match.group(1) if match else "unknown"
+    """Return the checkout version for the box-rpg-maker distribution."""
+    return _dynamic_repo_version()
 
 
 def installed_version(package: str = PACKAGE) -> str | None:
@@ -553,10 +585,18 @@ def user_bin_without_path() -> Path | None:
     return None
 
 
+def _staged_version_file(destination: Path, project_dir: Path | None) -> Path:
+    """Return where the generated _version.py lives in staged build sources."""
+    if (CLI_ROOT if project_dir is None else project_dir) == GUI_ROOT:
+        return destination / "src/box_gui/_version.py"
+    return destination / "src/box/_version.py"
+
+
 def copy_build_source(destination: Path, project_dir: Path | None = None) -> None:
     """Stage the trusted checkout without venvs or previous build artifacts."""
-    source_root = CLI_ROOT if project_dir is None else project_dir
-    # Nested workspaces (e.g. the GUI build stages cli/ and gui/ side by
+    source_root = (
+        CLI_ROOT if project_dir is None else project_dir
+    )  # Nested workspaces (e.g. the GUI build stages cli/ and gui/ side by
     # side) may not exist yet; still refuse to reuse an existing destination.
     destination.mkdir(parents=True)
     for name in ("pyproject.toml", "README.md"):
@@ -586,6 +626,17 @@ def copy_build_source(destination: Path, project_dir: Path | None = None) -> Non
                 destination / "docs",
                 ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"),
             )
+    # Dynamic versions resolve from a generated _version.py that never lives
+    # in git: stamp the staged copy so isolated wheel builds (which ship no
+    # tools/) work from a fresh clone without a manual stamping step first.
+    helpers = _versioning_helpers()
+    if helpers is None:
+        raise RuntimeError("cannot stamp _version.py: tools/versioning.py is unavailable")
+    _compute_version, _write_version_file = helpers
+    _write_version_file(
+        _staged_version_file(destination, project_dir),
+        _compute_version(REPO_ROOT),
+    )
 
 
 def _wheel_args(python: Path, workspace: Path) -> list[str]:
