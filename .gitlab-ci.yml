@@ -6,6 +6,7 @@
 # tag with the appimage-push project token (write_repository, stored as the
 # masked GIT_PUSH_TOKEN CI variable; CI_JOB_TOKEN alone gets a 403), and
 # records the tag in build.env; the publish job then creates the Release
+# via release-cli with the shared notes from tools/release_notes.py
 # (generic title, notes, and artifact link) automatically through its needs
 # on the build.
 # The Python-pure builder stages the frontend-only AppDir and converts it
@@ -43,9 +44,11 @@ appimage:
     - echo "APPIMAGE_TAG=$APPIMAGE_TAG" > build.env
     - 'if [ -z "${GIT_PUSH_TOKEN:-}" ]; then echo "error: missing GIT_PUSH_TOKEN CI variable" >&2; exit 1; fi'
     - git push "https://oauth2:${GIT_PUSH_TOKEN}@gitlab.com/christvh/box-project.git" "$APPIMAGE_TAG"
+    - python3 -m tools.release_notes "$APPIMAGE_TAG" > notes.md
   artifacts:
     paths:
       - dist/box-rpg-maker.appimage
+      - notes.md
     reports:
       dotenv: build.env
     # Releases link straight at this artifact, so it must outlive the build.
@@ -62,20 +65,4 @@ publish:
     - when: on_success
   script:
     - echo "Publishing release for $APPIMAGE_TAG"
-  release:
-    tag_name: '$APPIMAGE_TAG'
-    name: 'box-rpg-maker $APPIMAGE_TAG'
-    description: |
-      Standalone AppImage of the box-gui frontend (GTK4 + libadwaita).
-
-      Runs on the system Python 3.14+; the box-rpg backend is not bundled.
-      Install the matching backend first: ./install.py --install --target cli
-      (exact version match required; without it the app guides the install itself).
-
-      Requires Python 3.14+, GTK4/libadwaita 1.5+, and libfuse3.
-    ref: '$CI_COMMIT_SHA'
-    assets:
-      links:
-        - name: 'box-rpg-maker.appimage'
-          url: '$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_REF_NAME/raw/dist/box-rpg-maker.appimage?job=appimage'
-          link_type: 'package'
+    - release-cli create --name "box-rpg-maker $APPIMAGE_TAG" --tag-name "$APPIMAGE_TAG" --description "$(cat notes.md)" --ref "$CI_COMMIT_SHA" --assets-link "{\"name\":\"box-rpg-maker.appimage\",\"url\":\"$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_REF_NAME/raw/dist/box-rpg-maker.appimage?job=appimage\",\"link_type\":\"package\"}" || release-cli update --tag-name "$APPIMAGE_TAG" --name "box-rpg-maker $APPIMAGE_TAG" --description "$(cat notes.md)"

@@ -6,8 +6,8 @@
 # checkout is exactly at that tag, stages the frontend-only AppDir, and
 # converts it with a recent FUSE3-capable appimagetool (no libfuse2).
 # The publish step then pushes that tag and creates (or updates, idempotent
-# on re-runs) the GitHub Release with a generic title, notes, and the
-# attached AppImage.
+# on re-runs) the GitHub Release with a generic title, notes from
+# tools/release_notes.py, and the attached AppImage.
 name: AppImage
 
 permissions:
@@ -65,18 +65,10 @@ jobs:
         run: |
           TAG=$(git describe --tags --exact-match HEAD)
           git push origin "$TAG"
-          cat > /tmp/appimage-release-notes.md <<EOF
-          Standalone AppImage of the box-gui frontend (GTK4 + libadwaita) — box-rpg-maker $TAG.
-
-          Runs on the system Python 3.14+; the box-rpg backend is not bundled.
-          Install the matching backend first: ./install.py --install --target cli
-          (exact version match required; without it the app guides the install itself).
-
-          Requires Python 3.14+, GTK4/libadwaita 1.5+, and libfuse3.
-          EOF
+          python3 -m tools.release_notes "$TAG" > notes.md
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/box-rpg-maker.appimage --clobber
           else
             gh release create "$TAG" dist/box-rpg-maker.appimage \
-              --title "box-rpg-maker $TAG" --notes-file /tmp/appimage-release-notes.md
+              --title "box-rpg-maker $TAG" --notes-file notes.md
           fi
