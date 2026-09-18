@@ -447,3 +447,82 @@ def test_restart_failure_stays_on_setup(monkeypatch: pytest.MonkeyPatch) -> None
     assert page._action_button.get_label() == "Retry"
     assert len(presented) == 1
     assert presented[0].get_heading() == "Unexpected Error"
+
+
+def test_output_hidden_during_checking_and_ready(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The empty install log stays hidden so the action button keeps its place."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    monkeypatch.setattr(backend_setup_page_module, "probe_dependencies", _all_ok_dependencies)
+    page = BackendSetupPage(_missing_status())
+
+    assert page._phase is InstallPhase.CHECKING
+    assert page._output_title is not None
+    assert page._scrolled is not None
+    assert page._output_title.get_visible() is False
+    assert page._scrolled.get_visible() is False
+    assert page._dep_group.get_visible() is True
+
+    page.start_detection()
+
+    assert page._phase is InstallPhase.READY
+    assert page._output_title.get_visible() is False
+    assert page._scrolled.get_visible() is False
+    assert page._dep_group.get_visible() is True
+
+
+def test_output_visible_once_install_starts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Starting the install reveals the log so streamed lines stay at hand."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    monkeypatch.setattr(backend_setup_page_module, "probe_dependencies", _all_ok_dependencies)
+    monkeypatch.setattr(
+        backend_setup_page_module,
+        "install_backend",
+        lambda tag, **kwargs: InstallOutcome(tag=tag, installed_version=tag),
+    )
+    page = BackendSetupPage(_missing_status(), on_ready=lambda: None)
+    page.start_detection()
+
+    assert page._output_title.get_visible() is False
+    assert page._scrolled.get_visible() is False
+    assert page._dep_group.get_visible() is True
+
+    page._action_button.emit("clicked")
+
+    assert page._output_title.get_visible() is True
+    assert page._scrolled.get_visible() is True
+    assert page._dep_group.get_visible() is False
+
+
+def test_output_stays_visible_after_failed_install(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failed install keeps the revealed log visible for diagnosis."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    monkeypatch.setattr(backend_setup_page_module, "probe_dependencies", _all_ok_dependencies)
+
+    def _failing_install(
+        tag: str, *, python: str, on_line: Any, on_status: Any = None, clone_urls: Any = None
+    ) -> Any:
+        on_line("error: install broke")
+        raise BackendInstallError("error: install broke")
+
+    monkeypatch.setattr(backend_setup_page_module, "install_backend", _failing_install)
+    page = BackendSetupPage(_missing_status(), on_ready=lambda: None)
+    page.start_detection()
+
+    page._action_button.emit("clicked")
+
+    assert page._phase is InstallPhase.FAILED
+    assert page._output_title.get_visible() is True
+    assert page._scrolled.get_visible() is True
+    assert page._dep_group.get_visible() is False

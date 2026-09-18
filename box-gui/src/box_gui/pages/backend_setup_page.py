@@ -120,10 +120,13 @@ class BackendSetupPage(Adw.NavigationPage):
         self._output_view.set_cursor_visible(False)
         self._output_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
         self._output_view.set_monospace(True)
+        self._output_title: Gtk.Label | None = None
         self._scrolled: Gtk.ScrolledWindow | None = None
         self._status_label = Gtk.Label(label="")
         self._status_label.set_wrap(True)
         self._status_label.add_css_class("dim")
+        # Empty means hidden, mirroring _set_status_text; avoids a blank row.
+        self._status_label.set_visible(False)
         self._action_button = Gtk.Button()
         self._action_button.add_css_class("suggested-action")
         self._action_button.connect("clicked", self._on_action_clicked)
@@ -150,6 +153,9 @@ class BackendSetupPage(Adw.NavigationPage):
         content.append(self._dep_group)
         output_title = Gtk.Label(label=_("Installation output"))
         output_title.set_xalign(0.0)
+        # Hidden until the install streams; keeps the action button in view.
+        output_title.set_visible(False)
+        self._output_title = output_title
         content.append(output_title)
         self._output_view.set_hexpand(True)
         self._output_view.set_vexpand(True)
@@ -159,6 +165,8 @@ class BackendSetupPage(Adw.NavigationPage):
         scrolled.set_hexpand(True)
         scrolled.set_vexpand(True)
         scrolled.set_child(self._output_view)
+        # Hidden until the install streams; keeps the action button in view.
+        scrolled.set_visible(False)
         self._scrolled = scrolled
         content.append(scrolled)
         content.append(self._status_label)
@@ -311,6 +319,14 @@ class BackendSetupPage(Adw.NavigationPage):
         tag = self._status.expected_version
         python = sys.executable
         self._output_buffer.set_text("")
+        # Reveal the log for the whole install; success restarts, failure keeps it.
+        # The requirement list already served its purpose, so it steps aside
+        # and leaves the streaming output, status, and action in view.
+        self._dep_group.set_visible(False)
+        if self._output_title is not None:
+            self._output_title.set_visible(True)
+        if self._scrolled is not None:
+            self._scrolled.set_visible(True)
         self._set_status_text(_("Installing box-rpg {tag} …").format(tag=tag))
         self._set_phase(InstallPhase.INSTALLING)
 
