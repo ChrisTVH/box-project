@@ -14,18 +14,18 @@ Runtime choice: the AppDir is converted with a recent ``appimagetool``
 systems need ``libfuse3`` and never ``libfuse2``. ``box-rpg`` already needs
 ``libfuse3`` for ``--ci-mount``, so this adds no new requirement.
 
-Release tagging: the script computes the stable tag itself with the
-``year.month.commit-count`` scheme (same count as the version-standard
-``get_version.sh``) and creates it (annotated) at HEAD, coordinated with
-the ``chore(release): align ...`` commits that pin both distributions to
-that version. It then verifies the checkout is exactly at the tag just
-created (``git describe --exact-match`` plus tag/HEAD comparison) and
-fails closed otherwise, so an AppImage never ships from an arbitrary HEAD.
+Release tagging: the script computes the stable tag dynamically with the
+``year.month.commit-count`` scheme via ``tools.versioning.compute_version``
+at build time and creates it (annotated) at HEAD. It then verifies the
+checkout is exactly at the tag just created (``git describe
+--exact-match`` plus tag/HEAD comparison) and fails closed otherwise, so
+an AppImage never ships from an arbitrary HEAD.
 
-Build-tag embedding: the tag is baked into the generated ``AppRun`` (as
-the ``BOX_RPG_MAKER_APPIMAGE_TAG`` environment export) and written to a
-generated ``appimage_tag.txt`` next to the staged ``box_gui`` package, so
-the Fase 3 screen can read it without git at runtime. Reader contract:
+Build-tag embedding: the dynamically computed tag is baked into the
+generated ``AppRun`` (as the ``BOX_RPG_MAKER_APPIMAGE_TAG`` environment
+export) and written to a generated ``appimage_tag.txt`` next to the staged
+``box_gui`` package, so the Fase 3 screen can read it without git at
+runtime. Reader contract:
 
 - Module: ``box_gui.appimage_tag`` (owned by the GUI agent, Fase 3).
 - Function: ``def get_appimage_tag() -> str | None``.
@@ -63,13 +63,11 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import urllib.request
-from datetime import datetime
 from pathlib import Path
 
 try:
@@ -85,12 +83,18 @@ except ImportError:  # Running as tools/build_appimage.py puts tools/ on sys.pat
         is_valid_tag,
     )
 
+try:
+    from tools.versioning import compute_version, write_version_file
+except ImportError:  # Running as tools/build_appimage.py puts tools/ on sys.path.
+    from versioning import (
+        compute_version,  # type: ignore[no-redef]
+        write_version_file,  # type: ignore[no-redef]
+    )
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GUI_ROOT = REPO_ROOT / "box-gui"
 GUI_SRC = GUI_ROOT / "src" / "box_gui"
 GUI_RES = GUI_ROOT / "res"
-GUI_INIT_PY = GUI_SRC / "__init__.py"
-CLI_INIT_PY = REPO_ROOT / "box-rpg" / "src" / "box" / "__init__.py"
 
 APP_ID = "io.gitlab.christvh.BoxRpgApp"
 DESKTOP_FILE_NAME = f"{APP_ID}.desktop"
@@ -115,26 +119,6 @@ def is_linux() -> bool:
 
 def _check_python_version() -> bool:
     return sys.version_info >= (3, 14)
-
-
-def _read_version(init_py: Path) -> str:
-    """Return the __version__ assignment from a package __init__.py file."""
-    try:
-        content = init_py.read_text(encoding="utf-8")
-    except OSError:
-        return "unknown"
-    match = re.search(r'__version__\s*=\s*"([^"]+)"', content)
-    return match.group(1) if match else "unknown"
-
-
-def repo_version() -> str:
-    """Return the backend version from src/box/__init__.py (cf. install.py)."""
-    return _read_version(CLI_INIT_PY)
-
-
-def gui_repo_version() -> str:
-    """Return the frontend version from src/box_gui/__init__.py (cf. install.py)."""
-    return _read_version(GUI_INIT_PY)
 
 
 def _command_environment(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -293,7 +277,7 @@ def test_build(
     if (REPO_ROOT / ".git").is_file():
         raise RuntimeError("refusing --test-build from a linked worktree (.git is a file)")
     before = _repo_fingerprint()
-    resolved_tag = tag or expected_version()
+    resolved_tag = tag or compute_version(REPO_ROOT)
     if not is_valid_tag(resolved_tag):
         raise RuntimeError(f"refusing malformed tag: {resolved_tag!r}")
     resolved_output = _resolve_test_output(output)
@@ -356,19 +340,6 @@ def test_build(
                 f"({', '.join(parts)} differ); refusing to continue"
             )
         return resolved_output
-
-
-def expected_version(now: datetime | None = None) -> str:
-    """Compute the year.month.commit-count tag for the current month.
-
-    The count covers commits reachable from HEAD since the first of the
-    month, exactly like the version-standard get_version.sh script.
-    """
-    moment = now or datetime.now()
-    first_day = f"{moment.year:04d}-{moment.month:02d}-01 00:00:00"
-    log = _run_git(["log", f"--since={first_day}", "--oneline"])
-    count = len([line for line in log.splitlines() if line.strip()])
-    return f"{moment.year % 100}.{moment.month}.{count}"
 
 
 def working_tree_clean() -> bool:
@@ -642,6 +613,10 @@ def stage_appdir(appdir: Path, tag: str) -> None:
     # The build tag is generated output: it lives only in the staged
     # payload (never in the checkout) for the Fase 3 reader contract.
     (staged_gui / APPIMAGE_TAG_FILENAME).write_text(tag + "\n", encoding="utf-8")
+    # Same for the dynamic version pin: the staged payload carries no git
+    # history, so without this `import box_gui` would fall back to 0.0.dev0
+    # at runtime. The resolved tag is the version (never recomputed here).
+    write_version_file(staged_gui / "_version.py", tag)
 
     staged_res = payload / "res"
     (staged_res / "icons").mkdir(parents=True)
@@ -806,7 +781,7 @@ def main() -> int:
 
     if args.print_tag:
         try:
-            printed = args.tag or expected_version()
+            printed = args.tag or compute_version(REPO_ROOT)
         except RuntimeError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
@@ -838,7 +813,7 @@ def main() -> int:
         return 0
 
     try:
-        tag = args.tag or expected_version()
+        tag = args.tag or compute_version(REPO_ROOT)
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -846,18 +821,6 @@ def main() -> int:
         print(f"error: refusing malformed tag: {tag!r}", file=sys.stderr)
         return 1
     output = args.output if args.output is not None else Path("dist") / ARTIFACT_NAME
-
-    backend_version = repo_version()
-    frontend_version = gui_repo_version()
-    if backend_version != tag or frontend_version != tag:
-        print(
-            "error: distributions are not aligned with the tag "
-            f"(box-rpg={backend_version}, box-rpg-maker={frontend_version}, tag={tag}); "
-            "land the chore(release): align commit first",
-            file=sys.stderr,
-        )
-        return 1
-    print(f"OK: distributions aligned at {tag}.")
 
     try:
         clean = working_tree_clean()
