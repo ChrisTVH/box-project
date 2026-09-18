@@ -56,7 +56,7 @@ appimage:
 
 publish:
   stage: release
-  image: registry.gitlab.com/gitlab-org/cli:latest
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
   needs:
     - appimage
   rules:
