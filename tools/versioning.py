@@ -6,14 +6,22 @@ reachable from HEAD since the first day of that month at 00:00:00.
 
 The version is never stored in source files. It is computed from git
 history at build/CI time and pinned into the artifact.
+
+A release tag (``year.month.count``) pointing exactly at HEAD takes
+precedence over the commit count, so checkouts of a release tag report
+the released version even when the clone is shallow. A shallow clone
+with no such tag fails closed instead of guessing a count.
 """
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+
+_TAG_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def _find_repo_root(start: str | Path) -> Path:
@@ -30,6 +38,51 @@ def _find_repo_root(start: str | Path) -> Path:
     )
 
 
+def _exact_release_tag(root: Path) -> str | None:
+    """Return the highest ``year.month.count`` tag pointing at HEAD, if any.
+
+    Tags not matching the version scheme are ignored. Any failure of this
+    auxiliary probe (no git, old git, mocked subprocess, ...) means
+    "no usable tag", never an error: the caller falls back to counting.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "tag", "--points-at", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    candidates = [tag for tag in (line.strip() for line in proc.stdout.splitlines()) if tag]
+    matching = [tag for tag in candidates if _TAG_PATTERN.fullmatch(tag)]
+    if not matching:
+        return None
+    return max(matching, key=lambda tag: tuple(int(part) for part in tag.split(".")))
+
+
+def _is_shallow_repository(root: Path) -> bool:
+    """Return True only on an explicit shallow marker from git.
+
+    Any failure of this auxiliary probe means "unknown", never shallow, so
+    the happy path keeps working when the probe cannot run.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return False
+    return proc.returncode == 0 and proc.stdout.strip() == "true"
+
+
 def compute_version(repo_root: str | Path = ".", now: datetime | None = None) -> str:
     """Compute the ``year.month.commit-count`` version from git history.
 
@@ -37,8 +90,22 @@ def compute_version(repo_root: str | Path = ".", now: datetime | None = None) ->
     root itself, ``box-rpg/``, ``box-gui/``, ...); it is resolved upward
     to the directory containing ``.git`` so every package gets the same
     number. ``now`` overrides the current time (used in tests).
+
+    A release tag pointing exactly at HEAD wins over the commit count, so
+    tag checkouts (even shallow ones) report the released version. A
+    shallow clone without such a tag fails closed with RuntimeError
+    because the monthly commit count would be unreliable there.
     """
     root = _find_repo_root(repo_root)
+    tag = _exact_release_tag(root)
+    if tag is not None:
+        return tag
+    if _is_shallow_repository(root):
+        raise RuntimeError(
+            f"shallow clone detected in {root}: the commit count is unreliable; "
+            "clone with full history (git fetch --unshallow) "
+            "or check out a release tag"
+        )
     moment = now if now is not None else datetime.now()
     first_day = f"{moment.year:04d}-{moment.month:02d}-01 00:00:00"
     try:

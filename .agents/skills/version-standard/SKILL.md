@@ -32,6 +32,8 @@ Both packages always share the same number because it is computed from the monor
 ## Notes
 
 - The version is NEVER written into source files. It is computed at build/CI time from git history and pinned into the artifact (e.g. a generated `_version.py` via `write_version_file()`); the source tree stays version-free.
+- When HEAD points exactly at a release tag (`year.month.count`), the tag wins over the commit count, so checking out a release tag reports the released version even from a shallow clone (this is how the GUI's one-click backend setup works: it clones `--branch <tag> --depth 1`).
+- A shallow clone with no release tag fails closed instead of guessing: the monthly count would be unreliable there. Clone with full history (`git fetch --unshallow`) or check out a release tag.
 - The count is by calendar month, not the last 30 days.
 - If the repo has multiple branches, the count covers commits reachable from `HEAD` (the active branch). If the user wants a different branch, `git checkout` it first.
 - If the user asks for "the version of commit X", use `git log --since=... --until=<date of that commit> --oneline | wc -l` with that commit's date instead of "now".
