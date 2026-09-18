@@ -253,11 +253,16 @@ with python3 -m tools.build_appimage.
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 BUILD_TAG = "{tag}"
 TAG_ENV_VAR = "{APPIMAGE_TAG_ENV_VAR}"
+PYTHON_ENV_VAR = "BOX_RPG_MAKER_PYTHON"
+REEXEC_MARKER = "BOX_RPG_MAKER_REEXECED"
+FALLBACK_PYTHONS = ("/usr/local/bin/python3", "/usr/local/bin/python3.14", "/usr/bin/python3.14")
 
 
 def _fail(message: str) -> int:
@@ -265,9 +270,113 @@ def _fail(message: str) -> int:
     return 1
 
 
+def _resolve_python_candidate(candidate: str) -> str | None:
+    text = candidate.strip()
+    if not text or not os.path.isabs(text):
+        return None
+    try:
+        resolved = str(Path(text).resolve())
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if not os.path.isabs(resolved):
+        return None
+    return resolved
+
+
+def _probe_python(path: str) -> str:
+    # Classify one candidate as ok, old, nogui, or unusable. Ok means
+    # Python 3.14+ with importable GTK bindings; old means the bindings
+    # import but the version falls short; nogui means it runs but the
+    # bindings do not import; anything else is unusable.
+    probe = (
+        "import sys;"
+        "import gi;"
+        "gi.require_version('Gtk', '4.0');"
+        "gi.require_version('Adw', '1');"
+        "sys.exit(0 if sys.version_info >= (3, 14) else 2)"
+    )
+    try:
+        proc = subprocess.run(
+            [path, "-c", probe],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "unusable"
+    if proc.returncode == 0:
+        return "ok"
+    if proc.returncode == 2:
+        return "old"
+    return "nogui"
+
+
+def _candidate_pythons() -> list[str]:
+    candidates: list[str] = []
+    override = os.environ.get(PYTHON_ENV_VAR, "").strip()
+    if override:
+        candidates.append(override)
+    found = shutil.which("python3")
+    if found:
+        candidates.append(found)
+    candidates.extend(FALLBACK_PYTHONS)
+    return candidates
+
+
+def _reexec_with_suitable_python() -> str:
+    # Exec the first GUI-capable Python 3.14+, else report why nothing fit.
+    # Returns ok only when an exec was attempted (which never returns);
+    # otherwise nogui when some candidate ran but lacked the GTK bindings,
+    # old when the bindings imported only on older interpreters, and
+    # unusable when nothing runnable turned up at all.
+    # A lying wrapper could report success yet stay old; the marker sterilizes
+    # the child so a second pass fails closed instead of exec-looping.
+    if os.environ.get(REEXEC_MARKER):
+        return "unusable"
+    try:
+        current = str(Path(sys.executable).resolve())
+    except (OSError, RuntimeError, ValueError):
+        current = ""
+    seen: set[str] = set()
+    saw_nogui = False
+    saw_old_gui = False
+    for candidate in _candidate_pythons():
+        resolved = _resolve_python_candidate(candidate)
+        if resolved is None or resolved in seen or resolved == current:
+            continue
+        seen.add(resolved)
+        result = _probe_python(resolved)
+        if result == "ok":
+            try:
+                os.execve(resolved, [resolved, *sys.argv], {{**os.environ, REEXEC_MARKER: "1"}})
+            except OSError:
+                continue
+        elif result == "old":
+            saw_old_gui = True
+        elif result == "nogui":
+            saw_nogui = True
+    if saw_nogui:
+        return "nogui"
+    if saw_old_gui:
+        return "old"
+    return "unusable"
+
+
 def main() -> int:
     if sys.version_info < (3, 14):
+        reason = _reexec_with_suitable_python()
+        if reason == "nogui":
+            return _fail(
+                "No Python 3.14 with GTK bindings found. Install PyGObject plus the "
+                "GTK 4 and libadwaita typelibs for a Python 3.14 "
+                "(for example: pip install PyGObject pycairo into it), or set "
+                "BOX_RPG_MAKER_PYTHON to a Python 3.14 that already has them."
+            )
         return _fail(f"Python 3.14+ required, found {{sys.version.split()[0]}}")
+    # The re-exec marker sterilized a lying wrapper at most; it must not leak
+    # into the real app process and its children.
+    os.environ.pop(REEXEC_MARKER, None)
     appdir = Path(__file__).resolve().parent
     payload = appdir / "{PAYLOAD_DIR.as_posix()}"
     source_dir = payload / "src"

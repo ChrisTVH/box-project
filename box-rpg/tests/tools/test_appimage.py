@@ -2,9 +2,12 @@
 
 import io
 import os
+import shutil
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import install
 import pytest
@@ -321,3 +324,319 @@ def test_build_artifact_fails_closed_on_tool_error(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="failed to build"):
         build_appimage.build_artifact(runner, tmp_path / "AppDir", tmp_path / "out.appimage")
+
+
+def _load_apprun_namespace() -> dict[str, Any]:
+    """Exec the generated AppRun in isolation for re-exec tests."""
+    source = build_appimage.apprun_source(TAG)
+    namespace: dict[str, Any] = {
+        "__name__": "apprun_under_test",
+        "__file__": "/fake/AppRun",
+    }
+    exec(source, namespace)
+    return namespace
+
+
+class _ExecCalled(Exception):
+    """Sentinel standing in for the noreturn os.execve in tests."""
+
+
+def test_apprun_reexec_picks_suitable_candidate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The first suitable python is execed once, after earlier ones fail."""
+    namespace = _load_apprun_namespace()
+    monkeypatch.delenv("BOX_RPG_MAKER_PYTHON", raising=False)
+    monkeypatch.delenv("BOX_RPG_MAKER_REEXECED", raising=False)
+    monkeypatch.setattr(sys, "executable", "/usr/bin/python3.13-test")
+
+    def fake_which(name: str) -> str | None:
+        assert name == "python3"
+        return "/opt/python3"
+
+    monkeypatch.setattr(shutil, "which", fake_which)
+    probed: list[str] = []
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        probed.append(args[0])
+        code = 0 if args[0] == "/usr/local/bin/python3" else 1
+        return subprocess.CompletedProcess(args, code, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    exec_calls: list[tuple[str, list[str]]] = []
+
+    def fake_execve(path: str, argv: list[str], env: dict[str, str]) -> None:
+        exec_calls.append((path, list(argv)))
+        raise _ExecCalled
+
+    monkeypatch.setattr(os, "execve", fake_execve)
+    monkeypatch.setattr(sys, "argv", ["AppRun", "--foo"])
+
+    with pytest.raises(_ExecCalled):
+        namespace["_reexec_with_suitable_python"]()
+
+    assert probed == ["/opt/python3", "/usr/local/bin/python3"]
+    assert exec_calls == [("/usr/local/bin/python3", ["/usr/local/bin/python3", "AppRun", "--foo"])]
+
+
+def test_apprun_env_override_wins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The env override is probed before PATH and the well-known paths."""
+    namespace = _load_apprun_namespace()
+    monkeypatch.setenv("BOX_RPG_MAKER_PYTHON", "/usr/local/bin/python3.14")
+    monkeypatch.delenv("BOX_RPG_MAKER_REEXECED", raising=False)
+    monkeypatch.setattr(sys, "executable", "/usr/bin/python3.13-test")
+
+    def fake_which(name: str) -> str | None:
+        assert name == "python3"
+        return "/opt/other/python3"
+
+    monkeypatch.setattr(shutil, "which", fake_which)
+    probed: list[str] = []
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        probed.append(args[0])
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    exec_calls: list[tuple[str, list[str]]] = []
+
+    def fake_execve(path: str, argv: list[str], env: dict[str, str]) -> None:
+        exec_calls.append((path, list(argv)))
+        assert env.get("BOX_RPG_MAKER_REEXECED") == "1"
+        raise _ExecCalled
+
+    monkeypatch.setattr(os, "execve", fake_execve)
+    monkeypatch.setattr(sys, "argv", ["AppRun"])
+
+    with pytest.raises(_ExecCalled):
+        namespace["_reexec_with_suitable_python"]()
+
+    assert probed == ["/usr/local/bin/python3.14"]
+    assert exec_calls == [
+        (
+            "/usr/local/bin/python3.14",
+            ["/usr/local/bin/python3.14", "AppRun"],
+        )
+    ]
+
+
+def test_apprun_exec_failure_falls_through_to_next(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An OSError at exec time moves on to the next suitable candidate."""
+    namespace = _load_apprun_namespace()
+    monkeypatch.delenv("BOX_RPG_MAKER_PYTHON", raising=False)
+    monkeypatch.delenv("BOX_RPG_MAKER_REEXECED", raising=False)
+    monkeypatch.setattr(sys, "executable", "/usr/bin/python3.13-test")
+    monkeypatch.setattr(sys, "argv", ["AppRun"])
+    monkeypatch.setattr(shutil, "which", lambda name: "/opt/python3")
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert kwargs.get("timeout") == 10
+        assert kwargs.get("stdin") is subprocess.DEVNULL
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    exec_calls: list[str] = []
+
+    def fake_execve(path: str, argv: list[str], env: dict[str, str]) -> None:
+        exec_calls.append(path)
+        if len(exec_calls) == 1:
+            raise OSError("busy")
+        raise _ExecCalled
+
+    monkeypatch.setattr(os, "execve", fake_execve)
+
+    with pytest.raises(_ExecCalled):
+        namespace["_reexec_with_suitable_python"]()
+
+    assert exec_calls == ["/opt/python3", "/usr/local/bin/python3"]
+
+
+def test_apprun_reexec_marker_stops_second_pass(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A preset marker returns quietly without probing or execing anything."""
+    namespace = _load_apprun_namespace()
+    monkeypatch.setenv("BOX_RPG_MAKER_REEXECED", "1")
+    monkeypatch.setattr(sys, "executable", "/usr/bin/python3.13-test")
+
+    def forbidden_which(name: str) -> str | None:
+        raise AssertionError("must not look up interpreters")
+
+    def forbidden_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("must not probe interpreters")
+
+    def forbidden_execve(path: str, argv: list[str], env: dict[str, str]) -> None:
+        raise AssertionError("must not exec")
+
+    monkeypatch.setattr(shutil, "which", forbidden_which)
+    monkeypatch.setattr(subprocess, "run", forbidden_run)
+    monkeypatch.setattr(os, "execve", forbidden_execve)
+
+    namespace["_reexec_with_suitable_python"]()
+
+
+def test_apprun_relative_override_and_current_are_skipped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A relative override is ignored and the running interpreter is skipped."""
+    namespace = _load_apprun_namespace()
+    monkeypatch.setenv("BOX_RPG_MAKER_PYTHON", "python3.14")
+    monkeypatch.delenv("BOX_RPG_MAKER_REEXECED", raising=False)
+    monkeypatch.setattr(sys, "executable", "/opt/python3")
+    monkeypatch.setattr(sys, "argv", ["AppRun"])
+    monkeypatch.setattr(shutil, "which", lambda name: "/opt/python3")
+    probed: list[str] = []
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        probed.append(args[0])
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    def fake_execve(path: str, argv: list[str], env: dict[str, str]) -> None:
+        raise _ExecCalled
+
+    monkeypatch.setattr(os, "execve", fake_execve)
+
+    with pytest.raises(_ExecCalled):
+        namespace["_reexec_with_suitable_python"]()
+    assert probed == ["/usr/local/bin/python3"]
+
+
+def test_apprun_main_reexecs_before_failing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """On an old interpreter, main() re-execs instead of failing directly."""
+    namespace = _load_apprun_namespace()
+    monkeypatch.delenv("BOX_RPG_MAKER_PYTHON", raising=False)
+    monkeypatch.delenv("BOX_RPG_MAKER_REEXECED", raising=False)
+    monkeypatch.setattr(sys, "executable", "/usr/bin/python3.13-test")
+
+    def fake_which(name: str) -> str | None:
+        assert name == "python3"
+        return "/opt/python3"
+
+    monkeypatch.setattr(shutil, "which", fake_which)
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    def fake_execve(path: str, argv: list[str], env: dict[str, str]) -> None:
+        raise _ExecCalled
+
+    monkeypatch.setattr(os, "execve", fake_execve)
+    monkeypatch.setattr(sys, "version_info", (3, 13))
+    monkeypatch.setattr(sys, "argv", ["AppRun"])
+
+    with pytest.raises(_ExecCalled):
+        namespace["main"]()
+
+
+def test_apprun_nogui_reports_bindings_hint(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Runners without GTK bindings get the PyGObject hint, not the version one."""
+    namespace = _load_apprun_namespace()
+    monkeypatch.delenv("BOX_RPG_MAKER_PYTHON", raising=False)
+    monkeypatch.delenv("BOX_RPG_MAKER_REEXECED", raising=False)
+    monkeypatch.setattr(sys, "executable", "/usr/bin/python3.13-test")
+
+    def fake_which(name: str) -> str | None:
+        assert name == "python3"
+        return None
+
+    monkeypatch.setattr(shutil, "which", fake_which)
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args, 1, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    exec_calls: list[tuple[str, list[str]]] = []
+
+    def fake_execve(path: str, argv: list[str], env: dict[str, str]) -> None:
+        exec_calls.append((path, list(argv)))
+
+    monkeypatch.setattr(os, "execve", fake_execve)
+    monkeypatch.setattr(sys, "version_info", (3, 13))
+    monkeypatch.setattr(sys, "argv", ["AppRun"])
+
+    assert namespace["main"]() == 1
+    err = capsys.readouterr().err
+    assert "No Python 3.14 with GTK bindings found" in err
+    assert "BOX_RPG_MAKER_PYTHON" in err
+    assert exec_calls == []
+
+
+def test_apprun_old_gui_keeps_version_message(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Bindings on old interpreters only keep the plain version message."""
+    namespace = _load_apprun_namespace()
+    monkeypatch.delenv("BOX_RPG_MAKER_PYTHON", raising=False)
+    monkeypatch.delenv("BOX_RPG_MAKER_REEXECED", raising=False)
+    monkeypatch.setattr(sys, "executable", "/usr/bin/python3.13-test")
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args, 2, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    def forbidden_execve(path: str, argv: list[str], env: dict[str, str]) -> None:
+        raise AssertionError("must not exec without an ok candidate")
+
+    monkeypatch.setattr(os, "execve", forbidden_execve)
+    monkeypatch.setattr(sys, "version_info", (3, 13))
+    monkeypatch.setattr(sys, "argv", ["AppRun"])
+
+    assert namespace["main"]() == 1
+    assert "Python 3.14+ required" in capsys.readouterr().err
+
+
+def test_apprun_mixed_old_and_nogui_prefers_bindings_hint(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A 3.14 without bindings beats an old interpreter with them in the hint."""
+    namespace = _load_apprun_namespace()
+    monkeypatch.delenv("BOX_RPG_MAKER_PYTHON", raising=False)
+    monkeypatch.delenv("BOX_RPG_MAKER_REEXECED", raising=False)
+    monkeypatch.setattr(sys, "executable", "/usr/bin/python3.13-test")
+    monkeypatch.setattr(shutil, "which", lambda name: "/opt/old-python3")
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        code = 2 if args[0] == "/opt/old-python3" else 1
+        return subprocess.CompletedProcess(args, code, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    def forbidden_execve(path: str, argv: list[str], env: dict[str, str]) -> None:
+        raise AssertionError("must not exec without an ok candidate")
+
+    monkeypatch.setattr(os, "execve", forbidden_execve)
+    monkeypatch.setattr(sys, "version_info", (3, 13))
+    monkeypatch.setattr(sys, "argv", ["AppRun"])
+
+    assert namespace["main"]() == 1
+    assert "No Python 3.14 with GTK bindings found" in capsys.readouterr().err
+
+
+def test_apprun_probe_classifies_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exit codes and failures map to ok, old, nogui, and unusable."""
+    namespace = _load_apprun_namespace()
+    probe = namespace["_probe_python"]
+
+    def run_with(code: int | None) -> str:
+        def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+            if code is None:
+                raise OSError("gone")
+            return subprocess.CompletedProcess(args, code, "", "")
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        return probe("/opt/python3")
+
+    assert run_with(0) == "ok"
+    assert run_with(2) == "old"
+    assert run_with(1) == "nogui"
+    assert run_with(None) == "unusable"
+
+    def timeout_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(args, 10)
+
+    monkeypatch.setattr(subprocess, "run", timeout_run)
+    assert probe("/opt/python3") == "unusable"

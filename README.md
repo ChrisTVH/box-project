@@ -43,7 +43,7 @@ chmod +x box-rpg-maker.appimage
 ./box-rpg-maker.appimage
 ```
 
-It needs Linux with system Python 3.14+, GTK 4 with libadwaita 1.5+, and `libfuse3`. The AppImage runs `/usr/bin/python3` and resolves `box.api` from your user install; it never bundles Python or the backend. Artifacts are built manually from tagged releases (see the frontend notes); each one carries its build tag.
+It needs Linux with Python 3.14+, GTK 4 with libadwaita 1.5+, and `libfuse3`. The AppImage starts on `/usr/bin/python3` and, when it is older than 3.14, re-executes the first Python 3.14+ with GTK bindings from `$BOX_RPG_MAKER_PYTHON`, `python3` on `PATH`, then `/usr/local/bin/python3`, `/usr/local/bin/python3.14`, `/usr/bin/python3.14`. It resolves `box.api` from your user install; it never bundles Python or the backend. Artifacts are built manually from tagged releases (see the frontend notes); each one carries its build tag.
 
 ## Quick start
 
