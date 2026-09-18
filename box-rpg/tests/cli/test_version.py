@@ -45,7 +45,10 @@ def test_version_text_falls_back_without_author(monkeypatch: pytest.MonkeyPatch)
         def get(self, _name: str) -> str:
             return ""
 
-    monkeypatch.setattr(version_info, "metadata", lambda _name: _Metadata())
+    def _empty_metadata(_name: str) -> _Metadata:
+        return _Metadata()
+
+    monkeypatch.setattr(version_info, "metadata", _empty_metadata)
     assert "ChrisTVH" in version_info.version_text()
 
 

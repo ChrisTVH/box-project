@@ -1,3 +1,4 @@
+# pyright: reportPrivateUsage=false
 """Filtered GameMode D-Bus proxy tests (no network, no real D-Bus)."""
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ import subprocess
 from contextlib import suppress
 from pathlib import Path
 from types import TracebackType
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -29,6 +30,22 @@ from box.launch.sandbox import Sandbox, clean_environment
 from box.models import EngineName, GameInfo
 from box.paths import AppPaths
 from box.runtime.platform import current_architecture
+
+
+def _register_ok(pid: int, **kwargs: object) -> None:
+    return None
+
+
+def _unregister_ok(pid: int, **kwargs: object) -> bool:
+    return True
+
+
+def _socket_ready(path: Path, proc: Any, timeout: float = 2.0) -> bool:
+    return True
+
+
+def _discard_proxy(proc: Any) -> None:
+    return None
 
 
 def test_resolve_prefers_explicit_bus_address() -> None:
@@ -177,12 +194,28 @@ def _supervisor_fixture(
     read_fd, write_fd = os.pipe2(os.O_CLOEXEC)
     parent_fd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
     session_fd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+
+    def _keep_none(keep: set[int]) -> None:
+        return None
+
+    def _fake_dup2(old: int, new: int) -> None:
+        return None
+
+    def _no_sessions(paths: AppPaths, identifier: str) -> list[str]:
+        return []
+
+    def _session_idle(paths: AppPaths, identifier: str, name: str) -> bool:
+        return False
+
+    def _no_launch_status(paths: AppPaths, identifier: str, name: str) -> int | None:
+        return None
+
     state: dict[str, Any] = {"pipe_errors": [], "removed": [], "signals": {}, "kills": []}
-    monkeypatch.setattr(supervisor_module, "_close_extra_fds", lambda keep: None)
-    monkeypatch.setattr(os, "dup2", lambda old, new: None)
-    monkeypatch.setattr(supervisor_module, "_list_session_names", lambda p, i: [])
-    monkeypatch.setattr(supervisor_module, "is_session_running", lambda p, i, n: False)
-    monkeypatch.setattr(supervisor_module, "poll_launch_status", lambda p, i, n: None)
+    monkeypatch.setattr(supervisor_module, "_close_extra_fds", _keep_none)
+    monkeypatch.setattr(os, "dup2", _fake_dup2)
+    monkeypatch.setattr(supervisor_module, "_list_session_names", _no_sessions)
+    monkeypatch.setattr(supervisor_module, "is_session_running", _session_idle)
+    monkeypatch.setattr(supervisor_module, "poll_launch_status", _no_launch_status)
 
     def fake_pipe_error(pipe: int, message: str) -> None:
         state["pipe_errors"].append(message)
@@ -212,8 +245,8 @@ def test_supervisor_starts_proxy_with_exact_argv(
     monkeypatch.setenv("DBUS_SESSION_BUS_ADDRESS", address)
     # Host registration is mocked: it would use subprocess.run, which shares
     # the mocked Popen object, so the real D-Bus call stays out of this test.
-    monkeypatch.setattr(supervisor_module._gamemode, "register_host_game", lambda pid, **kw: None)
-    monkeypatch.setattr(supervisor_module._gamemode, "unregister_host_game", lambda pid, **kw: True)
+    monkeypatch.setattr(supervisor_module._gamemode, "register_host_game", _register_ok)
+    monkeypatch.setattr(supervisor_module._gamemode, "unregister_host_game", _unregister_ok)
     calls: list[list[str]] = []
     proxy = FakeProc()
     bwrap = FakeProc(already_exited=True)
@@ -232,9 +265,7 @@ def test_supervisor_starts_proxy_with_exact_argv(
         return bwrap
 
     monkeypatch.setattr(supervisor_module.subprocess, "Popen", fake_popen)
-    monkeypatch.setattr(
-        supervisor_module, "_wait_for_proxy_socket", lambda path, proc, timeout=2.0: True
-    )
+    monkeypatch.setattr(supervisor_module, "_wait_for_proxy_socket", _socket_ready)
     command = [str(supervisor_module.BWRAP), "--ro-bind", "/a", "/b"]
     with pytest.raises(_ExitSupervisor) as excinfo:
         supervisor_module._supervisor_main(
@@ -281,11 +312,17 @@ def test_supervisor_gates_ready_on_socket_deadline(
         return proxy
 
     monkeypatch.setattr(supervisor_module.subprocess, "Popen", fake_popen)
-    monkeypatch.setattr(
-        supervisor_module, "_wait_for_proxy_socket", lambda path, proc, timeout=2.0: False
-    )
+
+    def _socket_not_ready(path: Path, proc: Any, timeout: float = 2.0) -> bool:
+        return False
+
     terminated: list[FakeProc] = []
-    monkeypatch.setattr(supervisor_module, "_terminate_proxy", lambda proc: terminated.append(proc))
+
+    def _record_terminated(proc: Any) -> None:
+        terminated.append(proc)
+
+    monkeypatch.setattr(supervisor_module, "_wait_for_proxy_socket", _socket_not_ready)
+    monkeypatch.setattr(supervisor_module, "_terminate_proxy", _record_terminated)
     with pytest.raises(_ExitSupervisor) as excinfo:
         supervisor_module._supervisor_main(
             paths,
@@ -319,10 +356,12 @@ def test_supervisor_kills_proxy_on_bwrap_error_paths(
     monkeypatch.setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
     proxy = FakeProc()
     terminated: list[FakeProc | None] = []
-    monkeypatch.setattr(supervisor_module, "_terminate_proxy", lambda proc: terminated.append(proc))
-    monkeypatch.setattr(
-        supervisor_module, "_wait_for_proxy_socket", lambda path, proc, timeout=2.0: True
-    )
+
+    def _record_terminated(proc: Any) -> None:
+        terminated.append(proc)
+
+    monkeypatch.setattr(supervisor_module, "_terminate_proxy", _record_terminated)
+    monkeypatch.setattr(supervisor_module, "_wait_for_proxy_socket", _socket_ready)
 
     def fail_bwrap(args: list[str], **kwargs: Any) -> FakeProc:
         if str(args[0]).endswith("xdg-dbus-proxy"):
@@ -356,15 +395,17 @@ def test_supervisor_kills_proxy_after_successful_run(
         tmp_path, monkeypatch
     )
     monkeypatch.setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
-    monkeypatch.setattr(supervisor_module._gamemode, "register_host_game", lambda pid, **kw: None)
-    monkeypatch.setattr(supervisor_module._gamemode, "unregister_host_game", lambda pid, **kw: True)
+    monkeypatch.setattr(supervisor_module._gamemode, "register_host_game", _register_ok)
+    monkeypatch.setattr(supervisor_module._gamemode, "unregister_host_game", _unregister_ok)
     proxy = FakeProc()
     bwrap = FakeProc(already_exited=True)
     terminated: list[FakeProc | None] = []
-    monkeypatch.setattr(supervisor_module, "_terminate_proxy", lambda proc: terminated.append(proc))
-    monkeypatch.setattr(
-        supervisor_module, "_wait_for_proxy_socket", lambda path, proc, timeout=2.0: True
-    )
+
+    def _record_terminated(proc: Any) -> None:
+        terminated.append(proc)
+
+    monkeypatch.setattr(supervisor_module, "_terminate_proxy", _record_terminated)
+    monkeypatch.setattr(supervisor_module, "_wait_for_proxy_socket", _socket_ready)
 
     def fake_popen(args: list[str], **kwargs: Any) -> FakeProc:
         return proxy if str(args[0]).endswith("xdg-dbus-proxy") else bwrap
@@ -395,20 +436,24 @@ def test_supervisor_sigterm_reaches_proxy_and_bwrap(
         tmp_path, monkeypatch
     )
     monkeypatch.setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
-    monkeypatch.setattr(supervisor_module._gamemode, "register_host_game", lambda pid, **kw: None)
-    monkeypatch.setattr(supervisor_module._gamemode, "unregister_host_game", lambda pid, **kw: True)
+    monkeypatch.setattr(supervisor_module._gamemode, "register_host_game", _register_ok)
+    monkeypatch.setattr(supervisor_module._gamemode, "unregister_host_game", _unregister_ok)
     proxy = FakeProc()
     bwrap = FakeProc()
     handlers: dict[int, Any] = {}
-    monkeypatch.setattr(
-        signal, "signal", lambda signum, handler: handlers.setdefault(signum, handler)
-    )
+
+    def _fake_signal(signum: int, handler: Any) -> Any:
+        return handlers.setdefault(signum, handler)
+
+    monkeypatch.setattr(signal, "signal", _fake_signal)
     kills: list[int] = []
-    monkeypatch.setattr(os, "kill", lambda pid, sig: kills.append(pid))
-    monkeypatch.setattr(supervisor_module, "_terminate_proxy", lambda proc: None)
-    monkeypatch.setattr(
-        supervisor_module, "_wait_for_proxy_socket", lambda path, proc, timeout=2.0: True
-    )
+
+    def _fake_kill(pid: int, sig: int) -> None:
+        kills.append(pid)
+
+    monkeypatch.setattr(os, "kill", _fake_kill)
+    monkeypatch.setattr(supervisor_module, "_terminate_proxy", _discard_proxy)
+    monkeypatch.setattr(supervisor_module, "_wait_for_proxy_socket", _socket_ready)
 
     def fake_popen(args: list[str], **kwargs: Any) -> FakeProc:
         return proxy if str(args[0]).endswith("xdg-dbus-proxy") else bwrap
@@ -441,25 +486,30 @@ def test_supervisor_sigterm_reaches_proxy_and_bwrap(
 def test_wait_for_proxy_socket_validates_socket_and_owner(tmp_path: Path) -> None:
     proxy = FakeProc()
     missing = tmp_path / "missing-proxy"
-    assert supervisor_module._wait_for_proxy_socket(missing, proxy, timeout=0.1) is False
+    assert supervisor_module._wait_for_proxy_socket(missing, cast(Any, proxy), timeout=0.1) is False
     regular = tmp_path / "regular"
     regular.write_text("not a socket")
-    assert supervisor_module._wait_for_proxy_socket(regular, proxy, timeout=0.1) is False
+    assert supervisor_module._wait_for_proxy_socket(regular, cast(Any, proxy), timeout=0.1) is False
     sock_path = tmp_path / "proxy.sock"
     with socket.socket(socket.AF_UNIX) as server:
         server.bind(str(sock_path))
-        assert supervisor_module._wait_for_proxy_socket(sock_path, proxy, timeout=2.0) is True
+        assert (
+            supervisor_module._wait_for_proxy_socket(sock_path, cast(Any, proxy), timeout=2.0)
+            is True
+        )
     exited = FakeProc(already_exited=True)
-    assert supervisor_module._wait_for_proxy_socket(missing, exited, timeout=0.1) is False
+    assert (
+        supervisor_module._wait_for_proxy_socket(missing, cast(Any, exited), timeout=0.1) is False
+    )
 
 
 def test_terminate_proxy_sigterm_then_kill() -> None:
     live = FakeProc()
-    supervisor_module._terminate_proxy(live)
+    supervisor_module._terminate_proxy(cast(Any, live))
     assert live.terminated is True
     assert live.wait_calls >= 1
     exited = FakeProc(already_exited=True)
-    supervisor_module._terminate_proxy(exited)
+    supervisor_module._terminate_proxy(cast(Any, exited))
     assert exited.terminated is False
     supervisor_module._terminate_proxy(None)
 
@@ -609,7 +659,11 @@ def test_no_proxy_bind_or_env_when_gamemode_disabled(
     monkeypatch.setattr("box.api.launch.Sandbox", factory)
     monkeypatch.setattr("box.api.launch.create_session", fake_session)
     monkeypatch.setattr("box.api.launch.spawn_detached", fake_spawn)
-    monkeypatch.setattr("box.api.launch.detect_game", lambda path, registry: game)
+
+    def _fake_detect_game(path: Path, registry: Any) -> GameInfo:
+        return game
+
+    monkeypatch.setattr("box.api.launch.detect_game", _fake_detect_game)
     monkeypatch.delenv("DISPLAY", raising=False)
     handle = launch(paths, repository, game.root, "v0.90.0", False, use_gamemode=False)
     assert handle.identifier

@@ -7,6 +7,7 @@ import os
 from contextlib import suppress
 from pathlib import Path
 from types import TracebackType
+from typing import Any
 
 import pytest
 
@@ -526,12 +527,21 @@ def test_supervisor_teardown_unmounts_ci_mount(
     def fake_exit(code: int) -> None:
         raise _SupervisorExit(code)
 
-    monkeypatch.setattr(supervisor_module, "_close_extra_fds", lambda keep: None)
+    def _keep_none(keep: set[int]) -> None:
+        return None
+
+    def _ignore_signal(*args: object, **kwargs: object) -> Any:
+        return None
+
+    def _no_sleep(seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(supervisor_module, "_close_extra_fds", _keep_none)
     monkeypatch.setattr(supervisor_module.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(cimount_module, "force_unmount", fake_unmount)
     monkeypatch.setattr(supervisor_module.os, "_exit", fake_exit)
-    monkeypatch.setattr(supervisor_module.signal, "signal", lambda *args, **kwargs: None)
-    monkeypatch.setattr(supervisor_module.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(supervisor_module.signal, "signal", _ignore_signal)
+    monkeypatch.setattr(supervisor_module.time, "sleep", _no_sleep)
     try:
         with pytest.raises(_SupervisorExit) as excinfo:
             _supervisor_main(
@@ -580,12 +590,21 @@ def test_supervisor_without_ci_mount_skips_unmount(
     def fake_exit(code: int) -> None:
         raise _SupervisorExit(code)
 
-    monkeypatch.setattr(supervisor_module, "_close_extra_fds", lambda keep: None)
+    def _keep_none(keep: set[int]) -> None:
+        return None
+
+    def _ignore_signal(*args: object, **kwargs: object) -> Any:
+        return None
+
+    def _no_sleep(seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(supervisor_module, "_close_extra_fds", _keep_none)
     monkeypatch.setattr(supervisor_module.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(cimount_module, "force_unmount", fake_unmount)
     monkeypatch.setattr(supervisor_module.os, "_exit", fake_exit)
-    monkeypatch.setattr(supervisor_module.signal, "signal", lambda *args, **kwargs: None)
-    monkeypatch.setattr(supervisor_module.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(supervisor_module.signal, "signal", _ignore_signal)
+    monkeypatch.setattr(supervisor_module.time, "sleep", _no_sleep)
     try:
         with pytest.raises(_SupervisorExit):
             _supervisor_main(

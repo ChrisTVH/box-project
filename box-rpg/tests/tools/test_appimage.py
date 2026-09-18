@@ -1,3 +1,4 @@
+# pyright: reportPrivateUsage=false
 """Tests for the Python-pure AppImage builder (Fase 1 + Fase 2 + Fase 3)."""
 
 import io
@@ -7,7 +8,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import install
 import pytest
@@ -24,6 +25,34 @@ import build_appimage
 # compute_version() returns at build time, so a hardcoded tag rots as soon
 # as the month count moves.
 TAG = build_appimage.compute_version(build_appimage.REPO_ROOT)
+
+
+def _ok_run(args: list[str], cwd: Path | None = None) -> int:
+    return 0
+
+
+def _which_opt(name: str) -> str | None:
+    return "/opt/python3"
+
+
+def _which_old(name: str) -> str | None:
+    return "/opt/old-python3"
+
+
+def _which_none(name: str) -> str | None:
+    return None
+
+
+def _fixed_tag(*args: object) -> str:
+    return TAG
+
+
+def _tiny_body(*args: object, **kwargs: object) -> Any:
+    return io.BytesIO(b"tiny")
+
+
+def _empty_git_in(directory: Path, args: list[str]) -> str:
+    return ""
 
 
 def test_reader_contract_constants_match() -> None:
@@ -299,9 +328,7 @@ def test_ensure_appimagetool_rejects_unusable_binary(tmp_path: Path) -> None:
 def test_download_appimagetool_rejects_truncated_payload(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        build_appimage.urllib.request, "urlopen", lambda *args, **kwargs: io.BytesIO(b"tiny")
-    )
+    monkeypatch.setattr(build_appimage.urllib.request, "urlopen", _tiny_body)
 
     with pytest.raises(RuntimeError, match="truncated"):
         build_appimage.download_appimagetool("https://example.invalid/tool", tmp_path / "tool")
@@ -310,7 +337,7 @@ def test_download_appimagetool_rejects_truncated_payload(
 def test_extract_appimagetool_reports_missing_runner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(build_appimage, "run", lambda args, cwd=None: 0)
+    monkeypatch.setattr(build_appimage, "run", _ok_run)
 
     with pytest.raises(RuntimeError, match="missing its AppRun"):
         build_appimage.extract_appimagetool(tmp_path / "tool", tmp_path)
@@ -436,7 +463,7 @@ def test_apprun_exec_failure_falls_through_to_next(monkeypatch: pytest.MonkeyPat
     monkeypatch.delenv("BOX_RPG_MAKER_REEXECED", raising=False)
     monkeypatch.setattr(sys, "executable", "/usr/bin/python3.13-test")
     monkeypatch.setattr(sys, "argv", ["AppRun"])
-    monkeypatch.setattr(shutil, "which", lambda name: "/opt/python3")
+    monkeypatch.setattr(shutil, "which", _which_opt)
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         assert kwargs.get("timeout") == 10
@@ -491,7 +518,7 @@ def test_apprun_relative_override_and_current_are_skipped(
     monkeypatch.delenv("BOX_RPG_MAKER_REEXECED", raising=False)
     monkeypatch.setattr(sys, "executable", "/opt/python3")
     monkeypatch.setattr(sys, "argv", ["AppRun"])
-    monkeypatch.setattr(shutil, "which", lambda name: "/opt/python3")
+    monkeypatch.setattr(shutil, "which", _which_opt)
     probed: list[str] = []
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -582,7 +609,7 @@ def test_apprun_old_gui_keeps_version_message(
     monkeypatch.delenv("BOX_RPG_MAKER_PYTHON", raising=False)
     monkeypatch.delenv("BOX_RPG_MAKER_REEXECED", raising=False)
     monkeypatch.setattr(sys, "executable", "/usr/bin/python3.13-test")
-    monkeypatch.setattr(shutil, "which", lambda name: None)
+    monkeypatch.setattr(shutil, "which", _which_none)
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(args, 2, "", "")
@@ -608,7 +635,7 @@ def test_apprun_mixed_old_and_nogui_prefers_bindings_hint(
     monkeypatch.delenv("BOX_RPG_MAKER_PYTHON", raising=False)
     monkeypatch.delenv("BOX_RPG_MAKER_REEXECED", raising=False)
     monkeypatch.setattr(sys, "executable", "/usr/bin/python3.13-test")
-    monkeypatch.setattr(shutil, "which", lambda name: "/opt/old-python3")
+    monkeypatch.setattr(shutil, "which", _which_old)
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         code = 2 if args[0] == "/opt/old-python3" else 1
@@ -750,11 +777,12 @@ def test_test_build_forwards_explicit_tag(tmp_path: Path, monkeypatch: pytest.Mo
     assert result == output.resolve()
     command = captured["args"]
     assert isinstance(command, list)
+    argv = cast(list[str], command)
     assert command[:3] == [sys.executable, "-m", "tools.build_appimage"]
     assert "--yes" in command
     assert "--no-create-tag" in command
     assert "--tag" in command
-    assert command[command.index("--tag") + 1] == TAG
+    assert argv[argv.index("--tag") + 1] == TAG
     assert "--output" in command
     assert captured["cwd"] is not None
     assert captured["cwd"] != build_appimage.REPO_ROOT
@@ -765,7 +793,7 @@ def test_test_build_resolves_tag_when_empty(
 ) -> None:
     """An empty tag is resolved in the real repo before snapshotting."""
     monkeypatch.setattr(build_appimage, "_run_git", _stable_test_git)
-    monkeypatch.setattr(build_appimage, "compute_version", lambda *args: TAG)
+    monkeypatch.setattr(build_appimage, "compute_version", _fixed_tag)
     _mock_snapshot_fs(monkeypatch)
     captured: dict[str, object] = {}
 
@@ -788,7 +816,8 @@ def test_test_build_resolves_tag_when_empty(
 
     command = captured["args"]
     assert isinstance(command, list)
-    assert command[command.index("--tag") + 1] == TAG
+    argv = cast(list[str], command)
+    assert argv[argv.index("--tag") + 1] == TAG
 
 
 def test_test_build_refuses_in_repo_output(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -827,7 +856,7 @@ def test_test_build_verifies_fingerprint(tmp_path: Path, monkeypatch: pytest.Mon
 
     monkeypatch.setattr(build_appimage, "_run_git", changing_git)
     _mock_snapshot_fs(monkeypatch)
-    monkeypatch.setattr(build_appimage, "run", lambda args, cwd=None: 0)
+    monkeypatch.setattr(build_appimage, "run", _ok_run)
 
     with pytest.raises(RuntimeError, match="changed during"):
         build_appimage.test_build(
@@ -863,7 +892,7 @@ def test_test_build_creates_no_tags(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         return dest
 
     monkeypatch.setattr(build_appimage, "snapshot_tree", fake_snapshot)
-    monkeypatch.setattr(build_appimage, "run", lambda args, cwd=None: 0)
+    monkeypatch.setattr(build_appimage, "run", _ok_run)
 
     build_appimage.test_build(
         TAG,
@@ -887,7 +916,7 @@ def test_test_build_cleans_tempdir_on_failure(
 ) -> None:
     """A failed inner build still removes the TemporaryDirectory snapshot."""
     monkeypatch.setattr(build_appimage, "_run_git", _stable_test_git)
-    monkeypatch.setattr(build_appimage, "_run_git_in", lambda directory, args: "")
+    monkeypatch.setattr(build_appimage, "_run_git_in", _empty_git_in)
     captured: dict[str, object] = {}
 
     def fake_run(args: list[str], cwd: Path | None = None) -> int:
@@ -942,14 +971,15 @@ def test_test_build_passes_appdir_only_flags(
 
     command = captured["args"]
     assert isinstance(command, list)
+    argv = cast(list[str], command)
     assert "--appdir-only" in command
     assert "--force" in command
     assert "--appimagetool" in command
-    assert command[command.index("--appimagetool") + 1] == str(tool)
+    assert argv[argv.index("--appimagetool") + 1] == str(tool)
     assert "--appimagetool-url" in command
-    assert command[command.index("--appimagetool-url") + 1] == "https://example.invalid/tool"
+    assert argv[argv.index("--appimagetool-url") + 1] == "https://example.invalid/tool"
     assert "--appimagetool-mode" in command
-    assert command[command.index("--appimagetool-mode") + 1] == "run"
+    assert argv[argv.index("--appimagetool-mode") + 1] == "run"
     assert "--no-create-tag" in command
 
 
@@ -1006,7 +1036,8 @@ def test_test_build_resolves_relative_appimagetool(
 
     command = captured["args"]
     assert isinstance(command, list)
-    assert command[command.index("--appimagetool") + 1] == str(tmp_path / "rel-tool")
+    argv = cast(list[str], command)
+    assert argv[argv.index("--appimagetool") + 1] == str(tmp_path / "rel-tool")
 
 
 def test_test_build_detects_tag_rename_with_same_count(
@@ -1023,7 +1054,7 @@ def test_test_build_detects_tag_rename_with_same_count(
 
     monkeypatch.setattr(build_appimage, "_run_git", renaming_git)
     _mock_snapshot_fs(monkeypatch)
-    monkeypatch.setattr(build_appimage, "run", lambda args, cwd=None: 0)
+    monkeypatch.setattr(build_appimage, "run", _ok_run)
 
     with pytest.raises(RuntimeError, match="tags differ"):
         build_appimage.test_build(
@@ -1052,9 +1083,10 @@ def test_test_build_refuses_output_inside_snapshot(
         def __exit__(self, *exc: object) -> bool:
             return False
 
-    monkeypatch.setattr(
-        build_appimage.tempfile, "TemporaryDirectory", lambda prefix="": _FixedTmp()
-    )
+    def _fixed_tmpdir(*args: object, **kwargs: object) -> Any:
+        return _FixedTmp()
+
+    monkeypatch.setattr(build_appimage.tempfile, "TemporaryDirectory", _fixed_tmpdir)
 
     def forbidden_snapshot(dest: Path) -> Path:
         raise AssertionError("refused output must not snapshot")
@@ -1079,7 +1111,7 @@ def test_test_build_tmp_commit_carries_identity(
     """The snapshot commit pins an author so identity-less hosts still work."""
     monkeypatch.setattr(build_appimage, "_run_git", _stable_test_git)
     _mock_snapshot_fs(monkeypatch)
-    monkeypatch.setattr(build_appimage, "run", lambda args, cwd=None: 0)
+    monkeypatch.setattr(build_appimage, "run", _ok_run)
     commands: list[list[str]] = []
     real_git_in = build_appimage._run_git_in
 

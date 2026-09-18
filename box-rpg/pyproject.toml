@@ -84,9 +84,10 @@ typeCheckingMode = "strict"
 # the backend checkout, so `import install` and `import box` keep resolving
 # regardless of which base pyright picks.
 include = ["src", "tests", "../install.py", "../cleaner.py"]
-extraPaths = [".", "..", "box-rpg/src", "../box-rpg/src"]
+extraPaths = [".", "..", "tools", "../tools", "box-rpg/src", "../box-rpg/src"]
 # install.py/cleaner.py live at the monorepo root so `import install` in the
 # tests (and in cleaner.py) resolves through this extra search path.
+# monorepo tools/ resolves the same way for the tools tests' sys.path.insert imports.
 reportMissingTypeStubs = false
 reportUnusedImport = true
 reportUnusedVariable = true

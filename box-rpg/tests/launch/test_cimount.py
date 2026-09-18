@@ -462,7 +462,7 @@ def test_is_mountpoint_active_without_mount_table(
 def test_force_unmount_prefers_fusermount3(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[list[str]] = []
 
-    def fake_run(argv: object, **kwargs: object) -> object:
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         assert isinstance(argv, list)
         seen.append(list(argv))
         return subprocess.CompletedProcess(argv, 0)
@@ -481,7 +481,7 @@ def test_force_unmount_prefers_fusermount3(tmp_path: Path, monkeypatch: pytest.M
 def test_force_unmount_falls_back_to_umount2(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def fake_run(argv: object, **kwargs: object) -> object:
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         assert isinstance(argv, list)
         return subprocess.CompletedProcess(argv, 1)
 
@@ -516,7 +516,7 @@ def test_force_unmount_without_helper_uses_umount2(
 def test_force_unmount_failure_names_the_mountpoint(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def fake_run(argv: object, **kwargs: object) -> object:
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         assert isinstance(argv, list)
         return subprocess.CompletedProcess(argv, 1)
 
@@ -668,9 +668,13 @@ def test_mount_timeout_tears_down_unready_mount(
     mountpoint.mkdir()
     drop_stale_ci_mount(mountpoint)
     real_active = cimount.is_mountpoint_active
+
     # The loop daemon forked but readiness never arrives: no supervisor will
     # ever own this mount, so the timeout path must tear the session down.
-    monkeypatch.setattr(cimount, "is_mountpoint_active", lambda path: False)
+    def _inactive(path: Path) -> bool:
+        return False
+
+    monkeypatch.setattr(cimount, "is_mountpoint_active", _inactive)
     game_fd = _open_dir(game)
     try:
         with pytest.raises(LaunchError, match="did not come up"):

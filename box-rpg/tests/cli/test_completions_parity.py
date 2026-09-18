@@ -18,8 +18,11 @@ def _launch_flags() -> set[str]:
     parser = build_parser()
     for action in parser._actions:
         if isinstance(action, argparse._SubParsersAction):
-            launch = action.choices.get("launch")
-            assert isinstance(launch, argparse.ArgumentParser)
+            raw_choices = action.choices  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+            assert isinstance(raw_choices, dict)
+            launch_candidate: object = raw_choices.get("launch")  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+            assert isinstance(launch_candidate, argparse.ArgumentParser)
+            launch = launch_candidate
             flags: set[str] = set()
             for sub in launch._actions:
                 for option in sub.option_strings:
