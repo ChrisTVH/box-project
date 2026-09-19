@@ -22,7 +22,7 @@ from pathlib import Path
 from install import open_directory, read_regular, remove_matching
 
 REPO_ROOT = Path(__file__).resolve().parent
-VENV_NAMES = {".venv", "venv"}
+VENV_NAMES = {".venv", ".venv-gui", "venv"}
 BUILD_DIRS = {"dist", "build"}
 TOOL_CACHES = {".pytest_cache", ".ruff_cache"}
 EGG_INFO = {"box_rpg.egg-info", "box_rpg_maker.egg-info"}

@@ -30,4 +30,5 @@
 /.pytest_cache/
 /.ruff_cache/
 /.venv/
+/.venv-gui/
 /venv/

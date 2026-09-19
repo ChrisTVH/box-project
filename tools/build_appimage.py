@@ -109,7 +109,9 @@ APPIMAGETOOL_URL = (
 APPIMAGETOOL_MIN_BYTES = 1024 * 1024
 TEST_ARTIFACT_NAME = "box-rpg-maker-test.appimage"
 TEST_DEFAULT_OUTPUT = REPO_ROOT / "tools" / "target" / TEST_ARTIFACT_NAME
-_SNAPSHOT_EXCLUDE_DIRS = frozenset({".venv", "__pycache__", ".pytest_cache", ".ruff_cache"})
+_SNAPSHOT_EXCLUDE_DIRS = frozenset(
+    {".venv", ".venv-gui", "__pycache__", ".pytest_cache", ".ruff_cache"}
+)
 
 
 def is_linux() -> bool:
