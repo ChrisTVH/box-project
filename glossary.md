@@ -89,6 +89,10 @@ Shared source of truth for both projects. The first section covers the backend (
 | game tree | árbol del juego | En «save mountpoint under the game tree» y «game tree save entry». |
 | save entry | entrada de guardado | En «game tree save entry». |
 | supervisor path | ruta del supervisor | La única que puede desmontar tras la transferencia de propiedad. |
+| full wipe | borrado total | En mensajes de `uninstall.py`; «se rechaza el borrado total…». |
+| wipe path | ruta de borrado | En «cannot inspect/open/remove wipe path». |
+| filesystem root | raíz del sistema de archivos | En «refusing full wipe of filesystem root». |
+| HOME | HOME | Variable de entorno; no traducir. En «directorio HOME» y «fuera de HOME». |
 
 ## Frontend (`box-gui`)
 
@@ -131,3 +135,8 @@ Terms taken from the `box-rpg-maker` catalog; if a msgid contains a backend term
 | repository | repositorio | En mensajes de clonado; las URL quedan literales. |
 | detection | detección | En «Detection Failed» → «Detección fallida». |
 | install (verb/button) | instalar | Botón y acción: «Instalar», «Instalando…», «Instalado», «Reintentar». |
+| danger zone | zona peligrosa | Grupo de ajustes para acciones destructivas. |
+| save (game save) | partida guardada | En «Games and saves»; plural «partidas guardadas». `DELETE ALL` queda literal. |
+| cached profile | perfil en caché | En la zona peligrosa; plural «perfiles en caché». |
+| source save | partida guardada de origen | En «games and source saves outside the cache»; plural «partidas guardadas de origen». |
+| uninstall (verb) | desinstalar | En «backend uninstall failed» → «Falló la desinstalación del backend». `backend` y `box-rpg` quedan literales. |
