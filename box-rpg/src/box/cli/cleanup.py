@@ -12,7 +12,10 @@ from box.cli.menu import choose_paged
 from box.config.repository import ConfigRepository
 from box.errors import BoxError, RuntimeError
 from box.paths import AppPaths
+from box.runtime.catalog import ManagedRuntime
+from box.runtime.easyrpg import EasyRPGRuntime
 from box.utils.i18n import _, ngettext
+from box.utils.sizes import directory_size, file_size, format_size_decimal
 from box.utils.terminal import abbreviate_prompt_path, safe_terminal_text
 
 
@@ -160,13 +163,38 @@ def _interactive_cleanup(
         write(_("Invalid selection."))
 
 
-def _render_cleanup_item(item: CleanupItem) -> str:
+def _render_cleanup_item(item: CleanupItem, size_str: str | None = None) -> str:
     """Render one cleanup item for the interactive menu without altering stored data."""
     if item.category == "roots":
         assert isinstance(item.value, Path)
         available = max(shutil.get_terminal_size().columns - len("  10. "), 1)
         return safe_terminal_text(abbreviate_prompt_path(item.value, available, Path.home()))
+    if size_str is not None:
+        return f"{item.label} ({size_str})"
     return item.label
+
+
+def _item_path(item: CleanupItem) -> Path | None:
+    """Resolve the filesystem path measured for an item, or None for roots."""
+    if item.category in ("downloads", "profiles"):
+        return item.value if isinstance(item.value, Path) else None
+    if item.category == "runtimes":
+        if isinstance(item.value, (ManagedRuntime, EasyRPGRuntime)):
+            return item.value.root
+        return None
+    return None
+
+
+def _item_size(item: CleanupItem) -> int | None:
+    """Return the on-disk size for an item, or None when unknown."""
+    path = _item_path(item)
+    if path is None:
+        return None
+    if path.is_symlink():
+        return file_size(path)
+    if path.is_dir():
+        return directory_size(path)
+    return file_size(path)
 
 
 def _interactive_choose(
@@ -176,10 +204,17 @@ def _interactive_choose(
     write: Callable[[str], None],
 ) -> None:
     items = catalog.list(category)
+    sizes: dict[str, int | None] = {item.selector: _item_size(item) for item in items}
+
+    def render(item: CleanupItem) -> str:
+        raw_size = sizes.get(item.selector)
+        size_str = format_size_decimal(raw_size) if raw_size is not None else None
+        return _render_cleanup_item(item, size_str)
+
     selection = choose_paged(
         _category_title(category),
         items,
-        _render_cleanup_item,
+        render,
         allow_all=True,
         read=read,
         write=write,

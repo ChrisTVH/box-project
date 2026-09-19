@@ -293,3 +293,45 @@ def test_cleanup_interactive_root_label_escapes_controls(
     assert "\x1b" not in rendered
     assert "\n" not in rendered
     assert r"\x1b" in rendered
+
+
+def test_cleanup_render_item_appends_known_size(tmp_path: Path) -> None:
+    archive = tmp_path / "standard-v0.90.0-linux-x64.tar.gz"
+    archive.write_bytes(b"archive")
+    item = CleanupItem("downloads", f"nwjs:{archive.name}", archive.name, archive, "nwjs")
+
+    assert _render_cleanup_item(item, "1.5 MB") == f"{archive.name} (1.5 MB)"
+    assert _render_cleanup_item(item) == archive.name
+    assert _render_cleanup_item(item, None) == archive.name
+
+
+def test_cleanup_render_root_ignores_size(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "home"
+    root = home / "games" / "sample"
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setattr(shutil, "get_terminal_size", lambda: os.terminal_size((120, 24)))
+    item = CleanupItem("roots", str(root), str(root), root)
+
+    assert _render_cleanup_item(item, "1.5 MB") == _render_cleanup_item(item)
+
+
+def test_cleanup_interactive_download_lists_formatted_size(tmp_path: Path) -> None:
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    paths.ensure()
+    archive = paths.downloads_root / "standard-v0.90.0-linux-x64.tar.gz"
+    archive.write_bytes(b"x" * 1_500_000)
+    output: list[str] = []
+    choices = iter(("3", "q", "q"))
+
+    assert (
+        execute(
+            paths,
+            ConfigRepository(paths),
+            interactive=True,
+            has_tty=True,
+            read=lambda _: next(choices),
+            write=output.append,
+        )
+        == 0
+    )
+    assert any(" (1.5 MB)" in line for line in output)
