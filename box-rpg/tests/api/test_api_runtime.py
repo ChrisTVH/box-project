@@ -122,14 +122,24 @@ def test_install_nwjs_defaults_progress_to_none(
     assert captured["progress"] is None
 
 
-def test_fetch_nwjs_available_forwards_arguments(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_fetch_nwjs_available_forwards_arguments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     captured: dict[str, object] = {}
     expected = AvailableVersions(page=2, versions=("v0.90.0",))
+    paths = _paths(tmp_path)
 
-    def fake_fetch(page: int, architecture: str, sdk: bool) -> AvailableVersions:
+    def fake_fetch(
+        page: int,
+        architecture: str,
+        sdk: bool,
+        *,
+        paths: AppPaths | None = None,
+    ) -> AvailableVersions:
         captured["page"] = page
         captured["architecture"] = architecture
         captured["sdk"] = sdk
+        captured["paths"] = paths
         return expected
 
     monkeypatch.setattr(api_runtime, "fetch_nwjs_versions", fake_fetch)
@@ -137,7 +147,13 @@ def test_fetch_nwjs_available_forwards_arguments(monkeypatch: pytest.MonkeyPatch
     result = api_runtime.fetch_nwjs_available(2, "x64", True)
 
     assert result == expected
-    assert captured == {"page": 2, "architecture": "x64", "sdk": True}
+    assert captured == {"page": 2, "architecture": "x64", "sdk": True, "paths": None}
+
+    captured.clear()
+    result = api_runtime.fetch_nwjs_available(2, "x64", True, paths=paths)
+
+    assert result == expected
+    assert captured["paths"] == paths
 
 
 def test_list_easyrpg_returns_catalog_runtimes(tmp_path: Path) -> None:
@@ -192,12 +208,16 @@ def test_install_easyrpg_forwards_progress(tmp_path: Path, monkeypatch: pytest.M
     assert captured["progress"] is reporter
 
 
-def test_fetch_easyrpg_available_forwards_page(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_fetch_easyrpg_available_forwards_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     captured: dict[str, object] = {}
     expected = AvailableEasyRPGVersions(page=3, versions=("0.8.1",))
+    paths = _paths(tmp_path)
 
-    def fake_fetch(page: int) -> AvailableEasyRPGVersions:
+    def fake_fetch(page: int, *, paths: AppPaths | None = None) -> AvailableEasyRPGVersions:
         captured["page"] = page
+        captured["paths"] = paths
         return expected
 
     monkeypatch.setattr(api_runtime, "fetch_easyrpg_versions", fake_fetch)
@@ -205,7 +225,13 @@ def test_fetch_easyrpg_available_forwards_page(monkeypatch: pytest.MonkeyPatch) 
     result = api_runtime.fetch_easyrpg_available(3)
 
     assert result == expected
-    assert captured == {"page": 3}
+    assert captured == {"page": 3, "paths": None}
+
+    captured.clear()
+    result = api_runtime.fetch_easyrpg_available(3, paths=paths)
+
+    assert result == expected
+    assert captured == {"page": 3, "paths": paths}
 
 
 def test_nwjs_install_runtime_forwards_progress_to_download(
@@ -325,11 +351,13 @@ def test_runtime_api_performs_no_console_io(
     monkeypatch.setattr("builtins.print", forbidden_print)
     monkeypatch.setattr("builtins.input", forbidden_input)
 
-    def fake_fetch_nwjs(page: int, architecture: str, sdk: bool) -> AvailableVersions:
+    def fake_fetch_nwjs(
+        page: int, architecture: str, sdk: bool, *, paths: AppPaths | None = None
+    ) -> AvailableVersions:
         assert (architecture, sdk) == ("x64", False)
         return AvailableVersions(page=page, versions=())
 
-    def fake_fetch_easyrpg(page: int) -> AvailableEasyRPGVersions:
+    def fake_fetch_easyrpg(page: int, *, paths: AppPaths | None = None) -> AvailableEasyRPGVersions:
         return AvailableEasyRPGVersions(page=page, versions=())
 
     def fake_install_nwjs(

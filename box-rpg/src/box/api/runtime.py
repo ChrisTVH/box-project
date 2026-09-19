@@ -59,9 +59,11 @@ def remove_nwjs(
     catalog.remove(version, architecture, sdk)
 
 
-def fetch_nwjs_available(page: int, architecture: str, sdk: bool) -> AvailableVersions:
+def fetch_nwjs_available(
+    page: int, architecture: str, sdk: bool, *, paths: AppPaths | None = None
+) -> AvailableVersions:
     """Fetch one page of installable NW.js versions without any interaction."""
-    return fetch_nwjs_versions(page, architecture, sdk)
+    return fetch_nwjs_versions(page, architecture, sdk, paths=paths)
 
 
 def list_easyrpg(catalog: EasyRPGCatalog) -> tuple[EasyRPGRuntime, ...]:
@@ -81,6 +83,8 @@ def remove_easyrpg(catalog: EasyRPGCatalog, version: str) -> None:
     catalog.remove(version)
 
 
-def fetch_easyrpg_available(page: int) -> AvailableEasyRPGVersions:
+def fetch_easyrpg_available(
+    page: int, *, paths: AppPaths | None = None
+) -> AvailableEasyRPGVersions:
     """Fetch one page of EasyRPG Player versions without any interaction."""
-    return fetch_easyrpg_versions(page)
+    return fetch_easyrpg_versions(page, paths=paths)

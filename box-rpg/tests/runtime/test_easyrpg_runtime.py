@@ -1,16 +1,20 @@
+import json
 import os
 import tarfile
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import BinaryIO, cast
+from typing import BinaryIO, ClassVar, cast
+from urllib.error import URLError
 
 import pytest
 
 from box.errors import ConfigurationError, RuntimeError
 from box.paths import AppPaths
+from box.runtime import easyrpg
 from box.runtime.easyrpg import (
     AvailableEasyRPGVersions,
     EasyRPGCatalog,
@@ -300,7 +304,7 @@ def test_easyrpg_interactive_browser_retries_a_failed_page(
     attempts = iter((False, True))
     choices = iter(("r", "1", "yes"))
 
-    def flaky_fetch(page: int) -> AvailableEasyRPGVersions:
+    def flaky_fetch(page: int, *, paths: AppPaths | None = None) -> AvailableEasyRPGVersions:
         if next(attempts):
             return AvailableEasyRPGVersions(page=page, versions=("0.8.1.1",))
         raise RuntimeError("connection reset")
@@ -313,7 +317,10 @@ def test_easyrpg_interactive_browser_retries_a_failed_page(
     monkeypatch.setattr("box.cli.runtime.install_easyrpg_runtime", install_version)
     browser = cli_runtime._easyrpg_available  # pyright: ignore[reportPrivateUsage]
 
-    result = browser(paths, 1, True, read=lambda _: next(choices), write=output.append)
+    def _fake_read(prompt: str) -> str:
+        return next(choices)
+
+    result = browser(paths, 1, True, read=_fake_read, write=output.append)
 
     assert result == 0
     assert installed == ["0.8.1.1"]
@@ -329,13 +336,16 @@ def test_easyrpg_interactive_browser_quits_after_a_failed_page(
     output: list[str] = []
     choices = iter(("q",))
 
-    def failing_fetch(page: int) -> AvailableEasyRPGVersions:
+    def failing_fetch(page: int, *, paths: AppPaths | None = None) -> AvailableEasyRPGVersions:
         raise RuntimeError("connection reset")
 
     monkeypatch.setattr("box.cli.runtime.fetch_easyrpg_versions", failing_fetch)
     browser = cli_runtime._easyrpg_available  # pyright: ignore[reportPrivateUsage]
 
-    result = browser(paths, 1, True, read=lambda _: next(choices), write=output.append)
+    def _fake_read(prompt: str) -> str:
+        return next(choices)
+
+    result = browser(paths, 1, True, read=_fake_read, write=output.append)
 
     assert result == 0
     assert output[-1] == "Selection cancelled."
@@ -355,3 +365,307 @@ def test_easyrpg_extraction_uses_shared_quotas(
     with pytest.raises(RuntimeError, match="limit"):
         extract_runtime(archive, destination)
     assert tuple(destination.iterdir()) == ()
+
+
+class _EasyProbeResponse:
+    """Minimal Range-probe response for EasyRPG Player archives."""
+
+    def __init__(
+        self,
+        headers: dict[str, str],
+        status: int = 206,
+        url: str = "https://easyrpg.org/downloads/player/0.8.1/easyrpg-player-0.8.1-linux.tar.gz",
+    ) -> None:
+        self.headers = headers
+        self.status = status
+        self._url = url
+
+    def __enter__(self) -> _EasyProbeResponse:
+        return self
+
+    def __exit__(self, exception_type: object, exception: object, traceback: object) -> None:
+        self.close()
+
+    def close(self) -> None:
+        return None
+
+    def geturl(self) -> str:
+        return self._url
+
+    def read(self, amount: int = -1) -> bytes:
+        if amount < 0:
+            return b"x"
+        return b"x"[:amount]
+
+
+class _EasyIndexResponse:
+    """Minimal index response for EasyRPG Player listing fetches."""
+
+    headers: ClassVar[dict[str, str]] = {}
+    status: ClassVar[int] = 200
+
+    def __init__(self, content: bytes, url: str = "https://easyrpg.org/downloads/player/") -> None:
+        self._content = content
+        self._url = url
+
+    def __enter__(self) -> _EasyIndexResponse:
+        return self
+
+    def __exit__(self, exception_type: object, exception: object, traceback: object) -> None:
+        self.close()
+
+    def close(self) -> None:
+        return None
+
+    def geturl(self) -> str:
+        return self._url
+
+    def read(self, amount: int = -1) -> bytes:
+        if amount < 0:
+            return self._content
+        return self._content[:amount]
+
+
+def _stub_easy_probe(
+    monkeypatch: pytest.MonkeyPatch, headers: dict[str, str], status: int = 206
+) -> None:
+    response = _EasyProbeResponse(headers, status=status)
+
+    def _fake_open(request: object, timeout: float, allowed_hosts: object) -> _EasyProbeResponse:
+        return response
+
+    monkeypatch.setattr(easyrpg, "open_official", _fake_open)
+    easyrpg.easyrpg_archive_available.cache_clear()
+
+
+def _stub_easy_index(monkeypatch: pytest.MonkeyPatch, html: str) -> None:
+    payload = html.encode("utf-8")
+
+    def fake_open(request: object, timeout: float, allowed_hosts: object) -> _EasyIndexResponse:
+        assert getattr(request, "full_url", "").startswith("https://easyrpg.org/")
+        return _EasyIndexResponse(payload)
+
+    monkeypatch.setattr(easyrpg, "open_official", fake_open)
+
+
+def test_easyrpg_available_sizes_default_to_empty() -> None:
+    assert AvailableEasyRPGVersions(page=1, versions=()).sizes == {}
+    assert AvailableEasyRPGVersions(page=1, versions=("0.8.1",)).sizes == {}
+
+
+def test_easyrpg_probe_prefers_content_range(monkeypatch: pytest.MonkeyPatch) -> None:
+    _stub_easy_probe(monkeypatch, {"Content-Range": "bytes 0-0/54321", "Content-Length": "1"})
+    assert easyrpg.easyrpg_archive_available("0.8.1") == (True, 54321)
+
+
+def test_easyrpg_probe_returns_none_for_206_without_content_range(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 206 response without Content-Range never falls back to Content-Length."""
+    _stub_easy_probe(monkeypatch, {"Content-Length": "4321"})
+    assert easyrpg.easyrpg_archive_available("0.8.1.1") == (True, None)
+
+
+def test_easyrpg_probe_returns_none_for_non_zero_start_range(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only bytes 0-0/N counts as a valid 206 size, other ranges are ignored."""
+    _stub_easy_probe(monkeypatch, {"Content-Range": "bytes 0-1/54321"})
+    assert easyrpg.easyrpg_archive_available("0.8.1.2") == (True, None)
+
+
+def test_easyrpg_probe_ignores_content_range_on_200(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A 200 response uses Content-Length even when Content-Range is present."""
+    _stub_easy_probe(
+        monkeypatch,
+        {"Content-Range": "bytes 0-0/999", "Content-Length": "432"},
+        status=200,
+    )
+    assert easyrpg.easyrpg_archive_available("0.8.1.3") == (True, 432)
+
+
+def test_easyrpg_probe_returns_none_for_200_with_only_content_range(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 200 response without Content-Length reports an unknown size."""
+    _stub_easy_probe(monkeypatch, {"Content-Range": "bytes 0-0/999"}, status=200)
+    assert easyrpg.easyrpg_archive_available("0.8.1.4") == (True, None)
+
+
+def test_easyrpg_probe_returns_missing_on_runtime_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Redirect validation failures surface as a missing archive, not an abort."""
+
+    def _bad_redirect(request: object, timeout: float, allowed_hosts: object) -> object:
+        raise RuntimeError("redirect to untrusted host")
+
+    monkeypatch.setattr(easyrpg, "open_official", _bad_redirect)
+    easyrpg.easyrpg_archive_available.cache_clear()
+    assert easyrpg.easyrpg_archive_available("0.8.2") == (False, None)
+
+
+def test_easyrpg_fetch_skips_bad_version_without_aborting_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One RuntimeError probe reports unknown size instead of failing the page."""
+    html = '<a href="0.8.1/">0.8.1</a><a href="0.8/">0.8</a>'
+    payload = html.encode("utf-8")
+    easyrpg.easyrpg_archive_available.cache_clear()
+
+    def fake_open(request: object, timeout: float, allowed_hosts: object) -> object:
+        url = getattr(request, "full_url", "")
+        if url == easyrpg.VERSIONS_INDEX:
+            return _EasyIndexResponse(payload)
+        if "/0.8.1/" in url:
+            raise RuntimeError("redirect to untrusted host")
+        return _EasyProbeResponse({"Content-Range": "bytes 0-0/42"}, status=206)
+
+    monkeypatch.setattr(easyrpg, "open_official", fake_open)
+    try:
+        result = easyrpg.fetch_available_versions(1)
+    finally:
+        easyrpg.easyrpg_archive_available.cache_clear()
+    assert result.versions == ("0.8.1", "0.8")
+    assert result.sizes == {"0.8.1": None, "0.8": 42}
+
+
+def test_easyrpg_probe_returns_none_without_size_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_easy_probe(monkeypatch, {})
+    assert easyrpg.easyrpg_archive_available("0.8") == (True, None)
+
+
+def test_easyrpg_probe_handles_range_ignored_200(monkeypatch: pytest.MonkeyPatch) -> None:
+    _stub_easy_probe(monkeypatch, {"Content-Length": "7777"}, status=200)
+    assert easyrpg.easyrpg_archive_available("0.7.0") == (True, 7777)
+
+
+def test_easyrpg_probe_returns_none_for_malformed_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_easy_probe(monkeypatch, {"Content-Range": "invalid", "Content-Length": "bad"})
+    assert easyrpg.easyrpg_archive_available("0.6.0") == (True, None)
+
+
+def test_easyrpg_fetch_includes_per_page_sizes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    html = '<a href="0.8.1/">0.8.1</a><a href="0.8/">0.8</a>'
+    payload = html.encode("utf-8")
+    calls: list[str] = []
+
+    def fake_open(request: object, timeout: float, allowed_hosts: object) -> object:
+        url = getattr(request, "full_url", "")
+        calls.append(url)
+        if url == easyrpg.VERSIONS_INDEX:
+            return _EasyIndexResponse(payload)
+        return _EasyProbeResponse({"Content-Length": "1000"}, status=200)
+
+    monkeypatch.setattr(easyrpg, "open_official", fake_open)
+    easyrpg.easyrpg_archive_available.cache_clear()
+    result = easyrpg.fetch_available_versions(1)
+    assert result.versions == ("0.8.1", "0.8")
+    assert result.sizes == {"0.8.1": 1000, "0.8": 1000}
+    assert calls[0] == easyrpg.VERSIONS_INDEX
+
+
+def _prime_easyrpg_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, html: str, size: int | None
+) -> AppPaths:
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    payload = html.encode("utf-8")
+
+    def fake_open(request: object, timeout: float, allowed_hosts: object) -> object:
+        url = getattr(request, "full_url", "")
+        if url == easyrpg.VERSIONS_INDEX:
+            return _EasyIndexResponse(payload)
+        return _EasyProbeResponse(
+            {} if size is None else {"Content-Length": str(size)},
+            status=200,
+        )
+
+    monkeypatch.setattr(easyrpg, "open_official", fake_open)
+    easyrpg.easyrpg_archive_available.cache_clear()
+    result = easyrpg.fetch_available_versions(1, paths=paths)
+    assert result.versions
+    return paths
+
+
+def test_easyrpg_cache_round_trip_and_fresh_avoids_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = _prime_easyrpg_cache(
+        tmp_path, monkeypatch, '<a href="0.8.1/">0.8.1</a><a href="0.8/">0.8</a>', 500
+    )
+    target = paths.listings_root / "easyrpg" / "easyrpg-p1.json"
+    assert target.is_file()
+    document = json.loads(target.read_text(encoding="utf-8"))
+    assert document["source"] == "easyrpg"
+    assert document["page"] == 1
+    assert document["versions"] == ["0.8.1", "0.8"]
+    assert document["sizes"] == {"0.8.1": 500, "0.8": 500}
+    assert (target.stat().st_mode & 0o777) == 0o600
+
+    def forbidden(request: object, timeout: float, allowed_hosts: object) -> object:
+        raise AssertionError("fresh cache must not use the network")
+
+    monkeypatch.setattr(easyrpg, "open_official", forbidden)
+    cached = easyrpg.fetch_available_versions(1, paths=paths)
+    assert cached.versions == ("0.8.1", "0.8")
+    assert cached.sizes == {"0.8.1": 500, "0.8": 500}
+
+
+def test_easyrpg_cache_expired_entry_triggers_refetch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = _prime_easyrpg_cache(tmp_path, monkeypatch, '<a href="0.8/">0.8</a>', 10)
+    target = paths.listings_root / "easyrpg" / "easyrpg-p1.json"
+    document = json.loads(target.read_text(encoding="utf-8"))
+    document["fetched_at"] = time.time() - 7200
+    target.write_text(json.dumps(document, sort_keys=True), encoding="utf-8")
+    easyrpg.easyrpg_archive_available.cache_clear()
+    _stub_easy_index(monkeypatch, '<a href="0.7.0/">0.7.0</a>')
+
+    def _fake_archive_available(version: str) -> tuple[bool, int | None]:
+        return (True, 55)
+
+    monkeypatch.setattr(easyrpg, "easyrpg_archive_available", _fake_archive_available)
+    refreshed = easyrpg.fetch_available_versions(1, paths=paths)
+    assert refreshed.versions == ("0.7.0",)
+    assert refreshed.sizes == {"0.7.0": 55}
+
+
+def test_easyrpg_stale_cache_returned_when_offline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = _prime_easyrpg_cache(tmp_path, monkeypatch, '<a href="0.8/">0.8</a>', 77)
+    target = paths.listings_root / "easyrpg" / "easyrpg-p1.json"
+    document = json.loads(target.read_text(encoding="utf-8"))
+    document["fetched_at"] = time.time() - 7200
+    target.write_text(json.dumps(document, sort_keys=True), encoding="utf-8")
+
+    def offline(request: object, timeout: float, allowed_hosts: object) -> object:
+        raise URLError("offline")
+
+    monkeypatch.setattr(easyrpg, "open_official", offline)
+    stale = easyrpg.fetch_available_versions(1, paths=paths)
+    assert stale.versions == ("0.8",)
+    assert stale.sizes == {"0.8": 77}
+
+
+def test_easyrpg_corrupt_cache_is_ignored(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    paths.ensure()
+    target = paths.listings_root / "easyrpg" / "easyrpg-p1.json"
+    target.write_text("{not-json", encoding="utf-8")
+    _stub_easy_index(monkeypatch, '<a href="0.8/">0.8</a>')
+
+    def _fake_archive_available(version: str) -> tuple[bool, int | None]:
+        return (True, 5)
+
+    monkeypatch.setattr(easyrpg, "easyrpg_archive_available", _fake_archive_available)
+    result = easyrpg.fetch_available_versions(1, paths=paths)
+    assert result.versions == ("0.8",)
+    assert result.sizes == {"0.8": 5}

@@ -8,11 +8,13 @@ import shutil
 import stat
 import tarfile
 import tempfile
-from contextlib import ExitStack
-from dataclasses import dataclass
+from collections.abc import Mapping
+from contextlib import ExitStack, suppress
+from dataclasses import dataclass, field
+from functools import lru_cache
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 from urllib.error import URLError
 from urllib.parse import urlsplit
 from urllib.request import Request
@@ -34,12 +36,18 @@ OFFICIAL_DOWNLOAD_HOSTS = frozenset({_OFFICIAL_HOST})
 _ARCHIVE_PATTERN = re.compile(r"^easyrpg-player-\d+(?:\.\d+){1,3}-linux\.tar\.gz(?:\.part)?$")
 
 
+def _empty_sizes() -> dict[str, int | None]:
+    """Return a fresh empty size mapping for dataclass defaults."""
+    return {}
+
+
 @dataclass(frozen=True, slots=True)
 class AvailableEasyRPGVersions:
     """One page of EasyRPG Player versions published by the upstream project."""
 
     page: int
     versions: tuple[str, ...]
+    sizes: dict[str, int | None] = field(default_factory=_empty_sizes)
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,13 +77,21 @@ class _EasyRPGPaths(Protocol):
 class _Response(Protocol):
     """The subset of an HTTP response used by the version index client."""
 
+    status: int
+    headers: Mapping[str, str]
+
     def __enter__(self) -> _Response: ...
 
     def __exit__(self, exception_type: object, exception: object, traceback: object) -> None: ...
 
+    def close(self) -> None: ...
+
     def geturl(self) -> str: ...
 
     def read(self, amount: int = -1) -> bytes: ...
+
+
+_CONTENT_RANGE_PATTERN = re.compile(r"^bytes\s+0-0/(\d+)\s*$", re.IGNORECASE)
 
 
 def normalize_version(value: str) -> str:
@@ -106,8 +122,35 @@ def download_archive_path(paths: AppPaths, version: str) -> Path:
     return easyrpg_paths.ensure_managed_easyrpg_download_path(archive)
 
 
-def fetch_available_versions(page: int) -> AvailableEasyRPGVersions:
+def fetch_available_versions(
+    page: int, *, paths: AppPaths | None = None
+) -> AvailableEasyRPGVersions:
     """Fetch one client-side page from the official EasyRPG Player version index."""
+    _validate_page(page)
+    if paths is None:
+        return _fetch_network(page)
+    from box.runtime import listings
+
+    cached = listings.load_easyrpg_listing(paths, page, normalize_version)
+    if cached is not None and listings.is_fresh(cached.fetched_at):
+        return AvailableEasyRPGVersions(
+            page=page, versions=cached.versions, sizes=dict(cached.sizes)
+        )
+    try:
+        fresh = _fetch_network(page)
+    except (OSError, URLError, RuntimeError) as exc:
+        if cached is not None:
+            return AvailableEasyRPGVersions(
+                page=page, versions=cached.versions, sizes=dict(cached.sizes)
+            )
+        raise exc
+    with suppress(Exception):
+        listings.save_easyrpg_listing(paths, page, fresh.versions, fresh.sizes)
+    return fresh
+
+
+def _fetch_network(page: int) -> AvailableEasyRPGVersions:
+    """Fetch one page without consulting the disk cache."""
     request = Request(available_url(page), headers={"Accept": "text/html", "User-Agent": "box-rpg"})
     try:
         with cast(
@@ -121,7 +164,84 @@ def fetch_available_versions(page: int) -> AvailableEasyRPGVersions:
         ) from exc
     if len(content) > MAX_INDEX_BYTES:
         raise RuntimeError(_("EasyRPG Player version index is too large"))
-    return parse_available_versions(content.decode("utf-8", errors="replace"), page)
+    parsed = parse_available_versions(content.decode("utf-8", errors="replace"), page)
+    sizes: dict[str, int | None] = {}
+    for version in parsed.versions:
+        exists, total = easyrpg_archive_available(version)
+        sizes[version] = total if exists else None
+    return AvailableEasyRPGVersions(page=page, versions=parsed.versions, sizes=sizes)
+
+
+@lru_cache
+def easyrpg_archive_available(version: str) -> tuple[bool, int | None]:
+    """Probe an official EasyRPG Player archive, returning existence and size."""
+    request = Request(
+        download_url(version),
+        headers={"Range": "bytes=0-0", "User-Agent": "Mozilla/5.0 (compatible; box-rpg)"},
+    )
+    try:
+        with cast(
+            _Response, open_official(request, timeout=15, allowed_hosts=OFFICIAL_DOWNLOAD_HOSTS)
+        ) as response:
+            validate_source(response.geturl(), OFFICIAL_DOWNLOAD_HOSTS)
+            response.read(1)
+            return True, _probe_total_size(response)
+    except OSError, URLError, RuntimeError:
+        return False, None
+
+
+def _probe_total_size(response: Any) -> int | None:
+    """Return the total archive size honoring the response status code."""
+    status = getattr(response, "status", None)
+    headers = getattr(response, "headers", None)
+    if headers is None:
+        return None
+    if status == 206:
+        content_range = _header_value(headers, "Content-Range")
+        if content_range is None:
+            return None
+        match = _CONTENT_RANGE_PATTERN.match(content_range.strip())
+        if match is None:
+            return None
+        try:
+            total = int(match.group(1))
+        except ValueError:
+            return None
+        return total if total >= 0 else None
+    if status == 200:
+        content_length = _header_value(headers, "Content-Length")
+        if content_length is None:
+            return None
+        try:
+            total = int(content_length.strip())
+        except ValueError:
+            return None
+        return total if total >= 0 else None
+    return None
+
+
+def _header_value(headers: Any, name: str) -> str | None:
+    """Return one header value using a case-insensitive lookup."""
+    getter = getattr(headers, "get", None)
+    if callable(getter):
+        try:
+            value = getter(name)
+        except Exception:
+            value = None
+        if isinstance(value, str):
+            return value
+    try:
+        items = headers.items()
+    except Exception:
+        return None
+    wanted = name.lower()
+    try:
+        for key, value in items:
+            if isinstance(key, str) and isinstance(value, str) and key.lower() == wanted:
+                return value
+    except Exception:
+        return None
+    return None
 
 
 def parse_available_versions(content: str, page: int) -> AvailableEasyRPGVersions:

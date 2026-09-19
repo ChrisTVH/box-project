@@ -67,6 +67,11 @@ class AppPaths:
         return self.cache_root / "runtimes" / "easyrpg"
 
     @property
+    def listings_root(self) -> Path:
+        """Return the directory containing cached online version listings."""
+        return self.cache_root / "listings"
+
+    @property
     def sessions_root(self) -> Path:
         """Return the root for ephemeral game sessions."""
         return self.cache_root / "sessions"
@@ -92,6 +97,9 @@ class AppPaths:
             self.cache_root / "runtimes",
             self.runtimes_root,
             self.easyrpg_runtimes_root,
+            self.listings_root,
+            self.listings_root / "nwjs",
+            self.listings_root / "easyrpg",
             self.cache_root / "sessions",
             self.sessions_root,
             self.reports_root,
@@ -123,6 +131,26 @@ class AppPaths:
                 _("refusing to manage nested {runtime} download path: {path}").format(
                     runtime="EasyRPG", path=path
                 )
+            )
+        return managed
+
+    def ensure_managed_listing_path(self, path: Path) -> Path:
+        """Validate a direct cached-listing file path owned by the launcher."""
+        managed = self._ensure_managed_child(self.listings_root, path, _("listing"))
+        listings_root = self.listings_root.resolve(strict=True)
+        try:
+            relative = managed.relative_to(listings_root)
+        except ValueError as exc:
+            raise ConfigurationError(
+                _("refusing to manage listing outside cache: {path}").format(path=path)
+            ) from exc
+        if len(relative.parts) != 2 or relative.parts[0] not in {"nwjs", "easyrpg"}:
+            raise ConfigurationError(
+                _("refusing to manage nested listing path: {path}").format(path=path)
+            )
+        if managed.parent != (listings_root / relative.parts[0]):
+            raise ConfigurationError(
+                _("refusing to manage nested listing path: {path}").format(path=path)
             )
         return managed
 
