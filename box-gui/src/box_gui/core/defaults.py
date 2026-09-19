@@ -1,11 +1,11 @@
-"""Frontend-owned default preferences (global EasyRPG runtime)."""
+"""Frontend-owned default preferences (global EasyRPG runtime and UI language)."""
 
 from __future__ import annotations
 
 import json
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from box.paths import AppPaths
@@ -24,6 +24,7 @@ class RuntimeDefaults:
     """Global frontend defaults applied to new library entries."""
 
     preferred_easyrpg_runtime: str | None = None
+    preferred_language: str | None = None
 
 
 class DefaultsRepository:
@@ -58,6 +59,7 @@ class DefaultsRepository:
         payload: dict[str, object] = {
             "version": _DEFAULTS_VERSION,
             "preferred_easyrpg_runtime": defaults.preferred_easyrpg_runtime,
+            "preferred_language": defaults.preferred_language,
         }
         content = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
         _atomic_write_text(self._file, content)
@@ -65,7 +67,18 @@ class DefaultsRepository:
 
     def set_preferred_easyrpg_runtime(self, version: str | None) -> RuntimeDefaults:
         """Store or clear the preferred EasyRPG Player version."""
-        return self.save(RuntimeDefaults(preferred_easyrpg_runtime=version))
+        return self.save(replace(self._load_or_blank(), preferred_easyrpg_runtime=version))
+
+    def set_preferred_language(self, language: str | None) -> RuntimeDefaults:
+        """Store or clear the preferred UI language (None means system default)."""
+        return self.save(replace(self._load_or_blank(), preferred_language=language))
+
+    def _load_or_blank(self) -> RuntimeDefaults:
+        """Load defaults, healing unreadable files with blank defaults."""
+        try:
+            return self.load()
+        except DefaultsError:
+            return RuntimeDefaults()
 
 
 def _decode_defaults(payload: object, source: Path) -> RuntimeDefaults:
@@ -80,7 +93,14 @@ def _decode_defaults(payload: object, source: Path) -> RuntimeDefaults:
         raise DefaultsError(f"invalid defaults file {source}: bad preferred_easyrpg_runtime")
     if runtime_value == "":
         runtime_value = None
-    return RuntimeDefaults(preferred_easyrpg_runtime=runtime_value)
+    language_value = payload.get("preferred_language")
+    if language_value is not None and not isinstance(language_value, str):
+        raise DefaultsError(f"invalid defaults file {source}: bad preferred_language")
+    if language_value == "":
+        language_value = None
+    return RuntimeDefaults(
+        preferred_easyrpg_runtime=runtime_value, preferred_language=language_value
+    )
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
