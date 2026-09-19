@@ -113,7 +113,7 @@ python3 -m tools.build_appimage --test-build --yes --appdir-only
 Strict `pyright` runs from `box-gui/` with the project interpreter, mirroring the backend form in `../box-rpg/development.md` (Node.js on `PATH`, no automatic downloads):
 
 ```sh
-../.venv/bin/python -m pyright --pythonpath ../.venv/bin/python
+../.venv-gui/bin/python -m pyright --pythonpath ../.venv-gui/bin/python
 ```
 
-The `.venv` interpreter carries the `gi`/`cairo` bindings plus pytest, and `extraPaths` in `pyproject.toml` covers both `src` trees. A `box`/`box_gui` copy installed in user site shadows the checkouts if it takes precedence; the checkout roots above must win — if stale-version errors (`No parameter named ...` on fresh APIs) ever appear, check `python -c "import box; print(box.__file__)"` first.
+The `.venv-gui` interpreter carries the `gi`/`cairo` bindings plus pytest, and `extraPaths` in `pyproject.toml` covers both `src` trees. A `box`/`box_gui` copy installed in user site shadows the checkouts if it takes precedence; the checkout roots above must win — if stale-version errors (`No parameter named ...` on fresh APIs) ever appear, check `python -c "import box; print(box.__file__)"` first.

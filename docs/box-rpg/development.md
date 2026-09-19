@@ -16,7 +16,7 @@ PIP_CONFIG_FILE=/dev/null .venv/bin/python -I -m pip --isolated install \
   -r box-rpg/res/requirements/bootstrap.txt \
   -r box-rpg/res/requirements/build.txt -r box-rpg/res/requirements/dev.txt
 .venv/bin/python -m pip check
-.venv/bin/python -m pytest box-rpg/tests/tools/test_install.py box-rpg/tests/tools/test_locks.py
+PYTHONPATH=box-rpg/src:tools:. .venv/bin/python -m pytest box-rpg/tests/tools/test_install.py box-rpg/tests/tools/test_locks.py
 .venv/bin/ruff check install.py box-rpg/tests/tools/test_install.py box-rpg/tests/tools/test_locks.py
 .venv/bin/ruff format --check install.py box-rpg/tests/tools/test_install.py box-rpg/tests/tools/test_locks.py
 ```
