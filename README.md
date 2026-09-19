@@ -12,13 +12,7 @@ Supported games, and nothing else by decision:
 
 ## Requirements
 
-- Linux with Python 3.14+, pip, and GnuPG (`/usr/bin/gpg`) for NW.js signature checks.
-- Bubblewrap (`/usr/bin/bwrap`) with working user namespaces. There is no unsandboxed mode.
-- The GUI additionally needs GTK 4 and libadwaita typelibs. Game icon extraction from executables wants the optional `icoextract` package; without it the GUI falls back to engine icons.
-- Wayland is recommended. X11 and XWayland sessions work with per-launch consent. On Wayland, EasyRPG still asks once per launch when it runs through XWayland.
-- Running the AppImage additionally needs `libfuse3` with `/dev/fuse`; `libfuse2` is never required. `box-rpg` already needs `libfuse3` for `--ci-mount`, so this is nothing new.
-
-The installer checks these tools but does not install them.
+You need Linux with Python 3.14+, pip, and GnuPG (`/usr/bin/gpg`) for NW.js signature checks, plus Bubblewrap (`/usr/bin/bwrap`) with working user namespaces; there is no unsandboxed mode. The GUI additionally needs GTK 4 and libadwaita typelibs; without the optional `icoextract` package the GUI falls back to engine icons. Wayland is recommended; X11 and XWayland sessions work with per-launch consent, and on Wayland EasyRPG still asks once per launch when it runs through XWayland. Running the AppImage additionally needs `libfuse3` with `/dev/fuse`, also used for `--ci-mount` runs; `libfuse2` is never required. The installer checks these tools but does not install them. Background and limits are in [the manual](docs/box-rpg/manual.md) and [security and compatibility limits](docs/box-rpg/security.md).
 
 ## Install and uninstall
 
@@ -31,7 +25,13 @@ The installer shows what it would do without changing anything; add `--yes` to s
 ./install.py --uninstall
 ```
 
-`--target` selects `cli`, `gui`, or `all` (default) for both `--install` and `--uninstall`. A GUI install also publishes the desktop entry and icons. The installer refuses root execution. On externally managed Pythons, user-site installation needs the separate `--break-system-packages` consent; `--yes` does not grant it. Installing overwrites the managed shell completions with the current copies. Use `box-rpg --help` after installation.
+| `--target` | Installs | Applies to |
+|---|---|---|
+| `cli` | `box-rpg` backend | `--install` and `--uninstall` |
+| `gui` | `box-rpg-maker` GUI, desktop entry, and icons | `--install` and `--uninstall` |
+| `all` (default) | both distributions | `--install` and `--uninstall` |
+
+The installer refuses root execution. On externally managed Pythons, user-site installation needs the separate `--break-system-packages` consent; `--yes` does not grant it. Installing overwrites the managed shell completions with the current copies. Use `box-rpg --help` after installation.
 
 ### AppImage
 
@@ -60,7 +60,7 @@ box-rpg runtime nwjs available --interactive
 box-rpg runtime easyrpg available --interactive
 ```
 
-The first launch of a game outside your allowed game roots asks for authorization. Network access, game-file writes, and X11 each need explicit per-launch consent. See [the manual](docs/box-rpg/manual.md).
+The first launch outside your allowed game roots asks for authorization, and network access, game-file writes, and X11 each need per-launch consent; see [the manual](docs/box-rpg/manual.md).
 
 With the GUI, run `box-rpg-maker`, add a game folder with `+`, open it, and press launch. Runtime choice and sandbox permissions live on the game detail page.
 
@@ -85,13 +85,16 @@ Apply it after reviewing the listed paths:
 
 ## Documentation
 
-- [User guide](docs/box-rpg/manual.md): launch games, install runtimes, manage stored data.
-- [Security and compatibility limits](docs/box-rpg/security.md): trust model and sandbox limits.
-- [Public API](docs/box-rpg/api.md): stable backend surface shared by the CLI and the GUI.
-- [Backend development](docs/box-rpg/development.md) and [frontend development](docs/box-gui/development.md).
-- [Contributing translations](docs/box-rpg/translations.md) (backend) and [frontend translations](docs/box-gui/translations.md), with shared [guidelines](guidelines.md) and [glossary](glossary.md).
-- [Example configuration](box-rpg/res/config/box-rpg.toml.example).
+| Guide | What it covers |
+|---|---|
+| [User guide](docs/box-rpg/manual.md) | Launch games, install runtimes, manage stored data. |
+| [Security and compatibility limits](docs/box-rpg/security.md) | Trust model and sandbox limits. |
+| [Public API](docs/box-rpg/api.md) | Stable backend surface shared by the CLI and the GUI. |
+| [Backend development](docs/box-rpg/development.md) | Locked environments, reproducible builds, safe installs. |
+| [Frontend development](docs/box-gui/development.md) | Frontend layout, backend boundary, AppImage distribution. |
+| [Backend translations](docs/box-rpg/translations.md) and [frontend translations](docs/box-gui/translations.md) | Contributing translations; shared [guidelines](guidelines.md) and [glossary](glossary.md). |
+| [Example configuration](box-rpg/res/config/box-rpg.toml.example) | Annotated `config.toml` sample. |
 
 ## Safety
 
-Games and runtimes are untrusted. `box-rpg` validates game structure, resolves links before use, launches only below allowed game roots, and always confines games and version probes in the Bubblewrap sandbox. NW.js archives are checked against upstream signed checksums when available. See [security and compatibility limits](docs/box-rpg/security.md) for the trust model and its limits.
+Games and runtimes are untrusted; `box-rpg` always confines them in the Bubblewrap sandbox. See [security and compatibility limits](docs/box-rpg/security.md) for the trust model and its limits.
