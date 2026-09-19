@@ -24,7 +24,7 @@ except ImportError:
     ConfigRepository = None  # type: ignore[assignment,misc]
     Interaction = None  # type: ignore[assignment,misc]
     ConfigurationError = None  # type: ignore[assignment,misc]
-from gi.repository import Adw, Gdk, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from box_gui.core.backend_check import BackendStatus, check_backend  # noqa: E402
 from box_gui.i18n import _  # noqa: E402
@@ -232,6 +232,8 @@ class BoxRpgApplication(Adw.Application):
             if callable(setter):
                 setter(window)
         window.present()
+        with contextlib.suppress(Exception):
+            GLib.idle_add(self._maybe_check_updates)
 
     @staticmethod
     def _refresh_library_on_return(
@@ -276,6 +278,165 @@ class BoxRpgApplication(Adw.Application):
         surfaces the error and stays put instead of guessing.
         """
         _restart_process()
+
+    def _maybe_check_updates(self) -> bool:
+        """One-shot startup AppImage update check; never blocks the main loop.
+
+        Skips when there is no embedded tag (dev checkout), when the
+        cadence is off, when the backend gate owns the screen, or when the
+        AppImage check is not due. Otherwise discovers the latest tag off
+        the main loop and prompts for an AppImage update when warranted.
+        Degrades silently except for showing the update page itself.
+        """
+        try:
+            import time as _time
+
+            from box_gui.core.app_info import get_embedded_tag
+            from box_gui.core.appimage_update import (
+                update_check_due,
+            )
+
+            try:
+                embedded = get_embedded_tag()
+            except Exception:
+                return False
+            if embedded is None:
+                return False
+            if self._backend_status.needs_setup:
+                return False
+            defaults_repository = self._defaults_repository
+            if defaults_repository is None:
+                return False
+            try:
+                defaults = defaults_repository.load()
+            except Exception:
+                return False
+            try:
+                now = _time.time()
+                due = update_check_due(
+                    now,
+                    defaults.update_interval,
+                    defaults.last_appimage_check_at,
+                )
+            except Exception:
+                return False
+            if not due:
+                return False
+            try:
+                from box_gui.gtk.threads import run_in_thread
+            except ImportError:
+                return False
+
+            def _work() -> tuple[str, str] | None:
+                try:
+                    from box_gui.core.updates import discover_latest_tag
+                except ImportError:
+                    return None
+                try:
+                    return discover_latest_tag(timeout=15.0)
+                except Exception:
+                    return None
+
+            def _on_done(result: tuple[str, str] | None) -> None:
+                if result is None:
+                    return
+                latest, source = result
+                self._finish_update_discovery(embedded, latest, source)
+
+            def _on_error(_error: BaseException) -> None:
+                return
+
+            try:
+                run_in_thread(_work, _on_done, _on_error)
+            except Exception:
+                return False
+        except Exception:
+            pass
+        return False
+
+    def _finish_update_discovery(self, embedded: str, latest: str, source: str = "github") -> None:
+        """Record the check time and prompt for an AppImage update when due.
+
+        The expected backend version derives from the embedded AppImage
+        tag, so a backend-newer-without-AppImage-newer outcome cannot
+        happen by construction: one AppImage prompt covers the update and
+        the restarted process re-enters through the normal backend
+        mismatch gate. Hence no separate backend prompt exists.
+        """
+        try:
+            import contextlib as _contextlib
+            import time as _time
+
+            from box_gui.core.appimage_update import should_offer_appimage_update
+            from box_gui.core.updates import is_due
+
+            defaults_repository = self._defaults_repository
+            navigation = self._navigation
+            if defaults_repository is None or navigation is None:
+                return
+            try:
+                defaults = defaults_repository.load()
+            except Exception:
+                return
+            now = _time.time()
+            interval = defaults.update_interval
+            try:
+                appimage_due = is_due(now, interval, defaults.last_appimage_check_at)
+            except Exception:
+                return
+            if not appimage_due:
+                return
+            # Throttle future checks even when the result is "no update".
+            with _contextlib.suppress(Exception):
+                defaults_repository.record_appimage_check(now)
+            if not should_offer_appimage_update(
+                embedded, latest, defaults.skipped_appimage_version
+            ):
+                return
+            # Revalidate before pushing: the worker took time, so the gate,
+            # the visible page, or the cadence may have changed since.
+            if self._backend_status.needs_setup:
+                return
+            try:
+                visible = navigation.get_visible_page()
+            except Exception:
+                return
+            if visible is None:
+                return
+            # Never stack another setup/update page over the gate.
+            if isinstance(visible, BackendSetupPage):
+                return
+            try:
+                fresh = defaults_repository.load()
+            except Exception:
+                return
+            if fresh.update_interval == "off":
+                return
+            if fresh.skipped_appimage_version == latest:
+                return
+            if not should_offer_appimage_update(embedded, latest, fresh.skipped_appimage_version):
+                return
+            page = BackendSetupPage(self._backend_status, on_ready=self._restart_for_backend)
+
+            def _on_skip() -> None:
+                with _contextlib.suppress(Exception):
+                    defaults_repository.set_skipped_appimage_version(latest)
+                with _contextlib.suppress(Exception):
+                    defaults_repository.record_appimage_check()
+                with _contextlib.suppress(Exception):
+                    navigation.pop()
+
+            def _on_update_done() -> None:
+                with _contextlib.suppress(Exception):
+                    defaults_repository.record_appimage_check()
+
+            with _contextlib.suppress(Exception):
+                page.start_appimage_update(
+                    latest, _on_update_done, _on_skip, current_tag=embedded, source=source
+                )
+                navigation.push(page)
+        except Exception:
+            pass
 
     def _open_game(self, entry: LibraryEntry) -> None:
         """Push the detail page for one library entry, if possible."""

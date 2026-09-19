@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 import gi
 
@@ -11,6 +12,12 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
+from box_gui.core.appimage_update import (  # noqa: E402
+    download_and_verify,
+    locate_self,
+    replace_self,
+    restart_into,
+)
 from box_gui.core.backend_check import (  # noqa: E402
     BackendStatus,
     DependencyStatus,
@@ -22,7 +29,9 @@ from box_gui.core.backend_install import (  # noqa: E402
     InstallPhase,
     install_backend,
     install_button_label,
+    resolve_expected_commit,
 )
+from box_gui.core.updates import UpdatesError, asset_urls  # noqa: E402
 from box_gui.gtk.icons import (  # noqa: E402
     BOX_ICON_NAME,
     HEART_ICON_NAME,
@@ -130,6 +139,19 @@ class BackendSetupPage(Adw.NavigationPage):
         self._action_button = Gtk.Button()
         self._action_button.add_css_class("suggested-action")
         self._action_button.connect("clicked", self._on_action_clicked)
+        # AppImage update mode: a secondary Skip plus a download progress bar.
+        # Both stay hidden until start_appimage_update switches the page over.
+        self._update_mode = False
+        self._latest_tag: str | None = None
+        self._update_source: str = "github"
+        self._on_skip: Callable[[], None] | None = None
+        self._on_update_done: Callable[[], None] | None = None
+        self._skip_button = Gtk.Button(label=_("Skip"))
+        self._skip_button.set_visible(False)
+        self._skip_button.connect("clicked", self._on_skip_clicked)
+        self._progress_bar = Gtk.ProgressBar()
+        self._progress_bar.set_visible(False)
+        self._progress_bar.set_show_text(True)
         self._version_button: Gtk.Button | None = None
         self.set_child(self._build_view())
         self._sync_button()
@@ -170,9 +192,11 @@ class BackendSetupPage(Adw.NavigationPage):
         self._scrolled = scrolled
         content.append(scrolled)
         content.append(self._status_label)
-        action_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        content.append(self._progress_bar)
+        action_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         action_box.set_halign(Gtk.Align.CENTER)
         action_box.append(self._action_button)
+        action_box.append(self._skip_button)
         content.append(action_box)
         content.set_margin_top(12)
         content.set_margin_bottom(12)
@@ -226,11 +250,24 @@ class BackendSetupPage(Adw.NavigationPage):
         """Confirm, then open the project repository URL."""
         confirm_and_open_external_link(self, _PROJECT_URL)
 
+    def _update_button_label(self) -> str:
+        """Return the action label while in AppImage update mode."""
+        if self._phase is InstallPhase.INSTALLING:
+            return _("Updating…")
+        if self._phase is InstallPhase.FAILED:
+            return _("Retry")
+        if self._phase is InstallPhase.SUCCEEDED:
+            return _("Updated")
+        return _("Update AppImage")
+
     def _sync_button(self) -> None:
         """Reflect the install phase on the single action button."""
-        self._action_button.set_label(
-            install_button_label(self._phase, self._status.expected_version)
-        )
+        if self._update_mode:
+            self._action_button.set_label(self._update_button_label())
+        else:
+            self._action_button.set_label(
+                install_button_label(self._phase, self._status.expected_version)
+            )
         self._action_button.set_sensitive(self._phase in (InstallPhase.READY, InstallPhase.FAILED))
 
     def _set_phase(self, phase: InstallPhase) -> None:
@@ -245,10 +282,14 @@ class BackendSetupPage(Adw.NavigationPage):
 
     def _on_mapped(self, _widget: Gtk.Widget) -> None:
         """Start dependency detection once the page becomes visible."""
+        if self._update_mode:
+            return
         self.start_detection()
 
     def start_detection(self) -> None:
         """Probe dependencies off the main loop, enabling Install when done."""
+        if self._update_mode:
+            return
         if self._detecting or self._phase is InstallPhase.INSTALLING:
             return
         if self._dependencies is not None and self._phase not in (
@@ -282,6 +323,8 @@ class BackendSetupPage(Adw.NavigationPage):
 
     def _on_detection_done(self, dependencies: tuple[DependencyStatus, ...]) -> None:
         """Enable Install once detection completes, warning about gaps."""
+        if self._update_mode:
+            return
         self._detecting = False
         self._dependencies = dependencies
         self._render_dependencies(dependencies)
@@ -294,6 +337,8 @@ class BackendSetupPage(Adw.NavigationPage):
 
     def _on_detection_error(self, error: BaseException) -> None:
         """Fail closed when detection itself breaks; Retry re-runs it."""
+        if self._update_mode:
+            return
         self._detecting = False
         message = str(error) or error.__class__.__name__
         self._set_status_text(message)
@@ -302,6 +347,11 @@ class BackendSetupPage(Adw.NavigationPage):
 
     def _on_action_clicked(self, _button: Gtk.Button) -> None:
         """Retry detection when it never completed, else start the install."""
+        if self._update_mode:
+            if self._phase is InstallPhase.INSTALLING:
+                return
+            self._start_appimage_download()
+            return
         if self._dependencies is None:
             self.start_detection()
             return
@@ -331,11 +381,19 @@ class BackendSetupPage(Adw.NavigationPage):
         self._set_phase(InstallPhase.INSTALLING)
 
         def _work() -> InstallOutcome:
+            # Resolve the pin on the worker: git ls-remote needs the network
+            # and must never block the main loop. A failed resolve degrades
+            # to no pin rather than guessing a commit.
+            try:
+                expected_commit = resolve_expected_commit(tag)
+            except Exception:
+                expected_commit = None
             return install_backend(
                 tag,
                 python=python,
                 on_line=lambda line: GLib.idle_add(self._append_output_line, line),
                 on_status=lambda message: GLib.idle_add(self._set_status_text, message),
+                expected_commit=expected_commit,
             )
 
         run_in_thread(_work, self._on_install_done, self._on_install_error)
@@ -372,9 +430,172 @@ class BackendSetupPage(Adw.NavigationPage):
         message = str(error) or error.__class__.__name__
         self.show_error(message, unexpected=not isinstance(error, BackendInstallError))
 
+    def start_appimage_update(
+        self,
+        latest_tag: str,
+        on_done: Callable[[], None] | None = None,
+        on_skip: Callable[[], None] | None = None,
+        *,
+        current_tag: str | None = None,
+        source: str = "github",
+    ) -> None:
+        """Switch the page to AppImage update mode for one latest tag.
+
+        Reuses the detection area: the heading becomes "AppImage Update
+        Available", the body names both versions, the action button offers
+        "Update AppImage", and a Skip button appears beside it.         The caller
+        owns persistence: skipping must record the skipped version plus
+        the check time, while the download chain replaces the running
+        AppImage and restarts so the fresh process owns the backend gate.
+        The ``source`` is the discovery origin (``"github"`` or
+        ``"gitlab"``); downloads always use the GitHub release since GitLab
+        serves discovery fallback only.
+        """
+        current = current_tag
+        if current is None:
+            try:
+                from box_gui.core.app_info import get_embedded_tag
+
+                current = get_embedded_tag()
+            except Exception:
+                current = None
+        if not current:
+            current = self._status.expected_version
+        self._update_mode = True
+        self._latest_tag = latest_tag
+        self._update_source = source if source in ("github", "gitlab") else "github"
+        self._on_skip = on_skip
+        self._on_update_done = on_done
+        self._phase = InstallPhase.READY
+        self._heading_label.set_text(_("AppImage Update Available"))
+        self._body_label.set_text(
+            _("AppImage {current} → {latest}. Update to get the latest features and fixes.").format(
+                current=current, latest=latest_tag
+            )
+        )
+        self._dep_group.set_visible(False)
+        self._progress_bar.set_visible(False)
+        self._progress_bar.set_fraction(0.0)
+        self._skip_button.set_visible(True)
+        self._set_status_text("")
+        self._set_phase(InstallPhase.READY)
+
+    def _on_skip_clicked(self, _button: Gtk.Button) -> None:
+        """Forward Skip to the caller, which records the skipped version."""
+        callback = self._on_skip
+        if callback is None:
+            return
+        try:
+            callback()
+        except Exception as exc:
+            self.show_error(str(exc) or exc.__class__.__name__, unexpected=True)
+
+    def _update_progress(self, completed: int, total: int | None) -> None:
+        """Reflect download progress on the bar; idle-dispatched, one-shot."""
+        bar = self._progress_bar
+        bar.set_visible(True)
+        if total is not None and total > 0:
+            try:
+                fraction = min(1.0, max(0.0, completed / total))
+            except ValueError, ZeroDivisionError:
+                fraction = 0.0
+            bar.set_fraction(fraction)
+            bar.set_text(f"{completed} / {total}")
+        else:
+            bar.pulse()
+            bar.set_text(f"{completed}")
+
+    def _start_appimage_download(self) -> None:
+        """Download, verify, replace, and restart into the latest AppImage."""
+        try:
+            from box_gui.gtk.threads import run_in_thread
+        except ImportError as exc:
+            self.show_error(str(exc) or exc.__class__.__name__, unexpected=True)
+            return
+        latest = self._latest_tag
+        if latest is None:
+            self.show_error(_("Missing update version."), unexpected=True)
+            return
+        try:
+            target_dir = locate_self().parent
+        except UpdatesError as exc:
+            self.show_error(str(exc) or exc.__class__.__name__)
+            return
+        try:
+            appimage_url, sha256_url = asset_urls(latest, self._update_source)
+        except ValueError as exc:
+            self.show_error(str(exc) or exc.__class__.__name__)
+            return
+        self._output_buffer.set_text("")
+        self._dep_group.set_visible(False)
+        if self._output_title is not None:
+            self._output_title.set_visible(True)
+        if self._scrolled is not None:
+            self._scrolled.set_visible(True)
+        self._progress_bar.set_visible(True)
+        self._progress_bar.set_fraction(0.0)
+        self._set_status_text(_("Downloading AppImage {tag} …").format(tag=latest))
+        GLib.idle_add(self._append_output_line, f"Downloading {appimage_url}")
+        self._set_phase(InstallPhase.INSTALLING)
+
+        def _work() -> Path:
+            def _thread_progress(completed: int, total: int | None) -> None:
+                GLib.idle_add(self._update_progress, completed, total)
+
+            return download_and_verify(
+                appimage_url,
+                sha256_url,
+                target_dir,
+                progress=_thread_progress,
+                timeout=60.0,
+            )
+
+        run_in_thread(_work, self._on_appimage_done, self._on_appimage_error)
+
+    def _on_appimage_done(self, new_file: Path) -> None:
+        """Swap in the verified AppImage and restart into it."""
+        GLib.idle_add(self._append_output_line, f"Verified {new_file.name}")
+        self._set_status_text(_("Replacing AppImage …"))
+        try:
+            replace_self(new_file)
+        except UpdatesError as exc:
+            self.show_error(str(exc) or exc.__class__.__name__)
+            return
+        except Exception as exc:
+            self.show_error(str(exc) or exc.__class__.__name__, unexpected=True)
+            return
+        self._set_phase(InstallPhase.SUCCEEDED)
+        self._progress_bar.set_fraction(1.0)
+        self._set_status_text(_("AppImage updated, restarting …"))
+        callback = self._on_update_done
+        if callback is not None:
+            try:
+                callback()
+            except Exception as exc:
+                self.show_error(str(exc) or exc.__class__.__name__, unexpected=True)
+                return
+        try:
+            target = locate_self()
+        except UpdatesError as exc:
+            self.show_error(str(exc) or exc.__class__.__name__)
+            return
+        try:
+            restart_into(target)
+        except Exception as exc:
+            self.show_error(str(exc) or exc.__class__.__name__, unexpected=True)
+
+    def _on_appimage_error(self, error: BaseException) -> None:
+        """Show AppImage download failures, offering Retry on the button."""
+        message = str(error) or error.__class__.__name__
+        unexpected = not isinstance(error, (BackendInstallError, UpdatesError))
+        self.show_error(message, unexpected=unexpected)
+
     def show_error(self, message: str, *, unexpected: bool = False) -> None:
         """Surface a failure (install, detection import, or restart) verbatim."""
-        heading = _("Unexpected Error") if unexpected else _("Installation Failed")
+        if self._update_mode:
+            heading = _("Unexpected Error") if unexpected else _("Update Failed")
+        else:
+            heading = _("Unexpected Error") if unexpected else _("Installation Failed")
         self._set_status_text(message)
         self._set_phase(InstallPhase.FAILED)
         self._show_alert(heading, message)

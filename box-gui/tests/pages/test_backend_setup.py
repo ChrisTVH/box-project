@@ -362,7 +362,13 @@ def test_successful_install_calls_ready(monkeypatch: pytest.MonkeyPatch) -> None
     seen: dict[str, Any] = {}
 
     def _fake_install(
-        tag: str, *, python: str, on_line: Any, on_status: Any = None, clone_urls: Any = None
+        tag: str,
+        *,
+        python: str,
+        on_line: Any,
+        on_status: Any = None,
+        clone_urls: Any = None,
+        expected_commit: Any = None,
     ) -> Any:
         seen["tag"] = tag
         seen["python"] = python
@@ -399,7 +405,13 @@ def test_failed_install_shows_retry_with_verbatim_error(
     monkeypatch.setattr(backend_setup_page_module, "probe_dependencies", _all_ok_dependencies)
 
     def _failing_install(
-        tag: str, *, python: str, on_line: Any, on_status: Any = None, clone_urls: Any = None
+        tag: str,
+        *,
+        python: str,
+        on_line: Any,
+        on_status: Any = None,
+        clone_urls: Any = None,
+        expected_commit: Any = None,
     ) -> Any:
         on_line("error: Bubblewrap (/usr/bin/bwrap) is required to launch games")
         raise BackendInstallError("error: Bubblewrap (/usr/bin/bwrap) is required to launch games")
@@ -511,7 +523,13 @@ def test_output_stays_visible_after_failed_install(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(backend_setup_page_module, "probe_dependencies", _all_ok_dependencies)
 
     def _failing_install(
-        tag: str, *, python: str, on_line: Any, on_status: Any = None, clone_urls: Any = None
+        tag: str,
+        *,
+        python: str,
+        on_line: Any,
+        on_status: Any = None,
+        clone_urls: Any = None,
+        expected_commit: Any = None,
     ) -> Any:
         on_line("error: install broke")
         raise BackendInstallError("error: install broke")
@@ -526,3 +544,396 @@ def test_output_stays_visible_after_failed_install(monkeypatch: pytest.MonkeyPat
     assert page._output_title.get_visible() is True
     assert page._scrolled.get_visible() is True
     assert page._dep_group.get_visible() is False
+
+
+def _update_status() -> Any:
+    """Build a compatible gate status for the AppImage update flow."""
+    return BackendStatus(
+        state="compatible",
+        expected_version="26.9.43",
+        installed_version="26.9.43",
+        message="box-rpg 26.9.43 is ready.",
+    )
+
+
+def test_update_mode_labels_and_skip_visible(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Update mode reuses the page with versioned copy plus a Skip button."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    page = BackendSetupPage(_update_status())
+
+    page.start_appimage_update("26.9.44", lambda: None, lambda: None, current_tag="26.9.43")
+
+    assert page._heading_label.get_text() == "AppImage Update Available"
+    assert "26.9.43" in page._body_label.get_text()
+    assert "26.9.44" in page._body_label.get_text()
+    assert page._action_button.get_label() == "Update AppImage"
+    assert page._action_button.get_sensitive() is True
+    assert page._skip_button.get_visible() is True
+    assert page._skip_button.get_label() == "Skip"
+    assert page._progress_bar.get_visible() is False
+    assert page._dep_group.get_visible() is False
+    assert page._phase is InstallPhase.READY
+
+
+def test_update_mode_infers_current_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without an explicit current tag the body still names both versions."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    page = BackendSetupPage(_update_status())
+
+    page.start_appimage_update("26.9.44", lambda: None, lambda: None)
+
+    assert "26.9.44" in page._body_label.get_text()
+    assert page._action_button.get_label() == "Update AppImage"
+
+
+def test_update_skip_calls_callback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Skip forwards to the caller, which records the skipped version."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    page = BackendSetupPage(_update_status())
+    skipped: list[str] = []
+    page.start_appimage_update(
+        "26.9.44", lambda: None, lambda: skipped.append("26.9.44"), current_tag="26.9.43"
+    )
+
+    page._skip_button.emit("clicked")
+
+    assert skipped == ["26.9.44"]
+    # Skipping never fails the page itself.
+    assert page._phase is InstallPhase.READY
+
+
+def test_update_skip_without_callback_stays_put(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A missing skip callback is a no-op instead of a crash."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    page = BackendSetupPage(_update_status())
+    page.start_appimage_update("26.9.44", current_tag="26.9.43")
+
+    page._skip_button.emit("clicked")
+
+    assert page._phase is InstallPhase.READY
+
+
+def test_update_mode_skips_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Detection stays off in update mode; the action downloads instead."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    monkeypatch.setattr(backend_setup_page_module, "probe_dependencies", _all_ok_dependencies)
+    page = BackendSetupPage(_update_status())
+    page.start_appimage_update("26.9.44", lambda: None, lambda: None, current_tag="26.9.43")
+
+    page.start_detection()
+
+    assert page._dependencies is None
+    assert page._phase is InstallPhase.READY
+
+
+def test_update_download_replace_restart_chain(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """The action downloads, replaces, and restarts with stubbed helpers."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    from pathlib import Path as _Path
+
+    running = tmp_path / "box.AppImage"
+    running.write_bytes(b"old")
+    staged = tmp_path / "box-rpg-maker.appimage.part"
+    staged.write_bytes(b"new")
+    monkeypatch.setattr(backend_setup_page_module, "locate_self", lambda: running)
+    seen_download: dict[str, Any] = {}
+
+    def _fake_download(
+        appimage_url: str,
+        sha256_url: str,
+        dest_dir: Any,
+        *,
+        progress: Any = None,
+        timeout: Any = None,
+    ) -> Any:
+        seen_download["appimage_url"] = appimage_url
+        seen_download["sha256_url"] = sha256_url
+        seen_download["dest_dir"] = _Path(dest_dir)
+        seen_download["timeout"] = timeout
+        assert progress is not None
+        progress(5, 10)
+        return staged
+
+    replaced: list[Any] = []
+    restarted: list[Any] = []
+    monkeypatch.setattr(backend_setup_page_module, "download_and_verify", _fake_download)
+    monkeypatch.setattr(
+        backend_setup_page_module, "replace_self", lambda path: replaced.append(_Path(path))
+    )
+    monkeypatch.setattr(
+        backend_setup_page_module, "restart_into", lambda path: restarted.append(str(path))
+    )
+    done: list[int] = []
+    page = BackendSetupPage(_update_status())
+    page.start_appimage_update(
+        "26.9.44", lambda: done.append(1), lambda: None, current_tag="26.9.43"
+    )
+
+    page._action_button.emit("clicked")
+
+    assert "26.9.44" in seen_download["appimage_url"]
+    assert seen_download["sha256_url"] == f"{seen_download['appimage_url']}.sha256"
+    assert seen_download["dest_dir"] == tmp_path
+    assert replaced == [staged]
+    assert restarted == [str(running)]
+    assert done == [1]
+    assert page._phase is InstallPhase.SUCCEEDED
+    assert page._action_button.get_label() == "Updated"
+    assert page._progress_bar.get_visible() is True
+    assert page._progress_bar.get_fraction() == 1.0
+
+
+def test_update_progress_bar_reflects_download(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Progress callbacks land on the bar through the main loop."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    from pathlib import Path as _Path
+
+    running = tmp_path / "box.AppImage"
+    running.write_bytes(b"old")
+    staged = tmp_path / "box-rpg-maker.appimage.part"
+    staged.write_bytes(b"new")
+    monkeypatch.setattr(backend_setup_page_module, "locate_self", lambda: running)
+
+    def _fake_download(
+        appimage_url: str,
+        sha256_url: str,
+        dest_dir: Any,
+        *,
+        progress: Any = None,
+        timeout: Any = None,
+    ) -> Any:
+        assert progress is not None
+        progress(5, 10)
+        assert page._progress_bar.get_fraction() == pytest.approx(0.5)
+        progress(10, 10)
+        return staged
+
+    monkeypatch.setattr(backend_setup_page_module, "download_and_verify", _fake_download)
+    monkeypatch.setattr(backend_setup_page_module, "replace_self", lambda _path: None)
+    monkeypatch.setattr(backend_setup_page_module, "restart_into", lambda _path: None)
+    page = BackendSetupPage(_update_status())
+    page.start_appimage_update("26.9.44", lambda: None, lambda: None, current_tag="26.9.43")
+
+    page._action_button.emit("clicked")
+
+    assert page._phase is InstallPhase.SUCCEEDED
+    assert _Path(running).read_bytes() == b"old"
+
+
+def test_update_download_error_offers_retry(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
+    """A failed download fails closed with an Update Failed alert."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    running = tmp_path / "box.AppImage"
+    running.write_bytes(b"old")
+    monkeypatch.setattr(backend_setup_page_module, "locate_self", lambda: running)
+    from box_gui.core.updates import UpdatesError
+
+    def _boom(
+        appimage_url: str,
+        sha256_url: str,
+        dest_dir: Any,
+        *,
+        progress: Any = None,
+        timeout: Any = None,
+    ) -> Any:
+        raise UpdatesError("checksum mismatch for https://example.invalid/appimage")
+
+    monkeypatch.setattr(backend_setup_page_module, "download_and_verify", _boom)
+    page = BackendSetupPage(_update_status())
+    page.start_appimage_update("26.9.44", lambda: None, lambda: None, current_tag="26.9.43")
+
+    page._action_button.emit("clicked")
+
+    assert page._phase is InstallPhase.FAILED
+    assert page._action_button.get_label() == "Retry"
+    assert page._action_button.get_sensitive() is True
+    assert len(presented) == 1
+    assert presented[0].get_heading() == "Update Failed"
+    assert "checksum mismatch" in presented[0].get_body()
+
+
+def test_detection_done_ignored_in_update_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Late detection results never clobber an active AppImage update prompt."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    page = BackendSetupPage(_update_status())
+    page.start_appimage_update("26.9.44", lambda: None, lambda: None, current_tag="26.9.43")
+
+    page._on_detection_done(_all_ok_dependencies())
+
+    assert page._update_mode is True
+    assert page._dependencies is None
+    assert page._phase is InstallPhase.READY
+    assert page._action_button.get_label() == "Update AppImage"
+    assert presented == []
+
+
+def test_detection_error_ignored_in_update_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Late detection errors never fail an active AppImage update prompt."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    page = BackendSetupPage(_update_status())
+    page.start_appimage_update("26.9.44", lambda: None, lambda: None, current_tag="26.9.43")
+
+    page._on_detection_error(OSError("probe exploded"))
+
+    assert page._phase is InstallPhase.READY
+    assert page._action_button.get_label() == "Update AppImage"
+    assert presented == []
+
+
+def test_install_passes_resolved_pin(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The GUI resolves the tag commit and passes it as expected_commit."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    monkeypatch.setattr(backend_setup_page_module, "probe_dependencies", _all_ok_dependencies)
+    pin = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b"
+    monkeypatch.setattr(backend_setup_page_module, "resolve_expected_commit", lambda tag: pin)
+    seen: dict[str, Any] = {}
+
+    def _fake_install(
+        tag: str,
+        *,
+        python: str,
+        on_line: Any,
+        on_status: Any = None,
+        clone_urls: Any = None,
+        expected_commit: Any = None,
+    ) -> Any:
+        seen["expected_commit"] = expected_commit
+        return InstallOutcome(tag=tag, installed_version=tag)
+
+    monkeypatch.setattr(backend_setup_page_module, "install_backend", _fake_install)
+    page = BackendSetupPage(_missing_status(), on_ready=lambda: None)
+    page.start_detection()
+
+    page._action_button.emit("clicked")
+
+    assert seen["expected_commit"] == pin
+    assert page._phase is InstallPhase.SUCCEEDED
+
+
+def test_install_degrades_without_pin(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failed commit resolve still installs, without a pin."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    monkeypatch.setattr(backend_setup_page_module, "probe_dependencies", _all_ok_dependencies)
+
+    def _boom(tag: str) -> str | None:
+        raise OSError("offline")
+
+    monkeypatch.setattr(backend_setup_page_module, "resolve_expected_commit", _boom)
+    seen: dict[str, Any] = {}
+
+    def _fake_install(
+        tag: str,
+        *,
+        python: str,
+        on_line: Any,
+        on_status: Any = None,
+        clone_urls: Any = None,
+        expected_commit: Any = None,
+    ) -> Any:
+        seen["expected_commit"] = expected_commit
+        return InstallOutcome(tag=tag, installed_version=tag)
+
+    monkeypatch.setattr(backend_setup_page_module, "install_backend", _fake_install)
+    page = BackendSetupPage(_missing_status(), on_ready=lambda: None)
+    page.start_detection()
+
+    page._action_button.emit("clicked")
+
+    assert seen["expected_commit"] is None
+    assert page._phase is InstallPhase.SUCCEEDED
+
+
+def test_update_gitlab_source_still_downloads_from_github(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """GitLab discovery still downloads the GitHub release asset."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    _install_sync_workers(monkeypatch)
+    running = tmp_path / "box.AppImage"
+    running.write_bytes(b"old")
+    staged = tmp_path / "box-rpg-maker.appimage.part"
+    staged.write_bytes(b"new")
+    monkeypatch.setattr(backend_setup_page_module, "locate_self", lambda: running)
+    seen_download: dict[str, Any] = {}
+
+    def _fake_download(
+        appimage_url: str,
+        sha256_url: str,
+        dest_dir: Any,
+        *,
+        progress: Any = None,
+        timeout: Any = None,
+    ) -> Any:
+        seen_download["appimage_url"] = appimage_url
+        return staged
+
+    monkeypatch.setattr(backend_setup_page_module, "download_and_verify", _fake_download)
+    monkeypatch.setattr(backend_setup_page_module, "replace_self", lambda path: None)
+    monkeypatch.setattr(backend_setup_page_module, "restart_into", lambda path: None)
+    page = BackendSetupPage(_update_status())
+    page.start_appimage_update(
+        "26.9.44", lambda: None, lambda: None, current_tag="26.9.43", source="gitlab"
+    )
+
+    assert page._update_source == "gitlab"
+
+    page._action_button.emit("clicked")
+
+    assert seen_download["appimage_url"].startswith("https://github.com/")
+    assert "26.9.44" in seen_download["appimage_url"]
+    assert page._phase is InstallPhase.SUCCEEDED
