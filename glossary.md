@@ -140,3 +140,6 @@ Terms taken from the `box-rpg-maker` catalog; if a msgid contains a backend term
 | cached profile | perfil en caché | En la zona peligrosa; plural «perfiles en caché». |
 | source save | partida guardada de origen | En «games and source saves outside the cache»; plural «partidas guardadas de origen». |
 | uninstall (verb) | desinstalar | En «backend uninstall failed» → «Falló la desinstalación del backend». `backend` y `box-rpg` quedan literales. |
+| language | idioma | En grupo y fila «Language» → «Idioma» del selector de idioma. |
+| Set Language | Fijar idioma | Nombre de operación en diálogo de error; sigue el patrón «Set Runtime» → «Fijar entorno». |
+| System default | Del sistema | Opción concisa del selector de idioma; se lee como «Idioma: Del sistema» y evita el truncado en Adw.ComboRow. Distinto de «System» → «Sistema». |
