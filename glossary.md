@@ -93,6 +93,7 @@ Shared source of truth for both projects. The first section covers the backend (
 | wipe path | ruta de borrado | En «cannot inspect/open/remove wipe path». |
 | filesystem root | raíz del sistema de archivos | En «refusing full wipe of filesystem root». |
 | HOME | HOME | Variable de entorno; no traducir. En «directorio HOME» y «fuera de HOME». |
+| listing | listado | Etiqueta del caché de listados en `paths.py`; masculino «el listado». |
 
 ## Frontend (`box-gui`)
 
