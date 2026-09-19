@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import contextlib
 import importlib
+import inspect
 import os
 import shutil
 import subprocess
 import sys
 import threading
 from collections.abc import Callable
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +51,15 @@ _NWJS_ARCHITECTURES: tuple[str, ...] = ("x64", "ia32", "arm64", "arm")
 _LANGUAGE_CODES: tuple[str | None, ...] = (None, "en", "es")
 
 SUPPORTED_LANGUAGES: frozenset[str | None] = frozenset(_LANGUAGE_CODES)
+
+
+@cache
+def _accepts_paths(func: Callable[..., Any]) -> bool:
+    """Return whether a backend fetch function supports the paths keyword."""
+    try:
+        return "paths" in inspect.signature(func).parameters
+    except TypeError, ValueError:
+        return False
 
 
 def _language_entries() -> tuple[tuple[str | None, str], ...]:
@@ -468,7 +479,11 @@ class _RuntimePage(Adw.PreferencesPage):
         super().__init__(name=name, title=title)
         self._paths = paths
         self._page = 1
+        self._request_id = 0
         self._versions: tuple[str, ...] = ()
+        self._sizes: dict[str, int | None] = {}
+        self._installed_keys: frozenset[Any] = frozenset()
+        self._last_available: Any | None = None
         self._busy = False
         self._installed_rows: list[Adw.ActionRow] = []
         self._browser_rows: list[Adw.ActionRow] = []
@@ -530,6 +545,14 @@ class _RuntimePage(Adw.PreferencesPage):
         """Build one installed row with its remove button for this engine."""
         raise NotImplementedError
 
+    def _installed_key(self, runtime: RuntimeInfo | EasyRPGRuntime) -> Any:
+        """Return the hide-installed key for one installed runtime."""
+        raise NotImplementedError
+
+    def _available_key(self, version: str) -> Any:
+        """Return the hide-installed key for one available version."""
+        raise NotImplementedError
+
     def request_install(self, version: str, button: Gtk.Button | None = None) -> None:
         """Confirm an install with a separate alert dialog."""
         raise NotImplementedError
@@ -551,16 +574,28 @@ class _RuntimePage(Adw.PreferencesPage):
         """Fetch one page of versions on a worker thread, clamped at page one."""
         clamped = max(1, page)
         self._page = clamped
+        self._request_id += 1
+        token = self._request_id
         self._spinner.start()
+
+        def _fetch() -> Any:
+            return self._fetch_available(clamped)
+
+        def _done(available: Any) -> None:
+            if token != self._request_id:
+                return
+            self._on_page_done(available)
+
         _run_in_thread(
-            lambda: self._fetch_available(clamped),
-            self._on_page_done,
+            _fetch,
+            _done,
             self._on_page_error,
         )
 
     def _on_installed_done(self, runtimes: tuple[RuntimeInfo | EasyRPGRuntime, ...]) -> None:
         """Render installed runtimes on the main loop."""
         self._spinner.stop()
+        self._installed_keys = frozenset(self._installed_key(runtime) for runtime in runtimes)
         self._clear_rows(self._installed_group, self._installed_rows)
         for runtime in runtimes:
             row = self._make_installed_row(runtime)
@@ -570,6 +605,9 @@ class _RuntimePage(Adw.PreferencesPage):
             self._status_group.set_visible(False)
         else:
             self._set_status(_("No {noun} runtimes installed.").format(noun=self._engine_noun()))
+        last = self._last_available
+        if last is not None:
+            self._render_browser(last)
 
     def _on_installed_error(self, error: BaseException) -> None:
         """Show installed-list failures with an alert dialog."""
@@ -580,22 +618,45 @@ class _RuntimePage(Adw.PreferencesPage):
     def _on_page_done(self, available: Any) -> None:
         """Render one page of versions on the main loop."""
         self._spinner.stop()
+        self._last_available = available
+        self._render_browser(available)
+
+    def _render_browser(self, available: Any) -> None:
+        """Filter installed versions and render browser rows with size suffixes."""
+        versions: tuple[str, ...] = tuple(available.versions)
+        raw_sizes: dict[str, int | None] = dict(getattr(available, "sizes", {}) or {})
+        filtered = tuple(
+            version
+            for version in versions
+            if self._available_key(version) not in self._installed_keys
+        )
         self._page = available.page
-        self._versions = available.versions
+        self._versions = filtered
+        self._sizes = raw_sizes
         self._clear_rows(self._browser_group, self._browser_rows)
-        for version in available.versions:
-            row, _label = _unlisted_data_row(version)
+        for version in filtered:
+            row, _label = _unlisted_data_row(self._display_version(version))
             button = Gtk.Button(label=_("Install"))
             button.set_valign(Gtk.Align.CENTER)
             button.connect("clicked", self._make_install_handler(version))
             row.add_suffix(button)
             self._browser_group.add(row)
             self._browser_rows.append(row)
-        self._empty_row.set_visible(not available.versions)
+        self._empty_row.set_visible(not filtered)
         self._pager_label.set_text(_("Page {page}").format(page=available.page))
         self._prev_button.set_sensitive(available.page > 1 and not self._busy)
-        if not available.versions:
+        if not filtered:
             self._set_status(_("No versions available."))
+
+    def _display_version(self, version: str) -> str:
+        """Render one browser version with its size suffix when known."""
+        size = self._sizes.get(version)
+        if size is None:
+            return version
+        formatted = _format_size_decimal(size)
+        if formatted is None:
+            return version
+        return _("{version} ({size})").format(version=version, size=formatted)
 
     def _on_page_error(self, error: BaseException) -> None:
         """Show version-list failures with an alert dialog."""
@@ -624,6 +685,7 @@ class _RuntimePage(Adw.PreferencesPage):
         """Refresh the installed list after a removal."""
         self._set_busy(False)
         self.refresh_installed()
+        self.load_page(self._page)
 
     def _on_remove_error(self, error: BaseException) -> None:
         """Show removal failures with an alert dialog, then refresh."""
@@ -631,6 +693,7 @@ class _RuntimePage(Adw.PreferencesPage):
         self._set_status(_("Removal failed."))
         self._show_error(_("Remove Runtime"), error)
         self.refresh_installed()
+        self.load_page(self._page)
 
     def _begin_install(
         self,
@@ -677,6 +740,7 @@ class _RuntimePage(Adw.PreferencesPage):
         self._set_busy(False)
         self._set_status(_("Install complete."))
         self.refresh_installed()
+        self.load_page(self._page)
 
     def _on_install_error(self, error: BaseException) -> None:
         """Show install failures with an alert dialog."""
@@ -783,7 +847,19 @@ class NwjsPage(_RuntimePage):
     def _fetch_available(self, page: int) -> Any:
         """Fetch one page of installable NW.js versions for the picked options."""
         arch, sdk = self._arch, self._sdk
-        return runtime_api.fetch_nwjs_available(page, arch, sdk)
+        fetch = runtime_api.fetch_nwjs_available
+        if _accepts_paths(fetch):
+            return fetch(page, arch, sdk, paths=self._paths)
+        return fetch(page, arch, sdk)
+
+    def _installed_key(self, runtime: RuntimeInfo | EasyRPGRuntime) -> Any:
+        """Return the hide-installed key for one installed NW.js runtime."""
+        assert isinstance(runtime, RuntimeInfo)
+        return (runtime.spec.version, runtime.spec.architecture, runtime.spec.sdk)
+
+    def _available_key(self, version: str) -> Any:
+        """Return the hide-installed key for one available NW.js version."""
+        return (version, self._arch, self._sdk)
 
     def _make_installed_row(self, runtime: RuntimeInfo | EasyRPGRuntime) -> Adw.ActionRow:
         """Build one installed NW.js row with its remove button."""
@@ -847,13 +923,20 @@ class NwjsPage(_RuntimePage):
         self._sdk = active
         self.load_page(1)
 
-    def request_install(self, version: str, button: Gtk.Button | None = None) -> None:
+    def request_install(
+        self,
+        version: str,
+        button: Gtk.Button | None = None,
+        arch: str | None = None,
+        sdk: bool | None = None,
+    ) -> None:
         """Confirm an NW.js install with a separate alert dialog."""
-        arch, sdk = self._arch, self._sdk
+        resolved_arch = self._arch if arch is None else arch
+        resolved_sdk = self._sdk if sdk is None else sdk
         dialog = Adw.AlertDialog(
             heading=_("Install Runtime"),
             body=_("Install NW.js {version} for {architecture}?").format(
-                version=version, architecture=arch
+                version=version, architecture=resolved_arch
             ),
         )
         dialog.add_response("cancel", _("Cancel"))
@@ -861,8 +944,21 @@ class NwjsPage(_RuntimePage):
         dialog.set_response_appearance("install", Adw.ResponseAppearance.SUGGESTED)
         dialog.set_default_response("cancel")
         dialog.set_close_response("cancel")
-        dialog.connect("response", self._make_confirm_handler(version, arch, sdk, button))
+        dialog.connect(
+            "response",
+            self._make_confirm_handler(version, resolved_arch, resolved_sdk, button),
+        )
         dialog.present(self)
+
+    def _make_install_handler(self, version: str) -> Callable[[Gtk.Button], None]:
+        """Build a per-row install callback capturing the displayed arch and SDK."""
+
+        arch, sdk = self._arch, self._sdk
+
+        def _handler(button: Gtk.Button) -> None:
+            self.request_install(version, button, arch, sdk)
+
+        return _handler
 
     def _make_confirm_handler(
         self, version: str, architecture: str, sdk: bool, button: Gtk.Button | None = None
@@ -932,7 +1028,19 @@ class EasyrpgPage(_RuntimePage):
 
     def _fetch_available(self, page: int) -> Any:
         """Fetch one page of installable EasyRPG Player versions."""
-        return runtime_api.fetch_easyrpg_available(page)
+        fetch = runtime_api.fetch_easyrpg_available
+        if _accepts_paths(fetch):
+            return fetch(page, paths=self._paths)
+        return fetch(page)
+
+    def _installed_key(self, runtime: RuntimeInfo | EasyRPGRuntime) -> Any:
+        """Return the hide-installed key for one installed EasyRPG runtime."""
+        assert isinstance(runtime, EasyRPGRuntime)
+        return runtime.version
+
+    def _available_key(self, version: str) -> Any:
+        """Return the hide-installed key for one available EasyRPG version."""
+        return version
 
     def _make_installed_row(self, runtime: RuntimeInfo | EasyRPGRuntime) -> Adw.ActionRow:
         """Build one installed EasyRPG row with its remove button."""
