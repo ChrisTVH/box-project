@@ -96,11 +96,12 @@ def test_pycache_dir_with_subdirectory_keeps_directory(repository: Path) -> None
     assert cache.exists()
 
 
-def test_nonempty_owned_trees_are_removed_recursively(repository: Path) -> None:
+@pytest.mark.parametrize("venv_name", [".venv", ".venv-gui"])
+def test_nonempty_owned_trees_are_removed_recursively(repository: Path, venv_name: str) -> None:
     build_file = repository / "build" / "output" / "result.bin"
     build_file.parent.mkdir(parents=True)
     build_file.write_bytes(b"generated")
-    venv_file = repository / ".venv" / "lib" / "package.py"
+    venv_file = repository / venv_name / "lib" / "package.py"
     venv_file.parent.mkdir(parents=True)
     venv_file.write_bytes(b"generated")
     cache_file = repository / "sub" / ".pytest_cache" / "v" / "cache.bin"
@@ -115,12 +116,12 @@ def test_nonempty_owned_trees_are_removed_recursively(repository: Path) -> None:
     (repository / "vendor" / "pyproject.toml").touch()
     targets = cleaner.collect_targets(repository)
     assert repository / "build" in targets["build"]
-    assert repository / ".venv" in targets["venvs"]
+    assert repository / venv_name in targets["venvs"]
     assert repository / "sub" / ".pytest_cache" in targets["caches"]
     assert repository / "box_rpg.egg-info" in targets["build"]
     assert cleaner.remove(targets)
     assert not (repository / "build").exists()
-    assert not (repository / ".venv").exists()
+    assert not (repository / venv_name).exists()
     assert nested.exists()
 
 
