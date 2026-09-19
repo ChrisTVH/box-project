@@ -13,7 +13,8 @@ from box.api.runtime import list_easyrpg as api_list_easyrpg
 from box.api.runtime import list_nwjs as api_list_nwjs
 from box.api.runtime import remove_easyrpg as api_remove_easyrpg
 from box.api.runtime import remove_nwjs as api_remove_nwjs
-from box.errors import RuntimeError
+from box.errors import ConfigurationError, RuntimeError
+from box.models import RuntimeSpec
 from box.paths import AppPaths
 from box.runtime.available import AvailableVersions
 from box.runtime.catalog import RuntimeCatalog
@@ -21,7 +22,11 @@ from box.runtime.easyrpg import (
     AvailableEasyRPGVersions,
     EasyRPGCatalog,
 )
+from box.runtime.easyrpg import normalize_version as normalize_easyrpg_version
+from box.runtime.platform import normalize_architecture
+from box.runtime.validator import normalize_version as normalize_nwjs_version
 from box.utils.i18n import _
+from box.utils.sizes import format_size_decimal
 
 
 def list_runtimes(catalog: RuntimeCatalog) -> int:
@@ -50,6 +55,95 @@ def install(paths: AppPaths, version: str, architecture: str, sdk: bool) -> int:
     return 0
 
 
+def _installed_nwjs_specs(paths: AppPaths) -> frozenset[RuntimeSpec]:
+    """Return installed NW.js specs for hide-installed filtering."""
+    try:
+        runtimes = api_list_nwjs(RuntimeCatalog(paths))
+    except ConfigurationError, OSError, RuntimeError:
+        return frozenset()
+    return frozenset(runtime.spec for runtime in runtimes)
+
+
+def _installed_easyrpg_keys(paths: AppPaths) -> frozenset[str]:
+    """Return normalized installed EasyRPG versions for hide-installed filtering."""
+    try:
+        runtimes = api_list_easyrpg(EasyRPGCatalog(paths))
+    except ConfigurationError, OSError, RuntimeError:
+        return frozenset()
+    keys: set[str] = set()
+    for runtime in runtimes:
+        try:
+            keys.add(normalize_easyrpg_version(runtime.version))
+        except RuntimeError:
+            keys.add(runtime.version)
+    return frozenset(keys)
+
+
+def _nwjs_spec_for_available(version: str, architecture: str, sdk: bool) -> RuntimeSpec:
+    """Build a comparable spec for one available version."""
+    try:
+        normalized_version = normalize_nwjs_version(version)
+    except RuntimeError:
+        normalized_version = version
+    try:
+        normalized_arch = normalize_architecture(architecture)
+    except RuntimeError:
+        normalized_arch = architecture
+    return RuntimeSpec(normalized_version, normalized_arch, sdk)
+
+
+def _filter_nwjs_available(
+    available_versions: AvailableVersions,
+    installed: frozenset[RuntimeSpec],
+    architecture: str,
+    sdk: bool,
+) -> AvailableVersions:
+    """Return one page without installed runtimes, keeping sizes for survivors."""
+    filtered = tuple(
+        version
+        for version in available_versions.versions
+        if _nwjs_spec_for_available(version, architecture, sdk) not in installed
+    )
+    sizes = {
+        version: available_versions.sizes[version]
+        for version in filtered
+        if version in available_versions.sizes
+    }
+    return AvailableVersions(page=available_versions.page, versions=filtered, sizes=sizes)
+
+
+def _easyrpg_key(version: str) -> str:
+    """Return the normalized key for one EasyRPG version."""
+    try:
+        return normalize_easyrpg_version(version)
+    except RuntimeError:
+        return version
+
+
+def _filter_easyrpg_available(
+    available_versions: AvailableEasyRPGVersions,
+    installed: frozenset[str],
+) -> AvailableEasyRPGVersions:
+    """Return one page without installed EasyRPG runtimes, keeping sizes."""
+    filtered = tuple(
+        version for version in available_versions.versions if _easyrpg_key(version) not in installed
+    )
+    sizes = {
+        version: available_versions.sizes[version]
+        for version in filtered
+        if version in available_versions.sizes
+    }
+    return AvailableEasyRPGVersions(page=available_versions.page, versions=filtered, sizes=sizes)
+
+
+def _display_version(version: str, sizes: dict[str, int | None]) -> str:
+    """Render one version with its size suffix when the size is known."""
+    size = sizes.get(version)
+    if size is None:
+        return version
+    return _("{version} ({size})").format(version=version, size=format_size_decimal(size))
+
+
 def available(
     paths: AppPaths,
     page: int,
@@ -60,7 +154,9 @@ def available(
     """List online stable versions or interactively install one."""
     if interactive:
         return select_interactively(paths, page, architecture, sdk)
-    _print_available(fetch_available_versions(page, architecture, sdk), architecture, sdk)
+    raw = fetch_available_versions(page, architecture, sdk, paths=paths)
+    installed = _installed_nwjs_specs(paths)
+    _print_available(_filter_nwjs_available(raw, installed, architecture, sdk), architecture, sdk)
     return 0
 
 
@@ -73,10 +169,11 @@ def select_interactively(
     write: Callable[[str], None] = print,
 ) -> int:
     """Browse ten online versions per page and install a confirmed selection."""
+    installed = _installed_nwjs_specs(paths)
     page = initial_page
     while True:
         try:
-            available_versions = fetch_available_versions(page, architecture, sdk)
+            raw = fetch_available_versions(page, architecture, sdk, paths=paths)
         except RuntimeError as exc:
             write(_("Could not load the version list: {error}").format(error=exc))
             try:
@@ -88,9 +185,13 @@ def select_interactively(
                 write(_("Selection cancelled."))
                 return 0
             continue
+        available_versions = _filter_nwjs_available(raw, installed, architecture, sdk)
         _print_available(available_versions, architecture, sdk, write)
+        prompt = _("Select 1-{count}, [n]ext, [p]revious, or [q]uit: ").format(
+            count=len(available_versions.versions)
+        )
         try:
-            action = read(_("Select 1-10, [n]ext, [p]revious, or [q]uit: ")).strip().lower()
+            action = read(prompt).strip().lower()
         except EOFError:
             write(_("Selection cancelled."))
             return 0
@@ -147,7 +248,7 @@ def _print_available(
         write(_("  (no stable versions on this page)"))
         return
     for index, version in enumerate(available_versions.versions, start=1):
-        write(f"  {index}. {version}")
+        write(f"  {index}. {_display_version(version, available_versions.sizes)}")
     sdk_argument = " --sdk" if sdk else ""
     write(
         _("Install with: {command}").format(
@@ -204,12 +305,15 @@ def _easyrpg_available(
 ) -> int:
     """List online EasyRPG Player releases or choose one to install."""
     if not interactive:
-        _print_easyrpg_versions(fetch_easyrpg_versions(page))
+        raw = fetch_easyrpg_versions(page, paths=paths)
+        installed = _installed_easyrpg_keys(paths)
+        _print_easyrpg_versions(_filter_easyrpg_available(raw, installed), write)
         return 0
+    installed = _installed_easyrpg_keys(paths)
     current_page = page
     while True:
         try:
-            versions = fetch_easyrpg_versions(current_page)
+            raw = fetch_easyrpg_versions(current_page, paths=paths)
         except RuntimeError as exc:
             write(_("Could not load the version list: {error}").format(error=exc))
             try:
@@ -221,9 +325,13 @@ def _easyrpg_available(
                 write(_("Selection cancelled."))
                 return 0
             continue
-        _print_easyrpg_versions(versions)
+        versions = _filter_easyrpg_available(raw, installed)
+        _print_easyrpg_versions(versions, write)
+        prompt = _("Select 1-{count}, [n]ext, [p]revious, or [q]uit: ").format(
+            count=len(versions.versions)
+        )
         try:
-            action = read(_("Select 1-10, [n]ext, [p]revious, or [q]uit: ")).strip().lower()
+            action = read(prompt).strip().lower()
         except EOFError:
             write(_("Selection cancelled."))
             return 0
@@ -259,11 +367,14 @@ def _easyrpg_available(
         write(_("Installation cancelled."))
 
 
-def _print_easyrpg_versions(versions: AvailableEasyRPGVersions) -> None:
+def _print_easyrpg_versions(
+    versions: AvailableEasyRPGVersions,
+    write: Callable[[str], None] = print,
+) -> None:
     """Print one EasyRPG Player release page."""
-    print(_("Available EasyRPG Player versions (page {page}, x64):").format(page=versions.page))
+    write(_("Available EasyRPG Player versions (page {page}, x64):").format(page=versions.page))
     if not versions.versions:
-        print(_("  (no versions on this page)"))
+        write(_("  (no versions on this page)"))
         return
     for index, version in enumerate(versions.versions, start=1):
-        print(f"  {index}. {version}")
+        write(f"  {index}. {_display_version(version, versions.sizes)}")
