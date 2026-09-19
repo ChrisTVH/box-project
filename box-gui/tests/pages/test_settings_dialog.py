@@ -1389,3 +1389,214 @@ def test_row_suffix_controls_are_vertically_centered(
         assert button.get_valign() == Gtk.Align.CENTER
     assert nwjs_page._arch_selector.get_valign() == Gtk.Align.CENTER
     assert nwjs_page._sdk_toggle.get_valign() == Gtk.Align.CENTER
+
+
+def _stub_sizes_module(
+    monkeypatch: pytest.MonkeyPatch, size: int | None = 1234, formatted: str = "1.2 kB"
+) -> Any:
+    """Install a fake box.utils.sizes module with deterministic helpers."""
+    import sys
+    import types
+
+    fake = types.ModuleType("box.utils.sizes")
+
+    def _file_size(path: Any) -> int | None:
+        return size
+
+    def _directory_size(path: Any) -> int | None:
+        return size
+
+    def _format_size_decimal(value: int) -> str:
+        assert value == size
+        return formatted
+
+    fake.file_size = _file_size  # type: ignore[attr-defined]
+    fake.directory_size = _directory_size  # type: ignore[attr-defined]
+    fake.format_size_decimal = _format_size_decimal  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "box.utils.sizes", fake)
+    return fake
+
+
+def _stub_embedded_tag(monkeypatch: pytest.MonkeyPatch, tag: str | None) -> None:
+    """Stub the AppImage embedded tag without touching the filesystem."""
+    import box_gui.core.app_info as app_info_module
+
+    monkeypatch.setattr(app_info_module, "get_embedded_tag", lambda: tag)
+
+
+def test_cleanup_sizes_suffix_rendering(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Sized items render as '<shown> (<formatted>)' keeping raw tooltips."""
+    _stub_sizes_module(monkeypatch, size=1234, formatted="1.2 kB")
+    _stub_embedded_tag(monkeypatch, None)
+    item = _make_item("downloads", "archive.tar.gz", tmp_path)
+    page, _paths, _repository, _seen, _store = _make_cleanup(
+        monkeypatch, tmp_path, items={"downloads": (item,)}
+    )
+
+    assert len(page._rows["downloads"]) == 1
+    row = page._rows["downloads"][0]
+    assert _row_texts(row) == ["archive.tar.gz (1.2 kB)"]
+    assert row.get_tooltip_text() == "archive.tar.gz"
+    assert page._expanders["downloads"].get_title() == "1 item"
+    assert page._empty_rows["downloads"].get_visible() is False
+
+
+def test_cleanup_profiles_sizes_suffix_keeps_secondary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Profile size suffix applies to the game name while the ID stays secondary."""
+    _stub_sizes_module(monkeypatch, size=2048, formatted="2.0 kB")
+    _stub_embedded_tag(monkeypatch, None)
+    gid = "0123456789abcdef"
+    item = CleanupItem("profiles", gid, gid, tmp_path / gid)
+    page, _paths, _repository, _seen, _store = _make_cleanup(
+        monkeypatch, tmp_path, items={"profiles": (item,)}
+    )
+
+    assert len(page._rows["profiles"]) == 1
+    assert _row_texts(page._rows["profiles"][0]) == ["Unknown game (2.0 kB)", gid]
+    assert page._rows["profiles"][0].get_tooltip_text() == gid
+
+
+def test_cleanup_sizes_missing_backend_shows_plain(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Without box.utils.sizes the rows degrade to plain labels."""
+    import importlib
+    import sys
+
+    monkeypatch.delitem(sys.modules, "box.utils.sizes", raising=False)
+    origin_import_module = importlib.import_module
+
+    def _failing_import(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == "box.utils.sizes":
+            raise ImportError("no backend sizes helper")
+        return origin_import_module(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib, "import_module", _failing_import)
+    _stub_embedded_tag(monkeypatch, None)
+    item = _make_item("downloads", "archive.tar.gz", tmp_path)
+    page, _paths, _repository, _seen, _store = _make_cleanup(
+        monkeypatch, tmp_path, items={"downloads": (item,)}
+    )
+
+    assert len(page._rows["downloads"]) == 1
+    assert _row_texts(page._rows["downloads"][0]) == ["archive.tar.gz"]
+    assert page._rows["downloads"][0].get_tooltip_text() == "archive.tar.gz"
+
+
+def test_cleanup_danger_group_hidden_without_tag(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Dev checkouts without an embedded tag hide the full-wipe group."""
+    _stub_embedded_tag(monkeypatch, None)
+    page, _paths, _repository, _seen, _store = _make_cleanup(monkeypatch, tmp_path)
+
+    assert page._danger_group.get_visible() is False
+    assert page._danger_button.get_label() == "Delete all data and uninstall backend"
+    assert "destructive-action" in page._danger_button.get_css_classes()
+
+
+def test_cleanup_danger_group_visible_with_tag(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """AppImage builds with an embedded tag show the full-wipe group."""
+    _stub_embedded_tag(monkeypatch, "26.9.1")
+    page, _paths, _repository, _seen, _store = _make_cleanup(monkeypatch, tmp_path)
+
+    assert page._danger_group.get_visible() is True
+    assert page._danger_button.get_label() == "Delete all data and uninstall backend"
+    assert "destructive-action" in page._danger_button.get_css_classes()
+
+
+def test_cleanup_on_full_wipe_plumbing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """CleanupPage stores the callback and SettingsDialog forwards it."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _stub_embedded_tag(monkeypatch, "26.9.1")
+    _stub_runtime_api(monkeypatch)
+    monkeypatch.setattr(runtime_module, "list_nwjs", lambda catalog: ())
+    monkeypatch.setattr(runtime_module, "list_easyrpg", lambda catalog: ())
+    monkeypatch.setattr(
+        runtime_module,
+        "fetch_nwjs_available",
+        lambda page, arch, sdk: AvailableVersions(page=page, versions=()),
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "fetch_easyrpg_available",
+        lambda page: AvailableEasyRPGVersions(page=page, versions=()),
+    )
+
+    class _FakeCatalog:
+        def __init__(self, paths: Any, repository: Any) -> None:
+            pass
+
+        def list(self, category: str | None = None) -> tuple[Any, ...]:
+            return ()
+
+        def remove(self, item: Any) -> None:
+            raise AssertionError("no removal expected")
+
+    monkeypatch.setattr(settings_module, "CleanupCatalog", _FakeCatalog)
+    paths = _make_paths(tmp_path)
+    repository = ConfigRepository(paths)
+    calls: list[None] = []
+    dialog: Any = SettingsDialog(paths, repository, None, on_full_wipe=lambda: calls.append(None))
+    _pump()
+
+    assert dialog._cleanup_page._on_full_wipe is not None
+    dialog._cleanup_page._on_full_wipe()
+    assert calls == [None]
+
+
+def test_validate_full_wipe_symlink_refusal(tmp_path: Path) -> None:
+    """A symlinked launcher root is refused without touching its target."""
+    from box.errors import BoxError
+
+    home = tmp_path / "home"
+    home.mkdir()
+    parent = home / ".cache"
+    parent.mkdir()
+    target = tmp_path / "real"
+    target.mkdir()
+    (target / "payload.bin").write_bytes(b"payload")
+    link = parent / "box-rpg"
+    link.symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(BoxError, match="symlink"):
+        settings_module._validate_full_wipe_path(link, home)
+
+    assert target.is_dir()
+    assert (target / "payload.bin").is_file()
+
+
+def test_validate_full_wipe_outside_home_refusal(tmp_path: Path) -> None:
+    """A box-rpg root outside HOME is refused without deletion."""
+    from box.errors import BoxError
+
+    home = tmp_path / "home"
+    home.mkdir()
+    outside = tmp_path / "outside" / "box-rpg"
+    outside.mkdir(parents=True)
+
+    with pytest.raises(BoxError, match="outside home"):
+        settings_module._validate_full_wipe_path(outside, home)
+
+    assert outside.is_dir()
+
+
+def test_validate_full_wipe_non_box_rpg_name_refusal(tmp_path: Path) -> None:
+    """A launcher parent without the box-rpg basename is refused."""
+    from box.errors import BoxError
+
+    home = tmp_path / "home"
+    home.mkdir()
+    other = home / ".cache" / "other"
+    other.mkdir(parents=True)
+
+    with pytest.raises(BoxError, match="unexpected path"):
+        settings_module._validate_full_wipe_path(other, home)
+
+    assert other.is_dir()

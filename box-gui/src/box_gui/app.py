@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 from pathlib import Path
@@ -280,7 +281,44 @@ class BoxRpgApplication(Adw.Application):
             from box_gui.pages.settings_dialog import SettingsDialog
         except ImportError:
             return
-        dialog = SettingsDialog(self._paths, self._repository, self._interaction, self._library)
+        dialog: SettingsDialog
+
+        def _on_full_wipe() -> None:
+            """Close settings and return to backend setup after a full wipe."""
+            with contextlib.suppress(Exception):
+                dialog.close()
+            try:
+                status = check_backend()
+            except Exception:
+                return
+            navigation = self._navigation
+            if navigation is None:
+                return
+            try:
+                visible = navigation.get_visible_page()
+                root = visible
+                while root is not None:
+                    try:
+                        previous = navigation.get_previous_page(root)
+                    except Exception:
+                        break
+                    if previous is None:
+                        break
+                    root = previous
+                if root is not None and visible is not None and root is not visible:
+                    with contextlib.suppress(Exception):
+                        navigation.pop_to_page(root)
+                navigation.push(BackendSetupPage(status, on_ready=self._restart_for_backend))
+            except Exception:
+                return
+
+        dialog = SettingsDialog(
+            self._paths,
+            self._repository,
+            self._interaction,
+            self._library,
+            on_full_wipe=_on_full_wipe,
+        )
         dialog.present(parent)
 
 

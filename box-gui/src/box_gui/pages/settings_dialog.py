@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
+import importlib
+import os
+import shutil
+import subprocess
+import sys
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -910,6 +916,118 @@ class EasyrpgPage(_RuntimePage):
 # Game roots are managed in GeneralPage, so the Data page skips them.
 _CLEANUP_CATEGORIES: tuple[str, ...] = tuple(c for c in CATEGORIES if c != "roots")
 
+_FULL_WIPE_CONFIRM_TOKEN = "DELETE ALL"
+
+
+def _cleanup_size_path(item: CleanupItem) -> Path | None:
+    """Resolve the filesystem path measured for an item, or None for roots."""
+    if item.category in ("downloads", "profiles"):
+        return item.value if isinstance(item.value, Path) else None
+    if item.category == "runtimes":
+        root = getattr(item.value, "root", None)
+        return root if isinstance(root, Path) else None
+    return None
+
+
+def _format_size_decimal(size: int) -> str | None:
+    """Format a byte count via the backend helper, degrading to None."""
+    try:
+        sizes_module = importlib.import_module("box.utils.sizes")
+    except ImportError:
+        return None
+    formatter = getattr(sizes_module, "format_size_decimal", None)
+    if formatter is None or not callable(formatter):
+        return None
+    try:
+        text = formatter(size)
+    except Exception:
+        return None
+    return str(text) if text is not None else None
+
+
+def _cleanup_sizes(
+    items: tuple[CleanupItem, ...],
+) -> dict[str, int | None]:
+    """Build selector-to-size mapping via the backend helpers, degrading empty."""
+    sizes: dict[str, int | None] = {}
+    if not items:
+        return sizes
+    try:
+        sizes_module = importlib.import_module("box.utils.sizes")
+    except ImportError:
+        return sizes
+    file_fn = getattr(sizes_module, "file_size", None)
+    dir_fn = getattr(sizes_module, "directory_size", None)
+    if not callable(file_fn) or not callable(dir_fn):
+        return sizes
+    for item in items:
+        if item.category == "roots":
+            continue
+        try:
+            path = _cleanup_size_path(item)
+            if path is None:
+                sizes[item.selector] = None
+                continue
+            if path.is_symlink():
+                raw: object = file_fn(path)
+            elif path.is_dir():
+                raw = dir_fn(path)
+            else:
+                raw = file_fn(path)
+        except Exception:
+            sizes[item.selector] = None
+            continue
+        if isinstance(raw, bool):
+            sizes[item.selector] = int(raw)
+        elif isinstance(raw, int) or raw is None:
+            sizes[item.selector] = raw
+        else:
+            sizes[item.selector] = None
+    return sizes
+
+
+def _is_full_wipe_available() -> bool:
+    """Return True only for AppImage builds carrying an embedded tag."""
+    try:
+        from box_gui.core.app_info import get_embedded_tag
+    except ImportError:
+        return False
+    try:
+        return get_embedded_tag() is not None
+    except Exception:
+        return False
+
+
+def _validate_full_wipe_path(path: Path, home: Path) -> Path:
+    """Validate one launcher-owned root for the AppImage-only full wipe."""
+    if not home.is_absolute():
+        raise BoxError(_("HOME must be an absolute path"))
+    if path.is_symlink():
+        raise BoxError(f"refusing full wipe of symlinked path: {path}")
+    resolved = path.resolve(strict=False)
+    home_resolved = home.resolve(strict=False)
+    if resolved.name != "box-rpg":
+        raise BoxError(f"refusing full wipe of unexpected path: {path}")
+    if resolved == home_resolved:
+        raise BoxError(f"refusing full wipe of home directory: {path}")
+    try:
+        relative = resolved.relative_to(home_resolved)
+    except ValueError as exc:
+        raise BoxError(f"refusing full wipe outside home: {path}") from exc
+    current = home_resolved
+    for component in relative.parts:
+        current = current / component
+        if current.is_symlink():
+            raise BoxError(f"refusing full wipe through symlink: {current}")
+    if resolved.exists() or os.path.lexists(path):
+        try:
+            owned = resolved.stat().st_uid == os.getuid()
+        except OSError as exc:
+            raise BoxError(f"cannot inspect wipe path: {path}") from exc
+        if not owned:
+            raise BoxError(f"refusing full wipe of path owned by another user: {path}")
+    return resolved
+
 
 class CleanupPage(Adw.PreferencesPage):
     """Launcher-managed cleanup items re-hosted as a preferences page."""
@@ -919,6 +1037,7 @@ class CleanupPage(Adw.PreferencesPage):
         paths: AppPaths,
         repository: ConfigRepository,
         library: LibraryRepository | None = None,
+        on_full_wipe: Callable[[], None] | None = None,
     ) -> None:
         """Build one summarized group per shown category and load each one."""
         super().__init__(name="datos", title=_("Data"))
@@ -927,6 +1046,7 @@ class CleanupPage(Adw.PreferencesPage):
         self._repository = repository
         self._catalog = CleanupCatalog(paths, repository)
         self._library = library
+        self._on_full_wipe = on_full_wipe
         self._busy = False
         self._groups: dict[str, Adw.PreferencesGroup] = {}
         self._expanders: dict[str, Adw.ExpanderRow] = {}
@@ -950,6 +1070,20 @@ class CleanupPage(Adw.PreferencesPage):
             self._rows[category] = []
             self._empty_rows[category] = empty
             self.add(group)
+        self._danger_group = Adw.PreferencesGroup(
+            title=_("Danger zone"),
+            description=_("Delete all application data and uninstall the backend."),
+        )
+        # The group description already explains the wipe, so the group
+        # holds only a full-width destructive button instead of a
+        # text-plus-button row that squeezes both in narrow dialogs.
+        self._danger_button = Gtk.Button(label=_("Delete all data and uninstall backend"))
+        self._danger_button.set_hexpand(True)
+        self._danger_button.add_css_class("destructive-action")
+        self._danger_button.connect("clicked", self._on_full_wipe_clicked)
+        self._danger_group.add(self._danger_button)
+        self.add(self._danger_group)
+        self._danger_group.set_visible(_is_full_wipe_available())
         self.refresh_all()
 
     def refresh_all(self) -> None:
@@ -962,8 +1096,9 @@ class CleanupPage(Adw.PreferencesPage):
         self._expanders[category].set_title(_("Loading cleanup items …"))
         catalog = self._catalog
 
-        def _task() -> tuple[CleanupItem, ...]:
-            return catalog.list(category)
+        def _task() -> tuple[tuple[CleanupItem, ...], dict[str, int | None]]:
+            items = catalog.list(category)
+            return items, _cleanup_sizes(items)
 
         _run_in_thread(
             _task,
@@ -987,11 +1122,14 @@ class CleanupPage(Adw.PreferencesPage):
         dialog.connect("response", self._make_remove_confirm_handler(item))
         dialog.present(self)
 
-    def _make_list_done_handler(self, category: str) -> Callable[[tuple[CleanupItem, ...]], None]:
+    def _make_list_done_handler(
+        self, category: str
+    ) -> Callable[[tuple[tuple[CleanupItem, ...], dict[str, int | None]]], None]:
         """Build the list callback capturing its category."""
 
-        def _handler(items: tuple[CleanupItem, ...]) -> None:
-            self._on_list_done(category, items)
+        def _handler(result: tuple[tuple[CleanupItem, ...], dict[str, int | None]]) -> None:
+            items, sizes = result
+            self._on_list_done(category, items, sizes)
 
         return _handler
 
@@ -1022,11 +1160,17 @@ class CleanupPage(Adw.PreferencesPage):
                 continue
         return names
 
-    def _on_list_done(self, category: str, items: tuple[CleanupItem, ...]) -> None:
+    def _on_list_done(
+        self,
+        category: str,
+        items: tuple[CleanupItem, ...],
+        sizes: dict[str, int | None] | None = None,
+    ) -> None:
         """Render one category on the main loop."""
         expander = self._expanders[category]
         rows = self._rows[category]
         self._clear_rows(expander, rows)
+        sizes = sizes or {}
         game_names = self._profile_game_names() if category == "profiles" else {}
         for item in items:
             # Path-valued items (game roots) reuse the General page display:
@@ -1036,13 +1180,20 @@ class CleanupPage(Adw.PreferencesPage):
             # of PreferencesDialog search.
             if category == "profiles":
                 shown = game_names.get(item.label, _("Unknown game"))
-                row, _label = _unlisted_data_row(shown, item.label, wrap_lines=2)
             elif isinstance(item.value, Path) and item.label == str(item.value):
                 shown = abbreviate_display_path(item.value)
-                row, _label = _unlisted_data_row(shown, wrap_lines=2, selectable=True)
             else:
                 shown = item.label
-                row, _label = _unlisted_data_row(shown, wrap_lines=2, selectable=True)
+            size = sizes.get(item.selector)
+            if size is not None:
+                formatted = _format_size_decimal(size)
+                primary = f"{shown} ({formatted})" if formatted is not None else shown
+            else:
+                primary = shown
+            if category == "profiles":
+                row, _label = _unlisted_data_row(primary, item.label, wrap_lines=2)
+            else:
+                row, _label = _unlisted_data_row(primary, wrap_lines=2, selectable=True)
             row.set_tooltip_text(item.label)
             button = Gtk.Button(label=_("Remove"))
             button.set_valign(Gtk.Align.CENTER)
@@ -1116,12 +1267,138 @@ class CleanupPage(Adw.PreferencesPage):
 
         return _handler
 
+    def _on_full_wipe_clicked(self, _button: Gtk.Button) -> None:
+        """Open the typed-confirmation dialog for the AppImage-only full wipe."""
+        if self._busy:
+            return
+        dialog = Adw.AlertDialog(
+            heading=_("Delete all data and uninstall backend"),
+            body=_(
+                "This removes launcher cache and settings (including cached "
+                "profiles) and uninstalls box-rpg. Games and source saves "
+                "outside the cache are kept. Type DELETE ALL to confirm."
+            ),
+        )
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("wipe", _("Delete all data and uninstall backend"))
+        dialog.set_response_appearance("wipe", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_default_response("cancel")
+        dialog.set_close_response("cancel")
+        dialog.set_response_enabled("wipe", False)
+        entry = Gtk.Entry()
+        entry.set_placeholder_text(_FULL_WIPE_CONFIRM_TOKEN)
+        dialog.set_extra_child(entry)
+        entry.connect("changed", self._make_wipe_entry_handler(dialog, entry))
+        dialog.connect("response", self._make_wipe_response_handler(entry))
+        dialog.present(self)
+
+    def _make_wipe_entry_handler(
+        self, dialog: Adw.AlertDialog, entry: Gtk.Entry
+    ) -> Callable[[Gtk.Entry], None]:
+        """Enable the destructive response only for the exact confirm token."""
+
+        def _handler(_entry: Gtk.Entry) -> None:
+            with contextlib.suppress(Exception):
+                dialog.set_response_enabled("wipe", entry.get_text() == _FULL_WIPE_CONFIRM_TOKEN)
+
+        return _handler
+
+    def _make_wipe_response_handler(
+        self, entry: Gtk.Entry
+    ) -> Callable[[Adw.AlertDialog, str], None]:
+        """Start the wipe only when the typed token still matches."""
+
+        def _handler(_dialog: Adw.AlertDialog, response: str) -> None:
+            if response != "wipe":
+                return
+            try:
+                confirmed = entry.get_text() == _FULL_WIPE_CONFIRM_TOKEN
+            except Exception:
+                confirmed = False
+            if confirmed:
+                self._start_full_wipe()
+
+        return _handler
+
+    def _start_full_wipe(self) -> None:
+        """Run the launcher-only wipe on a worker thread."""
+        if self._busy:
+            return
+        self._set_busy(True)
+        with contextlib.suppress(Exception):
+            self._danger_button.set_sensitive(False)
+        _run_in_thread(
+            self._do_full_wipe,
+            self._on_full_wipe_done,
+            self._on_full_wipe_error,
+        )
+
+    def _do_full_wipe(self) -> None:
+        """Delete only launcher cache/config roots, then pip-uninstall box-rpg."""
+        wipe_fn = None
+        try:
+            uninstall_module = importlib.import_module("box.api.uninstall")
+            candidate = getattr(uninstall_module, "full_wipe_data", None)
+            if callable(candidate):
+                wipe_fn = candidate
+        except ImportError:
+            wipe_fn = None
+        if wipe_fn is not None:
+            wipe_fn(self._paths)
+        else:
+            paths = self._paths
+            home_value = os.environ.get("HOME", "")
+            home = Path(home_value) if home_value else Path.home()
+            cache = _validate_full_wipe_path(paths.cache_root, home)
+            config = _validate_full_wipe_path(paths.config_root, home)
+            for target in (cache, config):
+                if target.is_symlink():
+                    raise BoxError(f"refusing full wipe of symlinked path: {target}")
+                if target.exists():
+                    shutil.rmtree(target)
+        try:
+            result = subprocess.run(
+                [sys.executable, "-I", "-m", "pip", "uninstall", "-y", "box-rpg"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except OSError as exc:
+            raise BoxError(str(exc) or exc.__class__.__name__) from exc
+        if result.returncode != 0:
+            stdout_text = result.stdout or ""
+            stderr_text = result.stderr or ""
+            combined = f"{stdout_text}\n{stderr_text}".strip()
+            lines = [line for line in combined.splitlines() if line.strip()]
+            tail = "\n".join(lines[-10:]) if lines else ""
+            if tail:
+                raise BoxError(_("backend uninstall failed: {details}").format(details=tail))
+            raise BoxError(_("backend uninstall failed."))
+
+    def _on_full_wipe_done(self, _result: None) -> None:
+        """Restore controls and notify the host after a successful wipe."""
+        self._set_busy(False)
+        with contextlib.suppress(Exception):
+            self._danger_button.set_sensitive(True)
+        callback = self._on_full_wipe
+        if callback is not None:
+            GLib.idle_add(callback)
+
+    def _on_full_wipe_error(self, error: BaseException) -> None:
+        """Restore controls and show wipe failures."""
+        self._set_busy(False)
+        with contextlib.suppress(Exception):
+            self._danger_button.set_sensitive(True)
+        self._show_error(_("Delete All Data"), error)
+
     def _set_busy(self, busy: bool) -> None:
-        """Disable category groups while a removal runs."""
+        """Disable category and danger groups while a removal or wipe runs."""
         self._busy = busy
         sensitive = not busy
         for group in self._groups.values():
             group.set_sensitive(sensitive)
+        self._danger_group.set_sensitive(sensitive)
+        self._danger_button.set_sensitive(sensitive)
 
     def _show_error(self, operation: str, error: BaseException) -> None:
         """Show a single-close error dialog splitting BoxError from unexpected bugs."""
@@ -1149,6 +1426,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         repository: ConfigRepository,
         interaction: Interaction | None = None,
         library: LibraryRepository | None = None,
+        on_full_wipe: Callable[[], None] | None = None,
     ) -> None:
         """Build and add the four settings pages without dialog search."""
         super().__init__(title=_("Settings"))
@@ -1157,7 +1435,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         self._general_page = GeneralPage(paths, repository, interaction)
         self._nwjs_page = NwjsPage(paths)
         self._easyrpg_page = EasyrpgPage(paths)
-        self._cleanup_page = CleanupPage(paths, repository, library)
+        self._cleanup_page = CleanupPage(paths, repository, library, on_full_wipe=on_full_wipe)
         self.add(self._general_page)
         self.add(self._nwjs_page)
         self.add(self._easyrpg_page)
