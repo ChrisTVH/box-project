@@ -6,6 +6,13 @@ Use CPython 3.14 on Linux x86_64 with glibc 2.17 or newer. The locks were resolv
 
 ## Prepare an environment
 
+Two interpreters cover the two front ends:
+
+| Environment | Isolation | Use |
+| ----------- | --------- | --- |
+| `.venv` | Isolated, without system-site packages | Backend locks, checks, and builds in this file |
+| `.venv-gui` | With system-site packages | GUI bindings plus the installed backend; see `../box-gui/development.md` |
+
 Create a fresh `.venv` so unrelated packages cannot leak in. Never install build tools into the base interpreter. Python's bundled `ensurepip` is the initial trust anchor. Run from a trusted checkout:
 
 ```sh
@@ -60,6 +67,14 @@ Existing pins are preserved. Add `--upgrade` or `--upgrade-package NAME` only fo
 2. Creates a private environment with bundled pip and force-installs `build.txt` with hashes. No build tools enter base Python.
 3. Builds one wheel with `pip wheel --no-build-isolation --no-deps --no-index`. A missing backend requirement fails instead of downloading more.
 4. Installs only that local wheel with base Python's `pip install --user --no-deps --no-index`, then publishes safe completions. Any failure stops before completion changes. Temporary files are cleaned on success and failure.
+
+```mermaid
+flowchart LR
+    A[Stage trusted checkout] --> B[Private env with hash-locked build tools]
+    B --> C[Build one local wheel]
+    C --> D[User install from local wheel only]
+    D --> E[Publish completions]
+```
 
 User install and removal use an isolated bootstrap: it imports base Python's pip first, checks that user-site is owned by the user below their home without link ancestors, then exposes that directory for metadata discovery only. A path-entry finder blocks imports from user-site and no `.pth` files run. This lets pip remove the previous wheel on upgrade without loading user-provided modules.
 

@@ -108,7 +108,7 @@ python3 -m tools.build_appimage --test-build --yes --appdir-only
 - `tests/conftest.py` provides `_install_auto_answer` for `AlertDialog.present` and `_run_from_worker` as a `MainLoop` stand-in with safeguards. Display tests gate on a display check. Import-surface, icon, and gettext coverage checks stay headless-safe.
 - Backend calls are stubbed with no network: pager and cancel paths, confirm accept, cancel, and close, remove-then-refresh, main-loop progress delivery, architecture-error fallback, and missing-helper fallback with zero dialogs.
 - `LibraryRepository` is tested standalone with `tmp_path`: load and save round-trip, missing file as empty tuple, corrupt JSON as `LibraryError`, reorder semantics, and no partial file on failure.
-- Checks are `pytest`, `ruff check`, `ruff format --check` with line-length 100, and strict `pyright`. Code, identifiers, and comments stay in English. No `print()` or `input()` in `box_gui`. Dialogs are exercised headless or with stubs only; flag the missing visual pass in pull requests.
+- Run checks with the `.venv-gui` interpreter: `pytest`, `ruff check`, `ruff format --check` with line-length 100, and strict `pyright`. Code, identifiers, and comments stay in English. No `print()` or `input()` in `box_gui`. Dialogs are exercised headless or with stubs only; flag the missing visual pass in pull requests.
 
 Strict `pyright` runs from `box-gui/` with the project interpreter, mirroring the backend form in `../box-rpg/development.md` (Node.js on `PATH`, no automatic downloads):
 
@@ -116,4 +116,4 @@ Strict `pyright` runs from `box-gui/` with the project interpreter, mirroring th
 ../.venv-gui/bin/python -m pyright --pythonpath ../.venv-gui/bin/python
 ```
 
-The `.venv-gui` interpreter carries the `gi`/`cairo` bindings plus pytest, and `extraPaths` in `pyproject.toml` covers both `src` trees. A `box`/`box_gui` copy installed in user site shadows the checkouts if it takes precedence; the checkout roots above must win — if stale-version errors (`No parameter named ...` on fresh APIs) ever appear, check `python -c "import box; print(box.__file__)"` first.
+The `.venv-gui` interpreter carries the `gi`/`cairo` bindings plus pytest, and `extraPaths` in `pyproject.toml` covers both `src` trees. A `box`/`box_gui` copy installed in user site shadows the checkouts if it takes precedence; the checkout roots above must win — if stale-version errors (`No parameter named ...` on fresh APIs) ever appear, check `../.venv-gui/bin/python -c "import box; print(box.__file__)"` first.
