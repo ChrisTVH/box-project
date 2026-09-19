@@ -2,6 +2,8 @@
 
 This guide shows how to add or edit interface translations for `box-rpg`.
 
+Follow the shared translator rules in `guidelines.md`, use `glossary.md` as the terminology source of truth, and track the work in `task.md`.
+
 `box-rpg` uses gettext. Runtime strings are written in English in the source as msgids with the `_()` helper, then loaded from compiled catalogs based on the system locale. English is the source and fallback. Other languages live in `box-rpg/src/box/locale/`.
 
 ## How it works
@@ -10,6 +12,16 @@ This guide shows how to add or edit interface translations for `box-rpg`.
 - `box-rpg/src/box/locale/<lang>/LC_MESSAGES/box.po` is the human-readable translation per language.
 - `box-rpg/src/box/locale/<lang>/LC_MESSAGES/box.mo` is the compiled catalog used at runtime.
 - `box-rpg/pyproject.toml` ships `locale/**/*.mo` as package data.
+
+```mermaid
+flowchart LR
+    S["Python sources: install.py + box-rpg/src/box/*.py"] --> T["Template: xgettext"]
+    T --> M["Merge: msgmerge --update into box.po"]
+    M --> L["Translate: edit msgstr in box.po"]
+    L --> R["Review: guidelines.md + glossary.md"]
+    R --> C["Compile: msgfmt --check into box.mo"]
+    C --> V["Test: pytest + LANGUAGE=es box-rpg"]
+```
 
 Singular and plural pairs use `ngettext`:
 
@@ -22,6 +34,8 @@ ngettext(
 ```
 
 ## Add a new language
+
+You need `xgettext`, `msgfmt`, `msgattrib`, and `msgmerge` installed.
 
 1. Create the catalog directory:
 
@@ -38,7 +52,7 @@ ngettext(
       install.py $(find box-rpg/src/box -name '*.py')
    ```
 
-3. Fill in the `msgstr` entries. Set the `Language:` and `Plural-Forms:` header fields for your language.
+3. Fill in the `msgstr` entries. Set the `Language:` and `Plural-Forms:` header fields for your language. Spanish uses `Language: es` and `Plural-Forms: nplurals=2; plural=(n != 1);`.
 
 4. Compile the catalog. This needs `msgfmt`:
 
@@ -70,15 +84,16 @@ msgattrib --untranslated --only-file=/tmp/box.pot box-rpg/src/box/locale/es/LC_M
 msgattrib --only-fuzzy --only-file=/tmp/box.pot box-rpg/src/box/locale/es/LC_MESSAGES/box.po
 ```
 
-## Rules for translators
+## Rules
 
 - Keep `{placeholder}` markers intact. Copy them exactly. They may be reordered if your language needs it.
 - Keep shortcut keys and literal confirmation tokens unchanged, such as `[y/N]`, `DELETE`, and `DELETE ALL`. Translate the surrounding text.
 - Do not translate program and product names, command names, options, selectors, configuration keys, paths, or file names, including but not limited to `box-rpg`, `box-rpg-maker`, RPG Maker, NW.js, EasyRPG Player, Chromium, X11, and SDK.
+- If a msgid contains a `glossary.md` term, use the matching Spanish term, adjusting word order and agreement as Spanish grammar requires.
 - Match the `Plural-Forms:` header of your language. Spanish uses `plural=(n != 1)` with `msgstr[0]` and `msgstr[1]`.
 - Structured output stays untranslated. Keep JSON and JSON Lines keys and selector values unchanged. Shell completions and product documentation stay in English.
 
-## Test your changes
+## Test
 
 Run the full suite. Tests are pinned to English, so the catalog does not affect them:
 

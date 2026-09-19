@@ -2,6 +2,8 @@
 
 This guide shows how to add or edit interface translations for `box-gui`.
 
+Follow the shared translator rules in `guidelines.md`, use `glossary.md` as the terminology source of truth, and track the work in `task.md`.
+
 `box-gui` uses gettext. Runtime strings are written in English in the source as msgids with the `_()` helper, then loaded from compiled catalogs based on the system locale. English is the source and fallback. Other languages live in `box-gui/src/box_gui/locale/`. Wrap every user-facing string from day one. Never add an unwrapped literal to translate later.
 
 ## How it works
@@ -10,6 +12,15 @@ This guide shows how to add or edit interface translations for `box-gui`.
 - `box-gui/src/box_gui/locale/<lang>/LC_MESSAGES/box-rpg-maker.po` is the human-readable translation per language.
 - `box-gui/src/box_gui/locale/<lang>/LC_MESSAGES/box-rpg-maker.mo` is the compiled catalog used at runtime.
 - `box-gui/pyproject.toml` ships `locale/**/*.mo` as package data.
+
+```mermaid
+flowchart LR
+    S["Python sources: box-gui/src/box_gui/*.py"] --> T["Template: xgettext"]
+    T --> L["Translate: edit msgstr in box-rpg-maker.po"]
+    L --> R["Review: guidelines.md + glossary.md"]
+    R --> C["Compile: msgfmt --check into box-rpg-maker.mo"]
+    C --> V["Test: pytest + LANGUAGE=es box-rpg-maker"]
+```
 
 Singular and plural pairs use `ngettext`:
 
@@ -23,13 +34,15 @@ ngettext(
 
 ## Add a new language
 
+You need `xgettext`, `msgfmt`, and `msgattrib` installed.
+
 1. Create the catalog directory:
 
    ```bash
    mkdir -p box-gui/src/box_gui/locale/<lang>/LC_MESSAGES
    ```
 
-2. Generate the template from the frontend sources. This needs `xgettext`:
+2. Generate the template from the sources. This needs `xgettext`:
 
    ```bash
    xgettext --from-code=UTF-8 --language=Python \
@@ -38,7 +51,7 @@ ngettext(
      $(find box-gui/src/box_gui -name '*.py')
    ```
 
-3. Fill in the `msgstr` entries. Set `Language:` and `Plural-Forms:` for your language. Spanish uses `Language: es` and `Plural-Forms: nplurals=2; plural=(n != 1);`.
+3. Fill in the `msgstr` entries. Set the `Language:` and `Plural-Forms:` header fields for your language. Spanish uses `Language: es` and `Plural-Forms: nplurals=2; plural=(n != 1);`.
 
 4. Compile the catalog. This needs `msgfmt`:
 
@@ -48,7 +61,7 @@ ngettext(
      box-gui/src/box_gui/locale/<lang>/LC_MESSAGES/box-rpg-maker.po
    ```
 
-5. Make sure both `.po` and `.mo` files are tracked by git.
+5. Make sure both `.po` and `.mo` files are tracked by git, following the locale exceptions in `.gitignore`.
 
 6. Add tests in `box-gui/tests/test_i18n_app.py` covering fallback, plural forms, and placeholders.
 
@@ -60,7 +73,7 @@ Edit `box-rpg-maker.po` directly, then recompile:
 msgfmt --check --verbose -o box-gui/src/box_gui/locale/es/LC_MESSAGES/box-rpg-maker.mo box-gui/src/box_gui/locale/es/LC_MESSAGES/box-rpg-maker.po
 ```
 
-To find missing translations, regenerate the template and list untranslated and fuzzy entries:
+To find missing translations, regenerate the template and list untranslated and fuzzy entries. Both commands should print nothing when the catalog is complete:
 
 ```bash
 xgettext --from-code=UTF-8 --language=Python \
@@ -71,19 +84,20 @@ msgattrib --untranslated --only-file=/tmp/box-rpg-maker.pot box-gui/src/box_gui/
 msgattrib --only-fuzzy --only-file=/tmp/box-rpg-maker.pot box-gui/src/box_gui/locale/es/LC_MESSAGES/box-rpg-maker.po
 ```
 
-Both commands should print nothing when the catalog is complete. The Spanish catalog keeps one legacy entry without a current source call site because `test_i18n_app.py` still covers it. Keep it until the test goes away.
+The Spanish catalog keeps one legacy entry without a current source call site because `test_i18n_app.py` still covers it. Keep it until the test goes away.
 
-## Rules for translators
+## Rules
 
 - Keep `{placeholder}` markers intact. Copy them exactly. They may be reordered if your language needs it.
-- Keep literal tokens unchanged and translate the surrounding text.
-- Do not translate program and product names, command names, options, selectors, configuration keys, paths, or file names, including but not limited to `box-rpg-maker`, `box-rpg`, RPG Maker, NW.js, EasyRPG Player, Chromium, X11, and SDK.
+- Keep shortcut keys and literal tokens unchanged and translate the surrounding text.
+- Do not translate program and product names, command names, options, selectors, configuration keys, paths, or file names, including but not limited to `box-rpg`, `box-rpg-maker`, RPG Maker, NW.js, EasyRPG Player, Chromium, X11, and SDK.
+- If a msgid contains a `glossary.md` term, use the matching Spanish term, adjusting word order and agreement as Spanish grammar requires.
 - Match the `Plural-Forms:` header of your language. Spanish uses `plural=(n != 1)` with `msgstr[0]` and `msgstr[1]`.
 - Structured data stays untranslated. Keep `library.json` keys and stable selector values unchanged. Product documentation stays in English.
 
-## Test your changes
+## Test
 
-Run the pinned-English suite. The catalog does not affect it:
+Run the full suite. Tests are pinned to English, so the catalog does not affect them:
 
 ```bash
 PYTHONPATH=box-gui/src python -m pytest box-gui/tests/
@@ -99,4 +113,4 @@ LANGUAGE=es box-rpg-maker
 
 ## Notes
 
-`docs/box-gui/development.md` and this file are not translated. After adding or changing a `_()` or `ngettext()` string in `src/box_gui`, regenerate the template and update the catalogs before committing. The Settings data page shows as `Datos` in Spanish while its internal page name stays untranslated, and the same display-versus-identifier split applies wherever a mockup shows a localized label.
+`docs/box-gui/development.md` and this file are not translated. After adding or changing a `_()` or `ngettext()` string in `src/box_gui`, regenerate the template, translate the new entries, and recompile before committing. The Settings data page shows as `Datos` in Spanish while its internal page name stays untranslated, and the same display-versus-identifier split applies wherever a mockup shows a localized label.
