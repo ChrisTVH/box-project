@@ -7,11 +7,15 @@ commit titles from git history.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 MAX_COMMITS = 10
+
+_TAG_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+_ESCAPABLE = ("\\", "`", "*", "_", "[", "]", "#")
 
 
 def _find_repo_root(start: str | Path) -> Path:
@@ -26,6 +30,49 @@ def _find_repo_root(start: str | Path) -> Path:
         f"no .git directory found at or above {current}; "
         "pass the monorepo root (or a path inside it) as repo_root"
     )
+
+
+def _previous_release_tag(repo_root: str | Path, current_tag: str) -> str | None:
+    """Return the nearest release tag before ``current_tag``, if any.
+
+    Looks back from HEAD excluding ``current_tag`` itself, so the changelog
+    spans the commits between releases. A missing tag history (first
+    release ever, tagless checkout) is not an error: the caller falls back
+    to the most recent commits instead.
+    """
+    root = _find_repo_root(repo_root)
+    try:
+        proc = subprocess.run(
+            ["git", "describe", "--tags", "--abbrev=0", f"--exclude={current_tag}", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise RuntimeError(f"cannot run git in {root}: {exc}") from exc
+    if proc.returncode != 0:
+        return None
+    tag = proc.stdout.strip()
+    return tag if _TAG_PATTERN.fullmatch(tag) else None
+
+
+def _commits_since(repo_root: str | Path, base_tag: str) -> list[str]:
+    """Return every ``git log`` oneline entry in ``base_tag..HEAD``."""
+    root = _find_repo_root(repo_root)
+    try:
+        proc = subprocess.run(
+            ["git", "log", "--format=%h %s", f"{base_tag}..HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise RuntimeError(f"cannot run git in {root}: {exc}") from exc
+    if proc.returncode != 0:
+        raise RuntimeError(f"git log failed in {root}: {proc.stderr.strip()}")
+    return [line.rstrip() for line in proc.stdout.splitlines() if line.strip()]
 
 
 def _recent_commits(repo_root: str | Path, limit: int = MAX_COMMITS) -> list[str]:
@@ -47,33 +94,77 @@ def _recent_commits(repo_root: str | Path, limit: int = MAX_COMMITS) -> list[str
     return lines[:limit]
 
 
+def _escape_markdown(text: str) -> str:
+    """Escape markdown metacharacters so commit subjects render literally."""
+    out: list[str] = []
+    for index, char in enumerate(text):
+        if char in _ESCAPABLE and (index == 0 or text[index - 1] != "\\"):
+            out.append("\\")
+        out.append(char)
+    return "".join(out)
+
+
+def _changelog_lines(commits: list[str]) -> list[str]:
+    """Format commits as bullets with the short hash in code spans."""
+    lines: list[str] = []
+    for entry in commits:
+        short_hash, _, subject = entry.partition(" ")
+        if subject:
+            lines.append(f"- `{short_hash}` {_escape_markdown(subject)}")
+        else:
+            lines.append(f"- `{short_hash}`")
+    return lines
+
+
 def generate_notes(repo_root: str | Path, tag: str) -> str:
-    """Build the release notes for ``tag`` from the static text plus git log."""
-    commits = _recent_commits(repo_root)
+    """Build the release notes for ``tag`` from the static text plus git log.
+
+    The changelog spans the commits since the previous release tag. Only
+    when no previous tag exists (first release ever, tagless checkout) it
+    falls back to the most recent commits, hinting at truncation.
+    """
     static = (
         f"Standalone AppImage of the box-gui frontend (GTK4 + libadwaita)"
         f" — box-rpg-maker {tag}.\n"
         "\n"
-        "Install it either way:\n"
+        "### Install it either way\n"
         "\n"
-        "a) Clone the repo and install the backend first:\n"
-        "   ./install.py --install --target cli"
-        " (use gui or all for the other targets).\n"
+        "1. Clone the repo and install the backend first:\n"
         "\n"
-        "b) Or just run the AppImage: it detects a missing or stale box-rpg backend\n"
+        "   ```sh\n"
+        "   ./install.py --install --target cli\n"
+        "   ```\n"
+        "\n"
+        "   (use `gui` or `all` for the other targets.)\n"
+        "2. Or just run the AppImage: it detects a missing or stale box-rpg backend\n"
         "   and guides its setup itself (exact version match required).\n"
         "\n"
-        "System requirements (needed on the host; the AppImage does not provide them):\n"
+        "### System requirements\n"
+        "\n"
+        "Needed on the host (the AppImage does not provide them):\n"
         "\n"
         "- Python 3.14+\n"
         "- GTK4 / libadwaita 1.5+\n"
         "- libfuse3"
     )
     header = f"## What's changed in {tag}"
-    if not commits:
+    base_tag = _previous_release_tag(repo_root, tag)
+    if base_tag is None:
+        # No earlier release to span from: show the most recent commits and
+        # say so when the list is truncated (releases rarely land every
+        # MAX_COMMITS commits, so fetch one extra entry just to tell).
+        recent = _recent_commits(repo_root, MAX_COMMITS + 1)
+        shown = recent[:MAX_COMMITS]
+        truncated = len(recent) > MAX_COMMITS
+    else:
+        shown = _commits_since(repo_root, base_tag)
+        truncated = False
+    if not shown:
         return f"{static}\n\n{header}"
-    numbered = "\n".join(f"{index}. {entry}" for index, entry in enumerate(commits, start=1))
-    return f"{static}\n\n{header}\n\n{numbered}"
+    changelog = "\n".join(_changelog_lines(shown))
+    if truncated:
+        changelog += f"\n\n_...and more — showing only the {MAX_COMMITS} most recent commits._"
+    return f"{static}\n\n{header}\n\n{changelog}"
 
 
 def main(argv: list[str]) -> int:
