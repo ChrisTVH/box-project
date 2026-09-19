@@ -209,6 +209,7 @@ def _make_general(
     installed_versions: tuple[str, ...] = (),
     easyrpg_versions: tuple[str, ...] = (),
     interaction: Any | None = None,
+    on_language_changed: Any | None = None,
 ) -> tuple[Any, Any, Any]:
     """Create a GeneralPage with real repositories and stubbed installed lists."""
     _require_display()
@@ -233,7 +234,7 @@ def _make_general(
         root = tmp_path / name
         root.mkdir(parents=True, exist_ok=True)
         repository.add_allowed_root(root)
-    page: Any = GeneralPage(paths, repository, interaction)
+    page: Any = GeneralPage(paths, repository, interaction, on_language_changed=on_language_changed)
     return page, paths, repository
 
 
@@ -498,6 +499,83 @@ def test_general_stale_easyrpg_preferred_runtime_stays_selectable(
 
     page._easyrpg_runtime_row.set_selected(0)
     assert page._defaults.load().preferred_easyrpg_runtime is None
+
+
+def _general_group_titles(page: Any) -> list[str]:
+    """Collect PreferencesGroup titles in widget-tree order."""
+    titles: list[str] = []
+
+    def _walk(widget: Any) -> None:
+        child = widget.get_first_child()
+        while child is not None:
+            if isinstance(child, Adw.PreferencesGroup):
+                title = child.get_title()
+                if title:
+                    titles.append(str(title))
+            _walk(child)
+            child = child.get_next_sibling()
+
+    _walk(page)
+    return titles
+
+
+def test_general_language_group_order_and_entries(tmp_path: Path, monkeypatch: Any) -> None:
+    """The language group sits between roots and NW.js with fixed entries."""
+    page, _paths, _repository = _make_general(monkeypatch, tmp_path)
+
+    titles = _general_group_titles(page)
+    assert titles.index("Allowed game roots") < titles.index("Language")
+    assert titles.index("Language") < titles.index("Preferred NW.js runtime")
+    assert page._language_group.get_title() == "Language"
+    assert page._language_row.get_title() != ""
+    assert _combo_entries(page._language_row) == [
+        "System default",
+        "English (inglés)",
+        "Español (Spanish)",
+    ]
+    assert page._language_row.get_selected() == 0
+
+
+def test_general_set_preferred_language(tmp_path: Path, monkeypatch: Any) -> None:
+    """Picking a language persists it; the first entry clears it."""
+    page, _paths, _repository = _make_general(monkeypatch, tmp_path)
+
+    page._language_row.set_selected(2)
+    assert page._defaults.load().preferred_language == "es"
+
+    page._language_row.set_selected(1)
+    assert page._defaults.load().preferred_language == "en"
+
+    page._language_row.set_selected(0)
+    assert page._defaults.load().preferred_language is None
+
+
+def test_general_unknown_language_maps_to_system_default(tmp_path: Path, monkeypatch: Any) -> None:
+    """An unknown stored language code renders as the system default."""
+    page, _paths, _repository = _make_general(monkeypatch, tmp_path)
+    page._defaults.set_preferred_language("fr")
+    page.refresh_language()
+
+    assert _combo_entries(page._language_row) == [
+        "System default",
+        "English (inglés)",
+        "Español (Spanish)",
+    ]
+    assert page._language_row.get_selected() == 0
+
+
+def test_general_language_change_notifies(tmp_path: Path, monkeypatch: Any) -> None:
+    """A successful language change fires the callback via idle_add."""
+    received: list[Any] = []
+    page, _paths, _repository = _make_general(
+        monkeypatch, tmp_path, on_language_changed=received.append
+    )
+
+    page._language_row.set_selected(1)
+    _pump()
+
+    assert received == ["en"]
+    assert page._defaults.load().preferred_language == "en"
 
 
 def test_cleanup_profiles_group_title_and_description(

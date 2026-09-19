@@ -36,6 +36,7 @@ from box_gui.gtk.workers import ProgressReporter  # noqa: E402
 from box_gui.i18n import _, ngettext  # noqa: E402
 
 __all__ = [
+    "SUPPORTED_LANGUAGES",
     "CleanupPage",
     "EasyrpgPage",
     "GeneralPage",
@@ -44,6 +45,24 @@ __all__ = [
 ]
 
 _NWJS_ARCHITECTURES: tuple[str, ...] = ("x64", "ia32", "arm64", "arm")
+
+_LANGUAGE_CODES: tuple[str | None, ...] = (None, "en", "es")
+
+SUPPORTED_LANGUAGES: frozenset[str | None] = frozenset(_LANGUAGE_CODES)
+
+
+def _language_entries() -> tuple[tuple[str | None, str], ...]:
+    """Return picker entries with a freshly translated system-default label.
+
+    The two bilingual names are intentional fixed autonyms exempt from
+    gettext extraction, so only "System default" is translated here; this
+    keeps the picker entry correct after a live language switch.
+    """
+    return (
+        (None, _("System default")),
+        ("en", "English (inglés)"),
+        ("es", "Español (Spanish)"),
+    )
 
 
 def _unlisted_data_row(
@@ -138,6 +157,8 @@ class GeneralPage(Adw.PreferencesPage):
         paths: AppPaths,
         repository: ConfigRepository,
         interaction: Interaction | None = None,
+        *,
+        on_language_changed: Callable[[str | None], None] | None = None,
     ) -> None:
         """Build the roots list and the preferred-runtime pickers."""
         super().__init__(name="general", title=_("General"))
@@ -145,11 +166,13 @@ class GeneralPage(Adw.PreferencesPage):
         self._paths = paths
         self._repository = repository
         self._interaction = interaction
+        self._on_language_changed = on_language_changed
         self._catalog = RuntimeCatalog(paths)
         self._easyrpg_catalog = EasyRPGCatalog(paths)
         self._defaults = DefaultsRepository(paths)
         self._loading_nwjs_runtime = False
         self._loading_easyrpg_runtime = False
+        self._loading_language = False
         self._folder_dialog: Gtk.FileDialog | None = None
         self._root_rows: list[Adw.ActionRow] = []
         self._roots_group = Adw.PreferencesGroup(title=_("Allowed game roots"))
@@ -162,6 +185,13 @@ class GeneralPage(Adw.PreferencesPage):
         self._add_root_button.set_valign(Gtk.Align.CENTER)
         self._add_root_button.connect("clicked", self._on_add_root_clicked)
         self._roots_group.set_header_suffix(self._add_root_button)
+        self._language_group = Adw.PreferencesGroup(title=_("Language"))
+        self._language_row = Adw.ComboRow(title=_("Language"))
+        self._language_row.set_model(
+            Gtk.StringList.new([label for _code, label in _language_entries()])
+        )
+        self._language_row.connect("notify::selected", self._on_language_selected)
+        self._language_group.add(self._language_row)
         self._nwjs_runtime_group = Adw.PreferencesGroup(title=_("Preferred NW.js runtime"))
         self._nwjs_runtime_row = Adw.ComboRow(title=_("NW.js version"))
         self._nwjs_runtime_row.set_model(Gtk.StringList.new([_("Undefined")]))
@@ -173,10 +203,12 @@ class GeneralPage(Adw.PreferencesPage):
         self._easyrpg_runtime_row.connect("notify::selected", self._on_easyrpg_runtime_selected)
         self._easyrpg_runtime_group.add(self._easyrpg_runtime_row)
         self.add(self._roots_group)
+        self.add(self._language_group)
         self.add(self._nwjs_runtime_group)
         self.add(self._easyrpg_runtime_group)
         self.refresh_roots()
         self.refresh_runtime()
+        self.refresh_language()
 
     def refresh_roots(self) -> None:
         """Prune missing roots, then render the surviving configured roots."""
@@ -245,6 +277,24 @@ class GeneralPage(Adw.PreferencesPage):
             self._easyrpg_runtime_row.set_selected(selected)
         finally:
             self._loading_easyrpg_runtime = False
+
+    def refresh_language(self) -> None:
+        """Rebuild the language picker from the stored preference."""
+        try:
+            preferred = self._defaults.load().preferred_language
+        except Exception as exc:
+            _show_error(self, _("Load Settings"), exc)
+            return
+        entries = _language_entries()
+        codes = [code for code, _label in entries]
+        selected = codes.index(preferred) if preferred in codes else 0
+        labels = [label for _code, label in entries]
+        self._loading_language = True
+        try:
+            self._language_row.set_model(Gtk.StringList.new(labels))
+            self._language_row.set_selected(selected)
+        finally:
+            self._loading_language = False
 
     def add_root(self, root: Path) -> bool:
         """Confirm the root via the interaction, store it, and refresh the list."""
@@ -344,6 +394,42 @@ class GeneralPage(Adw.PreferencesPage):
         except Exception as exc:
             _show_error(self, _("Set Runtime"), exc)
             self.refresh_easyrpg_runtime()
+
+    def _on_language_selected(self, row: Adw.ComboRow, _pspec: object) -> None:
+        """Persist the picked language, mapping the first entry to None."""
+        if self._loading_language:
+            return
+        model = row.get_model()
+        if not isinstance(model, Gtk.StringList):
+            return
+        selected = int(row.get_selected())
+        count = model.get_n_items()
+        if selected < 0 or selected >= count:
+            return
+        if selected == 0:
+            value: str | None = None
+        else:
+            entries = _language_entries()
+            if selected >= len(entries):
+                return
+            value = entries[selected][0]
+        try:
+            previous = self._defaults.load().preferred_language
+        except Exception:
+            previous = None
+        try:
+            self._defaults.set_preferred_language(value)
+        except Exception as exc:
+            _show_error(self, _("Set Language"), exc)
+            self.refresh_language()
+            return
+        if value != previous:
+            try:
+                callback = self._on_language_changed
+                if callback is not None:
+                    GLib.idle_add(callback, value)
+            except Exception:
+                pass
 
     def _on_add_root_clicked(self, _button: Gtk.Button) -> None:
         """Open an async folder picker for a new allowed game root."""
@@ -1427,12 +1513,15 @@ class SettingsDialog(Adw.PreferencesDialog):
         interaction: Interaction | None = None,
         library: LibraryRepository | None = None,
         on_full_wipe: Callable[[], None] | None = None,
+        on_language_changed: Callable[[str | None], None] | None = None,
     ) -> None:
         """Build and add the four settings pages without dialog search."""
         super().__init__(title=_("Settings"))
         if hasattr(self, "set_search_enabled"):
             self.set_search_enabled(False)
-        self._general_page = GeneralPage(paths, repository, interaction)
+        self._general_page = GeneralPage(
+            paths, repository, interaction, on_language_changed=on_language_changed
+        )
         self._nwjs_page = NwjsPage(paths)
         self._easyrpg_page = EasyrpgPage(paths)
         self._cleanup_page = CleanupPage(paths, repository, library, on_full_wipe=on_full_wipe)

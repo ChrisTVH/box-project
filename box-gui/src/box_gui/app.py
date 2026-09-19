@@ -83,6 +83,35 @@ class BoxRpgApplication(Adw.Application):
             application_id="io.gitlab.christvh.BoxRpgApp",
             flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
         )
+        try:
+            preload_cls = AppPaths
+            if preload_cls is not None:
+                try:
+                    from box_gui.core.defaults import DefaultsRepository as _PreloadDefaults
+                except ImportError:
+                    _PreloadDefaults = None  # type: ignore[assignment]
+                if _PreloadDefaults is not None:
+                    try:
+                        preload_paths = preload_cls.from_environment()
+                        try:
+                            stored = _PreloadDefaults(preload_paths).load().preferred_language
+                        except Exception:
+                            stored = None
+                        if stored is not None:
+                            try:
+                                from box_gui.pages.settings_dialog import (
+                                    SUPPORTED_LANGUAGES as _PreloadSupported,
+                                )
+                            except Exception:
+                                _PreloadSupported = frozenset((None, "en", "es"))
+                            if stored in _PreloadSupported:
+                                os.environ["LANGUAGE"] = stored
+                            else:
+                                os.environ.pop("LANGUAGE", None)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         _configure_translations()
         self._paths: AppPathsT | None = None
         self._repository: ConfigRepositoryT | None = None
@@ -281,12 +310,14 @@ class BoxRpgApplication(Adw.Application):
             from box_gui.pages.settings_dialog import SettingsDialog
         except ImportError:
             return
-        dialog: SettingsDialog
+        dialog: SettingsDialog | None = None
 
         def _on_full_wipe() -> None:
             """Close settings and return to backend setup after a full wipe."""
+            current = dialog
             with contextlib.suppress(Exception):
-                dialog.close()
+                if current is not None:
+                    current.close()
             try:
                 status = check_backend()
             except Exception:
@@ -312,12 +343,119 @@ class BoxRpgApplication(Adw.Application):
             except Exception:
                 return
 
+        def _on_language_changed(language: str | None) -> None:
+            """Rebuild the UI live so the new language applies without restart."""
+            nonlocal dialog
+            navigation = self._navigation
+            if navigation is None:
+                return
+            supported: frozenset[str | None]
+            try:
+                from box_gui.pages.settings_dialog import SUPPORTED_LANGUAGES
+
+                supported = SUPPORTED_LANGUAGES
+            except Exception:
+                supported = frozenset((None, "en", "es"))
+            if language not in supported:
+                language = None
+            try:
+                if language is None:
+                    os.environ.pop("LANGUAGE", None)
+                else:
+                    os.environ["LANGUAGE"] = language
+            except Exception:
+                pass
+            with contextlib.suppress(Exception):
+                _configure_translations()
+            with contextlib.suppress(Exception):
+                if dialog is not None:
+                    dialog.close()
+            try:
+                fresh = self._build_library_page()
+            except Exception:
+                return
+            if fresh is None:
+                try:
+                    visible = navigation.get_visible_page()
+                except Exception:
+                    return
+                if visible is None:
+                    return
+                try:
+                    from box_gui.pages.settings_dialog import (
+                        SettingsDialog as FreshSettingsDialog,
+                    )
+                except ImportError:
+                    return
+                if self._paths is None or self._repository is None:
+                    return
+                try:
+                    fresh_dialog = FreshSettingsDialog(
+                        self._paths,
+                        self._repository,
+                        self._interaction,
+                        self._library,
+                        on_full_wipe=_on_full_wipe,
+                        on_language_changed=_on_language_changed,
+                    )
+                except Exception:
+                    return
+                dialog = fresh_dialog
+                try:
+                    with contextlib.suppress(Exception):
+                        fresh_dialog.present(visible)
+                except Exception:
+                    return
+                return
+            try:
+                visible = navigation.get_visible_page()
+                root = visible
+                while root is not None:
+                    try:
+                        previous = navigation.get_previous_page(root)
+                    except Exception:
+                        break
+                    if previous is None:
+                        break
+                    root = previous
+                if root is not None and visible is not None and root is not visible:
+                    with contextlib.suppress(Exception):
+                        navigation.pop_to_page(root)
+                with contextlib.suppress(Exception):
+                    navigation.replace([fresh])
+            except Exception:
+                return
+            try:
+                from box_gui.pages.settings_dialog import SettingsDialog as FreshSettingsDialog
+            except ImportError:
+                return
+            if self._paths is None or self._repository is None:
+                return
+            try:
+                fresh_dialog = FreshSettingsDialog(
+                    self._paths,
+                    self._repository,
+                    self._interaction,
+                    self._library,
+                    on_full_wipe=_on_full_wipe,
+                    on_language_changed=_on_language_changed,
+                )
+            except Exception:
+                return
+            dialog = fresh_dialog
+            try:
+                with contextlib.suppress(Exception):
+                    fresh_dialog.present(fresh)
+            except Exception:
+                return
+
         dialog = SettingsDialog(
             self._paths,
             self._repository,
             self._interaction,
             self._library,
             on_full_wipe=_on_full_wipe,
+            on_language_changed=_on_language_changed,
         )
         dialog.present(parent)
 
