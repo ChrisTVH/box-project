@@ -15,6 +15,7 @@ explicitly started with the Install button.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import site
 import stat
@@ -41,8 +42,11 @@ __all__ = [
     "install_button_label",
     "is_externally_managed_failure",
     "query_installed_version",
+    "resolve_expected_commit",
+    "resolve_tag_commit",
     "run_command_streaming",
     "user_site_problems",
+    "verify_clone",
 ]
 
 CLONE_URLS: tuple[str, str] = (
@@ -54,7 +58,31 @@ INSTALL_TARGET = "cli"
 _BACKEND_DISTRIBUTION = "box-rpg"
 _INSTALL_SCRIPT_NAME = "install.py"
 _COMMAND_TIMEOUT_S = 3600
+_VERIFY_TIMEOUT_S = 60
+_LS_REMOTE_TIMEOUT_S = 15.0
 _EXTERNALLY_MANAGED_MARKER = "externally-managed-environment"
+_BAD_SIGNATURE_RE = re.compile(r"\b(BAD|EXP|REV)\b")
+# git rev-parse must yield a full object id (SHA-1 or SHA-256) before any
+# pin comparison or return; anything else fails closed.
+_COMMIT_RE = re.compile(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}")
+# Lightweight (non-annotated) tags carry no tag object: verify-tag reports
+# them as "not a tag" style errors and they must fail closed, never take the
+# unsigned-annotated transitional path.
+_NON_ANNOTATED_MARKERS = (
+    "NOT A TAG",
+    "NON-TAG",
+    "NOT ANNOTATED",
+    "NOT AN ANNOTATED TAG",
+    "LIGHTWEIGHT",
+)
+# Transitional unsigned annotated tags carry a tag object without a
+# signature yet; only these note and continue.
+_UNSIGNED_TAG_MARKERS = (
+    "NO SIGNATURE",
+    "CANNOT VERIFY",
+    "UNSIGNED",
+    "NOT SIGNED",
+)
 
 
 class BackendInstallError(Exception):
@@ -234,6 +262,174 @@ def user_site_problems(home: Path | None = None, user_site: Path | None = None) 
     return tuple(problems)
 
 
+def resolve_tag_commit(url: str, tag: str, *, timeout: float = _LS_REMOTE_TIMEOUT_S) -> str | None:
+    """Resolve one tag to its commit via ``git ls-remote <url> <tag>``.
+
+    Runs git without a shell and prefers the peeled ``^{}`` line for
+    annotated tags, falling back to the plain tag line. Returns the hex
+    commit (40 or 64 chars) or None when the tag is absent, the output is
+    malformed, or git exits non-zero. Transport errors (OSError,
+    SubprocessError) propagate for the caller to treat as fallback.
+    """
+    proc = subprocess.run(
+        ["git", "ls-remote", url, tag, f"refs/tags/{tag}"],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return None
+    peeled: str | None = None
+    plain: str | None = None
+    wanted = (f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}")
+    for line in proc.stdout.splitlines():
+        fields = line.split()
+        if len(fields) < 2:
+            continue
+        commit = fields[0].strip()
+        ref = fields[1].strip()
+        if ref not in wanted:
+            continue
+        if _COMMIT_RE.fullmatch(commit) is None:
+            continue
+        if ref.endswith("^{}"):
+            peeled = commit.lower()
+        else:
+            plain = commit.lower()
+    return peeled or plain
+
+
+def resolve_expected_commit(
+    tag: str,
+    clone_urls: Sequence[str] = CLONE_URLS,
+    *,
+    timeout: float = _LS_REMOTE_TIMEOUT_S,
+) -> str | None:
+    """Resolve a tag across clone remotes, returning the first hex commit.
+
+    Tries each URL in order with :func:`resolve_tag_commit` and returns
+    the first valid commit, or None when no remote yields one. Transport
+    failures on one remote fall through to the next; all-failed resolves
+    as None so the caller can install without a pin rather than guessing.
+    """
+    for url in clone_urls:
+        try:
+            commit = resolve_tag_commit(url, tag, timeout=timeout)
+        except OSError, subprocess.SubprocessError:
+            continue
+        if commit is not None:
+            return commit
+    return None
+
+
+def verify_clone(
+    repo_dir: Path,
+    tag: str,
+    expected_commit: str | None,
+    *,
+    on_status: Callable[[str], None] | None = None,
+) -> str:
+    """Verify a fresh clone resolves to the expected commit with a usable tag.
+
+    Resolves ``tag`` with ``git rev-parse <tag>^{commit}`` (no shell, with
+    timeout), validates the output as hex (40 or 64 chars), and fails
+    closed when ``expected_commit`` is pinned and the tag moved or the
+    mirror drifted. Then best-effort ``git verify-tag``: success passes
+    silently, an unsigned annotated transitional tag records a status note
+    and continues, while a lightweight (non-annotated) tag, BAD/EXP/REV
+    key errors, or any other verification failure fail closed. Returns
+    the resolved commit hash.
+    """
+    resolved_lines: list[str] = []
+    try:
+        rev_code = run_command_streaming(
+            ["git", "rev-parse", f"{tag}^{{commit}}"],
+            resolved_lines.append,
+            cwd=repo_dir,
+            timeout=_VERIFY_TIMEOUT_S,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise BackendInstallError(
+            _("Could not resolve tag {tag} in the cloned repository: {error}").format(
+                tag=tag, error=str(exc) or exc.__class__.__name__
+            )
+        ) from exc
+    resolved = next((line.strip() for line in resolved_lines if line.strip()), "")
+    if rev_code != 0 or not resolved:
+        detail = "\n".join(resolved_lines).strip() or f"git rev-parse exited with code {rev_code}"
+        raise BackendInstallError(
+            _("Could not resolve tag {tag} in the cloned repository: {detail}").format(
+                tag=tag, detail=detail
+            )
+        )
+    # Validate the hash before any pin comparison or return: only full
+    # SHA-1 (40) or SHA-256 (64) hex counts as a resolved commit.
+    if _COMMIT_RE.fullmatch(resolved) is None:
+        raise BackendInstallError(
+            _("Could not resolve tag {tag} in the cloned repository: invalid commit hash.").format(
+                tag=tag
+            )
+        )
+    resolved = resolved.lower()
+    if expected_commit is not None and resolved != expected_commit.strip().lower():
+        raise BackendInstallError(
+            _(
+                "Cloned tag {tag} resolved to {resolved} but expected {expected}; refusing to install (tag moved or mirror drift)."
+            ).format(tag=tag, resolved=resolved, expected=expected_commit.strip())
+        )
+    verify_lines: list[str] = []
+    try:
+        verify_code = run_command_streaming(
+            ["git", "verify-tag", tag],
+            verify_lines.append,
+            cwd=repo_dir,
+            timeout=_VERIFY_TIMEOUT_S,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise BackendInstallError(
+            _("Could not verify tag {tag}: {error}").format(
+                tag=tag, error=str(exc) or exc.__class__.__name__
+            )
+        ) from exc
+    if verify_code == 0:
+        return resolved
+    detail = "\n".join(verify_lines).strip() or f"git verify-tag exited with code {verify_code}"
+    upper_detail = detail.upper()
+    is_bad_signature = (
+        _BAD_SIGNATURE_RE.search(upper_detail) is not None
+        or "EXPIRED" in upper_detail
+        or "REVOKED" in upper_detail
+        or "INVALID SIGNATURE" in upper_detail
+    )
+    if is_bad_signature:
+        raise BackendInstallError(
+            _("Tag signature verification failed for {tag}: {detail}").format(
+                tag=tag, detail=detail
+            )
+        )
+    # Lightweight (non-annotated) tags have no tag object to verify: fail
+    # closed instead of taking the unsigned-annotated transitional path.
+    if any(marker in upper_detail for marker in _NON_ANNOTATED_MARKERS):
+        raise BackendInstallError(
+            _("Tag {tag} is not an annotated tag; refusing to install: {detail}").format(
+                tag=tag, detail=detail
+            )
+        )
+    if any(marker in upper_detail for marker in _UNSIGNED_TAG_MARKERS):
+        # Unsigned transitional tags carry no signature yet; note it and continue.
+        if on_status is not None:
+            on_status(
+                _("Tag {tag} is not signed; continuing without signature verification.").format(
+                    tag=tag
+                )
+            )
+        return resolved
+    raise BackendInstallError(
+        _("Could not verify tag {tag}: {detail}").format(tag=tag, detail=detail)
+    )
+
+
 def install_backend(
     tag: str,
     *,
@@ -241,13 +437,15 @@ def install_backend(
     on_line: Callable[[str], None],
     on_status: Callable[[str], None] | None = None,
     clone_urls: Sequence[str] = CLONE_URLS,
+    expected_commit: str | None = None,
 ) -> InstallOutcome:
     """Clone the repo at tag, install the CLI backend, and verify it.
 
     Clone progress goes to ``on_status`` so ``on_line`` carries EXCLUSIVELY
     live install.py output lines. Every failure raises BackendInstallError
     with the verbatim tool text; success returns only after the installed
-    version is confirmed to equal the tag.
+    version is confirmed to equal the tag. When ``expected_commit`` is given,
+    the clone is verified against that pin before install.py runs.
     """
     notify: Callable[[str], None] = on_status if on_status is not None else (lambda _m: None)
     site_problems = user_site_problems()
@@ -288,6 +486,8 @@ def install_backend(
                 )
             )
         script = repository / _INSTALL_SCRIPT_NAME
+        # Verify the clone before trusting it: pin check first, then tag signature.
+        verify_clone(repository, tag, expected_commit, on_status=notify)
         notify(_("Installing box-rpg {tag} …").format(tag=tag))
         install_lines: list[str] = []
 
