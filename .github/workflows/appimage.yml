@@ -59,6 +59,12 @@ jobs:
           name: box-rpg-maker.appimage
           path: dist/box-rpg-maker.appimage
 
+      - name: Upload the checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: box-rpg-maker.appimage.sha256
+          path: dist/box-rpg-maker.appimage.sha256
+
       - name: Publish the GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -67,8 +73,8 @@ jobs:
           git push origin "$TAG"
           python3 -m tools.release_notes "$TAG" > notes.md
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/box-rpg-maker.appimage --clobber
+            gh release upload "$TAG" dist/box-rpg-maker.appimage dist/box-rpg-maker.appimage.sha256 --clobber
           else
-            gh release create "$TAG" dist/box-rpg-maker.appimage \
+            gh release create "$TAG" dist/box-rpg-maker.appimage dist/box-rpg-maker.appimage.sha256 \
               --title "box-rpg-maker $TAG" --notes-file notes.md
           fi

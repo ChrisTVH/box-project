@@ -62,6 +62,7 @@ CI triggers are manual only (``workflow_dispatch`` on GitHub Actions,
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import shutil
 import subprocess
@@ -687,6 +688,18 @@ def extract_appimagetool(tool: Path, directory: Path) -> Path:
     return runner
 
 
+def sha256_file(path: Path) -> str:
+    """Return the hex SHA256 digest of a file, reading it in chunks."""
+    digest = hashlib.sha256()
+    try:
+        with open(path, "rb") as stream:
+            for chunk in iter(lambda: stream.read(65536), b""):
+                digest.update(chunk)
+    except OSError as exc:
+        raise RuntimeError(f"cannot hash file {path}: {exc}") from exc
+    return digest.hexdigest()
+
+
 def build_artifact(runner: Path, appdir: Path, output: Path) -> Path:
     """Convert the AppDir into the distributable AppImage file."""
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -704,6 +717,14 @@ def build_artifact(runner: Path, appdir: Path, output: Path) -> Path:
     if not output.is_file() or output.stat().st_size == 0:
         raise RuntimeError("appimagetool produced no artifact")
     output.chmod(0o755)
+    # Publish a sidecar checksum so downloads can be verified out of band.
+    # Default file permissions apply; any I/O failure fails the build.
+    digest = sha256_file(output)
+    checksum_path = output.with_name(output.name + ".sha256")
+    try:
+        checksum_path.write_text(f"{digest}  {output.name}\n", encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(f"cannot write checksum {checksum_path}: {exc}") from exc
     return output
 
 

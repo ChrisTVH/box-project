@@ -1,6 +1,7 @@
 # pyright: reportPrivateUsage=false
 """Tests for the Python-pure AppImage builder (Fase 1 + Fase 2 + Fase 3)."""
 
+import hashlib
 import io
 import os
 import shutil
@@ -362,6 +363,36 @@ def test_build_artifact_fails_closed_on_tool_error(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="failed to build"):
         build_appimage.build_artifact(runner, tmp_path / "AppDir", tmp_path / "out.appimage")
+
+
+def test_sha256_file_matches_hashlib(tmp_path: Path) -> None:
+    """sha256_file() agrees with hashlib over binary content."""
+    payload = tmp_path / "payload.bin"
+    payload.write_bytes(b"hello appimage\n\x00\xff" * 5000)
+
+    assert build_appimage.sha256_file(payload) == hashlib.sha256(payload.read_bytes()).hexdigest()
+
+
+def test_sha256_file_fails_closed_on_missing_file(tmp_path: Path) -> None:
+    """A missing input fails closed instead of returning a digest."""
+    with pytest.raises(RuntimeError, match="cannot hash"):
+        build_appimage.sha256_file(tmp_path / "missing.bin")
+
+
+def test_build_artifact_writes_matching_checksum(tmp_path: Path) -> None:
+    """build_artifact() writes <output>.sha256 with '<hex>  <basename>'."""
+    runner = tmp_path / "runner"
+    runner.write_text('#!/bin/sh\necho "artifact" > "$2"\n')
+    runner.chmod(0o755)
+    output = tmp_path / "dist" / "box-rpg-maker.appimage"
+
+    result = build_appimage.build_artifact(runner, tmp_path / "AppDir", output)
+
+    assert result == output
+    checksum_path = output.with_name(output.name + ".sha256")
+    expected = hashlib.sha256(output.read_bytes()).hexdigest()
+    assert checksum_path.read_text(encoding="utf-8") == f"{expected}  {output.name}\n"
+    assert build_appimage.sha256_file(output) == expected
 
 
 def _load_apprun_namespace() -> dict[str, Any]:

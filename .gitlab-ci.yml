@@ -48,6 +48,7 @@ appimage:
   artifacts:
     paths:
       - dist/box-rpg-maker.appimage
+      - dist/box-rpg-maker.appimage.sha256
       - notes.md
     reports:
       dotenv: build.env
@@ -65,4 +66,4 @@ publish:
     - when: on_success
   script:
     - echo "Publishing release for $APPIMAGE_TAG"
-    - release-cli create --name "box-rpg-maker $APPIMAGE_TAG" --tag-name "$APPIMAGE_TAG" --description "$(cat notes.md)" --ref "$CI_COMMIT_SHA" --assets-link "{\"name\":\"box-rpg-maker.appimage\",\"url\":\"$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_REF_NAME/raw/dist/box-rpg-maker.appimage?job=appimage\",\"link_type\":\"package\"}" || release-cli update --tag-name "$APPIMAGE_TAG" --name "box-rpg-maker $APPIMAGE_TAG" --description "$(cat notes.md)"
+    - release-cli create --name "box-rpg-maker $APPIMAGE_TAG" --tag-name "$APPIMAGE_TAG" --description "$(cat notes.md)" --ref "$CI_COMMIT_SHA" --assets-link "{\"name\":\"box-rpg-maker.appimage\",\"url\":\"$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_REF_NAME/raw/dist/box-rpg-maker.appimage?job=appimage\",\"link_type\":\"package\"}" --assets-link "{\"name\":\"box-rpg-maker.appimage.sha256\",\"url\":\"$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_REF_NAME/raw/dist/box-rpg-maker.appimage.sha256?job=appimage\",\"link_type\":\"package\"}" || release-cli update --tag-name "$APPIMAGE_TAG" --name "box-rpg-maker $APPIMAGE_TAG" --description "$(cat notes.md)" --assets-link "{\"name\":\"box-rpg-maker.appimage\",\"url\":\"$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_REF_NAME/raw/dist/box-rpg-maker.appimage?job=appimage\",\"link_type\":\"package\"}" --assets-link "{\"name\":\"box-rpg-maker.appimage.sha256\",\"url\":\"$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_REF_NAME/raw/dist/box-rpg-maker.appimage.sha256?job=appimage\",\"link_type\":\"package\"}"
