@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg-maker 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-19 15:18-0400\n"
+"POT-Creation-Date: 2026-09-19 16:34-0400\n"
 "PO-Revision-Date: 2026-09-14 00:00+0000\n"
 "Last-Translator: Christopher Herasme <5632734-"
 "christvh@users.noreply.gitlab.com>\n"
@@ -17,25 +17,6 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
-
-#: box-gui/src/box_gui/app.py:193 box-gui/src/box_gui/app.py:216
-msgid "Box RPG Maker"
-msgstr "Box RPG Maker"
-
-#: box-gui/src/box_gui/app.py:196
-msgid "Configuration Error"
-msgstr "Error de configuración"
-
-#: box-gui/src/box_gui/app.py:197
-#: box-gui/src/box_gui/pages/backend_setup_page.py:385
-#: box-gui/src/box_gui/pages/diagnose_dialog.py:130
-#: box-gui/src/box_gui/pages/game_detail_page.py:1180
-#: box-gui/src/box_gui/pages/game_detail_page.py:1258
-#: box-gui/src/box_gui/pages/game_detail_page.py:1275
-#: box-gui/src/box_gui/pages/library_page.py:1167
-#: box-gui/src/box_gui/pages/settings_dialog.py:126
-msgid "Close"
-msgstr "Cerrar"
 
 #: box-gui/src/box_gui/core/backend_check.py:101
 msgid "The box-rpg backend is not installed. Install it to open your library."
@@ -96,24 +77,64 @@ msgstr "los espacios de nombres de usuario están bloqueados"
 msgid "not available"
 msgstr "no disponible"
 
-#: box-gui/src/box_gui/core/backend_install.py:85
+#: box-gui/src/box_gui/core/backend_install.py:97
 msgid "Installing…"
 msgstr "Instalando…"
 
-#: box-gui/src/box_gui/core/backend_install.py:87
+#: box-gui/src/box_gui/core/backend_install.py:99
+#: box-gui/src/box_gui/pages/backend_setup_page.py:256
 msgid "Retry"
 msgstr "Reintentar"
 
-#: box-gui/src/box_gui/core/backend_install.py:89
+#: box-gui/src/box_gui/core/backend_install.py:101
 msgid "Installed"
 msgstr "Instalado"
 
-#: box-gui/src/box_gui/core/backend_install.py:90
+#: box-gui/src/box_gui/core/backend_install.py:102
 #, python-brace-format
 msgid "Install box-rpg {version}"
 msgstr "Instalar box-rpg {version}"
 
-#: box-gui/src/box_gui/core/backend_install.py:257
+#: box-gui/src/box_gui/core/backend_install.py:275
+#, python-brace-format
+msgid "Could not resolve tag {tag} in the cloned repository: {error}"
+msgstr "No se pudo resolver la etiqueta {tag} en el repositorio clonado: {error}"
+
+#: box-gui/src/box_gui/core/backend_install.py:283
+#, python-brace-format
+msgid "Could not resolve tag {tag} in the cloned repository: {detail}"
+msgstr "No se pudo resolver la etiqueta {tag} en el repositorio clonado: {detail}"
+
+#: box-gui/src/box_gui/core/backend_install.py:290
+#, python-brace-format
+msgid ""
+"Cloned tag {tag} resolved to {resolved} but expected {expected}; refusing to "
+"install (tag moved or mirror drift)."
+msgstr ""
+"La etiqueta clonada {tag} se resolvió como {resolved}, pero se esperaba "
+"{expected}; se rechaza la instalación (la etiqueta se movió o el espejo cambió)."
+
+#: box-gui/src/box_gui/core/backend_install.py:303
+#, python-brace-format
+msgid "Could not verify tag {tag}: {error}"
+msgstr "No se pudo verificar la etiqueta {tag}: {error}"
+
+#: box-gui/src/box_gui/core/backend_install.py:319
+#, python-brace-format
+msgid "Tag signature verification failed for {tag}: {detail}"
+msgstr "Falló la verificación de la firma de la etiqueta {tag}: {detail}"
+
+#: box-gui/src/box_gui/core/backend_install.py:327
+#, python-brace-format
+msgid "Tag {tag} is not signed; continuing without signature verification."
+msgstr "La etiqueta {tag} no está firmada; se continúa sin verificación de firma."
+
+#: box-gui/src/box_gui/core/backend_install.py:333
+#, python-brace-format
+msgid "Could not verify tag {tag}: {detail}"
+msgstr "No se pudo verificar la etiqueta {tag}: {detail}"
+
+#: box-gui/src/box_gui/core/backend_install.py:359
 #, python-brace-format
 msgid ""
 "Cannot install to your Python user site: {paths}. Each directory must be "
@@ -125,36 +146,36 @@ msgstr ""
 "otros (por ejemplo: chown USERNAME PATH y chmod go-w PATH); ajústalos e "
 "inténtalo de nuevo."
 
-#: box-gui/src/box_gui/core/backend_install.py:265
+#: box-gui/src/box_gui/core/backend_install.py:367
 #, python-brace-format
 msgid "Cloning {url} …"
 msgstr "Clonando {url} …"
 
-#: box-gui/src/box_gui/core/backend_install.py:286
+#: box-gui/src/box_gui/core/backend_install.py:388
 #, python-brace-format
 msgid "Could not clone the repository at {tag}: {errors}"
 msgstr "No se pudo clonar el repositorio en {tag}: {errors}"
 
-#: box-gui/src/box_gui/core/backend_install.py:291
-#: box-gui/src/box_gui/pages/backend_setup_page.py:330
+#: box-gui/src/box_gui/core/backend_install.py:395
+#: box-gui/src/box_gui/pages/backend_setup_page.py:374
 #, python-brace-format
 msgid "Installing box-rpg {tag} …"
 msgstr "Instalando box-rpg {tag} …"
 
-#: box-gui/src/box_gui/core/backend_install.py:303
+#: box-gui/src/box_gui/core/backend_install.py:407
 msgid "Retrying with --break-system-packages …"
 msgstr "Reintentando con --break-system-packages …"
 
-#: box-gui/src/box_gui/core/backend_install.py:309
+#: box-gui/src/box_gui/core/backend_install.py:413
 #, python-brace-format
 msgid "Install failed with exit code {code}."
 msgstr "La instalación falló con el código de salida {code}."
 
-#: box-gui/src/box_gui/core/backend_install.py:312
+#: box-gui/src/box_gui/core/backend_install.py:416
 msgid "Could not confirm the installed box-rpg version."
 msgstr "No se pudo confirmar la versión instalada de box-rpg."
 
-#: box-gui/src/box_gui/core/backend_install.py:316
+#: box-gui/src/box_gui/core/backend_install.py:420
 #, python-brace-format
 msgid ""
 "Installed box-rpg {installed} does not match the expected version {tag}."
@@ -186,10 +207,10 @@ msgstr ""
 #: box-gui/src/box_gui/gtk/interaction.py:173
 #: box-gui/src/box_gui/gtk/interaction.py:193
 #: box-gui/src/box_gui/pages/game_detail_page.py:1016
-#: box-gui/src/box_gui/pages/settings_dialog.py:942
-#: box-gui/src/box_gui/pages/settings_dialog.py:1079
-#: box-gui/src/box_gui/pages/settings_dialog.py:1311
-#: box-gui/src/box_gui/pages/settings_dialog.py:1476
+#: box-gui/src/box_gui/pages/settings_dialog.py:1009
+#: box-gui/src/box_gui/pages/settings_dialog.py:1146
+#: box-gui/src/box_gui/pages/settings_dialog.py:1378
+#: box-gui/src/box_gui/pages/settings_dialog.py:1543
 #: box-gui/src/box_gui/widgets/exe_picker.py:40
 #: box-gui/src/box_gui/widgets/external_link.py:34
 msgid "Cancel"
@@ -236,62 +257,107 @@ msgstr ""
 msgid "GameMode is not supported by the installed backend."
 msgstr "GameMode no es compatible con el backend instalado."
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:42
+#: box-gui/src/box_gui/pages/backend_setup_page.py:50
 msgid "Backend Update Required"
 msgstr "Actualización del backend requerida"
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:44
+#: box-gui/src/box_gui/pages/backend_setup_page.py:52
 msgid "Backend Check Failed"
 msgstr "Comprobación del backend fallida"
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:45
+#: box-gui/src/box_gui/pages/backend_setup_page.py:53
 msgid "Backend Required"
 msgstr "Backend requerido"
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:53
+#: box-gui/src/box_gui/pages/backend_setup_page.py:61
 #, python-brace-format
 msgid "Required dependency missing: {names}."
 msgstr "Falta la dependencia requerida: {names}."
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:101
-#: box-gui/src/box_gui/pages/backend_setup_page.py:143
+#: box-gui/src/box_gui/pages/backend_setup_page.py:109
+#: box-gui/src/box_gui/pages/backend_setup_page.py:163
 msgid "Backend Setup"
 msgstr "Configuración del backend"
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:115
+#: box-gui/src/box_gui/pages/backend_setup_page.py:123
 msgid "Dependencies"
 msgstr "Dependencias"
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:154
+#: box-gui/src/box_gui/pages/backend_setup_page.py:147
+msgid "Skip"
+msgstr "Omitir"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:174
 msgid "Installation output"
 msgstr "Salida de la instalación"
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:207
+#: box-gui/src/box_gui/pages/backend_setup_page.py:229
 #: box-gui/src/box_gui/pages/library_page.py:256
 msgid "Created with"
 msgstr "Creado con"
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:212
+#: box-gui/src/box_gui/pages/backend_setup_page.py:234
 #: box-gui/src/box_gui/pages/library_page.py:261
 #, python-brace-format
 msgid "by {author}"
 msgstr "por {author}"
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:217
+#: box-gui/src/box_gui/pages/backend_setup_page.py:239
 #: box-gui/src/box_gui/pages/library_page.py:266
 msgid "Open project repository"
 msgstr "Abrir repositorio del proyecto"
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:301
+#: box-gui/src/box_gui/pages/backend_setup_page.py:254
+msgid "Updating…"
+msgstr "Actualizando…"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:258
+msgid "Updated"
+msgstr "Actualizado"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:259
+msgid "Update AppImage"
+msgstr "Actualizar AppImage"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:340
 msgid "Detection Failed"
 msgstr "Detección fallida"
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:361
+#: box-gui/src/box_gui/pages/backend_setup_page.py:405
 #, python-brace-format
 msgid "box-rpg {version} installed and verified."
 msgstr "box-rpg {version} instalado y verificado."
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:377
+#: box-gui/src/box_gui/pages/backend_setup_page.py:451
+msgid "AppImage Update Available"
+msgstr "Actualización de AppImage disponible"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:453
+#, python-brace-format
+msgid ""
+"AppImage {current} → {latest}. Update to get the latest features and fixes."
+msgstr ""
+"AppImage {current} → {latest}. Actualiza para obtener las últimas funciones y correcciones."
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:498
+msgid "Missing update version."
+msgstr "Falta la versión de actualización."
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:518
+#, python-brace-format
+msgid "Downloading AppImage {tag} …"
+msgstr "Descargando AppImage {tag} …"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:539
+msgid "Replacing AppImage …"
+msgstr "Reemplazando AppImage …"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:550
+msgid "AppImage updated, restarting …"
+msgstr "AppImage actualizado, reiniciando …"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:577
+#: box-gui/src/box_gui/pages/backend_setup_page.py:579
 #: box-gui/src/box_gui/pages/diagnose_dialog.py:26
 #: box-gui/src/box_gui/pages/game_detail_page.py:78
 #: box-gui/src/box_gui/pages/game_detail_page.py:85
@@ -318,13 +384,28 @@ msgstr "box-rpg {version} instalado y verificado."
 #: box-gui/src/box_gui/pages/library_page.py:1120
 #: box-gui/src/box_gui/pages/library_page.py:1125
 #: box-gui/src/box_gui/pages/library_page.py:1148
-#: box-gui/src/box_gui/pages/settings_dialog.py:123
+#: box-gui/src/box_gui/pages/settings_dialog.py:141
 msgid "Unexpected Error"
 msgstr "Error inesperado"
 
-#: box-gui/src/box_gui/pages/backend_setup_page.py:377
+#: box-gui/src/box_gui/pages/backend_setup_page.py:577
+msgid "Update Failed"
+msgstr "Actualización fallida"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:579
 msgid "Installation Failed"
 msgstr "Instalación fallida"
+
+#: box-gui/src/box_gui/pages/backend_setup_page.py:587
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:130
+#: box-gui/src/box_gui/pages/game_detail_page.py:1180
+#: box-gui/src/box_gui/pages/game_detail_page.py:1258
+#: box-gui/src/box_gui/pages/game_detail_page.py:1275
+#: box-gui/src/box_gui/pages/library_page.py:1167
+#: box-gui/src/box_gui/pages/settings_dialog.py:144
+#: box-gui/src/box_gui/app.py:197
+msgid "Close"
+msgstr "Cerrar"
 
 #: box-gui/src/box_gui/pages/diagnose_dialog.py:25
 msgid "Diagnose Failed"
@@ -369,7 +450,7 @@ msgid "Engine Version"
 msgstr "Versión del motor"
 
 #: box-gui/src/box_gui/pages/diagnose_dialog.py:121
-#: box-gui/src/box_gui/pages/settings_dialog.py:801
+#: box-gui/src/box_gui/pages/settings_dialog.py:868
 msgid "NW.js"
 msgstr "NW.js"
 
@@ -452,7 +533,7 @@ msgid "Preferred runtime"
 msgstr "Entorno de ejecución preferido"
 
 #: box-gui/src/box_gui/pages/game_detail_page.py:168
-#: box-gui/src/box_gui/pages/settings_dialog.py:831
+#: box-gui/src/box_gui/pages/settings_dialog.py:898
 msgid "SDK"
 msgstr "SDK"
 
@@ -564,10 +645,10 @@ msgid "Default"
 msgstr "Por defecto"
 
 #: box-gui/src/box_gui/pages/game_detail_page.py:510
-#: box-gui/src/box_gui/pages/settings_dialog.py:208
-#: box-gui/src/box_gui/pages/settings_dialog.py:213
-#: box-gui/src/box_gui/pages/settings_dialog.py:254
-#: box-gui/src/box_gui/pages/settings_dialog.py:281
+#: box-gui/src/box_gui/pages/settings_dialog.py:227
+#: box-gui/src/box_gui/pages/settings_dialog.py:232
+#: box-gui/src/box_gui/pages/settings_dialog.py:282
+#: box-gui/src/box_gui/pages/settings_dialog.py:309
 msgid "Undefined"
 msgstr "No definido"
 
@@ -684,7 +765,7 @@ msgid "Add game"
 msgstr "Añadir juego"
 
 #: box-gui/src/box_gui/pages/library_page.py:211
-#: box-gui/src/box_gui/pages/settings_dialog.py:1627
+#: box-gui/src/box_gui/pages/settings_dialog.py:1694
 msgid "Settings"
 msgstr "Ajustes"
 
@@ -711,333 +792,370 @@ msgstr "En ejecución"
 msgid "Reorder or remove"
 msgstr "Reordenar o quitar"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:73
+#: box-gui/src/box_gui/pages/settings_dialog.py:75
 msgid "System default"
 msgstr "Del sistema"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:121
+#: box-gui/src/box_gui/pages/settings_dialog.py:88
+msgid "No"
+msgstr "No"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:89
+msgid "Every 12 hours"
+msgstr "Cada 12 horas"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:90
+msgid "Daily"
+msgstr "Diariamente"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:91
+msgid "Every 2 days"
+msgstr "Cada 2 días"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:92
+msgid "Every 3 days"
+msgstr "Cada 3 días"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:93
+msgid "Weekly"
+msgstr "Semanalmente"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:139
 #, python-brace-format
 msgid "{operation} Failed"
 msgstr "{operation} ha fallado"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:175
+#: box-gui/src/box_gui/pages/settings_dialog.py:193
 msgid "General"
 msgstr "General"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:189
+#: box-gui/src/box_gui/pages/settings_dialog.py:208
 msgid "Allowed game roots"
 msgstr "Raíces de juego permitidas"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:192
-#: box-gui/src/box_gui/pages/settings_dialog.py:358
+#: box-gui/src/box_gui/pages/settings_dialog.py:211
+#: box-gui/src/box_gui/pages/settings_dialog.py:404
 msgid "No game roots configured."
 msgstr "No hay raíces de juego configuradas."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:195
+#: box-gui/src/box_gui/pages/settings_dialog.py:214
 msgid "Add root"
 msgstr "Añadir raíz"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:199
-#: box-gui/src/box_gui/pages/settings_dialog.py:200
+#: box-gui/src/box_gui/pages/settings_dialog.py:218
+#: box-gui/src/box_gui/pages/settings_dialog.py:219
 msgid "Language"
 msgstr "Idioma"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:206
+#: box-gui/src/box_gui/pages/settings_dialog.py:225
 msgid "Preferred NW.js runtime"
 msgstr "Entorno NW.js preferido"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:207
+#: box-gui/src/box_gui/pages/settings_dialog.py:226
 msgid "NW.js version"
 msgstr "Versión de NW.js"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:211
+#: box-gui/src/box_gui/pages/settings_dialog.py:230
 msgid "Preferred EasyRPG runtime"
 msgstr "Entorno EasyRPG preferido"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:212
+#: box-gui/src/box_gui/pages/settings_dialog.py:231
 msgid "EasyRPG version"
 msgstr "Versión de EasyRPG"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:229
+#: box-gui/src/box_gui/pages/settings_dialog.py:235
+msgid "Automatic updates"
+msgstr "Actualizaciones automáticas"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:236
+msgid "Check for updates"
+msgstr "Buscar actualizaciones"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:257
 msgid "Load Roots"
 msgstr "Cargar raíces"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:243
-#: box-gui/src/box_gui/pages/settings_dialog.py:270
-#: box-gui/src/box_gui/pages/settings_dialog.py:616
+#: box-gui/src/box_gui/pages/settings_dialog.py:271
+#: box-gui/src/box_gui/pages/settings_dialog.py:298
+#: box-gui/src/box_gui/pages/settings_dialog.py:683
 msgid "Load Runtimes"
 msgstr "Cargar entornos"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:248
-#: box-gui/src/box_gui/pages/settings_dialog.py:275
-#: box-gui/src/box_gui/pages/settings_dialog.py:297
+#: box-gui/src/box_gui/pages/settings_dialog.py:276
+#: box-gui/src/box_gui/pages/settings_dialog.py:303
+#: box-gui/src/box_gui/pages/settings_dialog.py:325
+#: box-gui/src/box_gui/pages/settings_dialog.py:343
 msgid "Load Settings"
 msgstr "Cargar ajustes"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:316
-#: box-gui/src/box_gui/pages/settings_dialog.py:323
+#: box-gui/src/box_gui/pages/settings_dialog.py:362
+#: box-gui/src/box_gui/pages/settings_dialog.py:369
 msgid "Add Root"
 msgstr "Añadir raíz"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:343
-#: box-gui/src/box_gui/pages/settings_dialog.py:874
-#: box-gui/src/box_gui/pages/settings_dialog.py:1050
-#: box-gui/src/box_gui/pages/settings_dialog.py:1312
-#: box-gui/src/box_gui/pages/settings_dialog.py:1392
+#: box-gui/src/box_gui/pages/settings_dialog.py:389
+#: box-gui/src/box_gui/pages/settings_dialog.py:941
+#: box-gui/src/box_gui/pages/settings_dialog.py:1117
+#: box-gui/src/box_gui/pages/settings_dialog.py:1379
+#: box-gui/src/box_gui/pages/settings_dialog.py:1459
 msgid "Remove"
 msgstr "Eliminar"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:352
+#: box-gui/src/box_gui/pages/settings_dialog.py:398
 #, python-brace-format
 msgid "{count} root configured."
 msgid_plural "{count} roots configured."
 msgstr[0] "{count} raíz configurada."
 msgstr[1] "{count} raíces configuradas."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:367
+#: box-gui/src/box_gui/pages/settings_dialog.py:413
 msgid "Remove Root"
 msgstr "Quitar raíz"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:388
-#: box-gui/src/box_gui/pages/settings_dialog.py:406
+#: box-gui/src/box_gui/pages/settings_dialog.py:434
+#: box-gui/src/box_gui/pages/settings_dialog.py:452
 msgid "Set Runtime"
 msgstr "Fijar entorno"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:434
+#: box-gui/src/box_gui/pages/settings_dialog.py:480
 msgid "Set Language"
 msgstr "Fijar idioma"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:447
+#: box-gui/src/box_gui/pages/settings_dialog.py:509
+msgid "Set Updates"
+msgstr "Fijar actualizaciones"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:514
 msgid "Add game root"
 msgstr "Añadir raíz de juego"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:461
-#: box-gui/src/box_gui/pages/settings_dialog.py:466
+#: box-gui/src/box_gui/pages/settings_dialog.py:528
+#: box-gui/src/box_gui/pages/settings_dialog.py:533
 msgid "Select Folder"
 msgstr "Elegir carpeta"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:466
+#: box-gui/src/box_gui/pages/settings_dialog.py:533
 msgid "Cannot resolve the selected folder."
 msgstr "No se puede resolver la carpeta seleccionada."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:492
-#: box-gui/src/box_gui/pages/settings_dialog.py:649
+#: box-gui/src/box_gui/pages/settings_dialog.py:559
+#: box-gui/src/box_gui/pages/settings_dialog.py:716
 msgid "No versions available."
 msgstr "No hay versiones disponibles."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:495
+#: box-gui/src/box_gui/pages/settings_dialog.py:562
 msgid "Previous"
 msgstr "Anterior"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:496
+#: box-gui/src/box_gui/pages/settings_dialog.py:563
 msgid "Next"
 msgstr "Siguiente"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:499
-#: box-gui/src/box_gui/pages/settings_dialog.py:646
+#: box-gui/src/box_gui/pages/settings_dialog.py:566
+#: box-gui/src/box_gui/pages/settings_dialog.py:713
 #, python-brace-format
 msgid "Page {page}"
 msgstr "Página {page}"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:504
+#: box-gui/src/box_gui/pages/settings_dialog.py:571
 msgid "Loading runtimes."
 msgstr "Cargando entornos de ejecución."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:566
+#: box-gui/src/box_gui/pages/settings_dialog.py:633
 #, python-brace-format
 msgid "Loading installed {noun} runtimes …"
 msgstr "Cargando entornos {noun} instalados …"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:607
+#: box-gui/src/box_gui/pages/settings_dialog.py:674
 #, python-brace-format
 msgid "No {noun} runtimes installed."
 msgstr "No hay entornos {noun} instalados."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:615
+#: box-gui/src/box_gui/pages/settings_dialog.py:682
 msgid "Loading installed runtimes failed."
 msgstr "Error al cargar los entornos instalados."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:639
-#: box-gui/src/box_gui/pages/settings_dialog.py:943
-#: box-gui/src/box_gui/pages/settings_dialog.py:1080
+#: box-gui/src/box_gui/pages/settings_dialog.py:706
+#: box-gui/src/box_gui/pages/settings_dialog.py:1010
+#: box-gui/src/box_gui/pages/settings_dialog.py:1147
 msgid "Install"
 msgstr "Instalar"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:659
+#: box-gui/src/box_gui/pages/settings_dialog.py:726
 #, python-brace-format
 msgid "{version} ({size})"
 msgstr "{version} ({size})"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:664
+#: box-gui/src/box_gui/pages/settings_dialog.py:731
 msgid "Loading versions failed."
 msgstr "Error al cargar las versiones."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:665
+#: box-gui/src/box_gui/pages/settings_dialog.py:732
 msgid "Load Versions"
 msgstr "Cargar versiones"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:693
-#: box-gui/src/box_gui/pages/settings_dialog.py:1458
+#: box-gui/src/box_gui/pages/settings_dialog.py:760
+#: box-gui/src/box_gui/pages/settings_dialog.py:1525
 msgid "Removal failed."
 msgstr "Eliminación fallida."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:694
+#: box-gui/src/box_gui/pages/settings_dialog.py:761
 msgid "Remove Runtime"
 msgstr "Quitar entorno"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:741
+#: box-gui/src/box_gui/pages/settings_dialog.py:808
 msgid "Install complete."
 msgstr "Instalación completa."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:749
+#: box-gui/src/box_gui/pages/settings_dialog.py:816
 msgid "Install failed."
 msgstr "Instalación fallida."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:750
-#: box-gui/src/box_gui/pages/settings_dialog.py:937
-#: box-gui/src/box_gui/pages/settings_dialog.py:1076
+#: box-gui/src/box_gui/pages/settings_dialog.py:817
+#: box-gui/src/box_gui/pages/settings_dialog.py:1004
+#: box-gui/src/box_gui/pages/settings_dialog.py:1143
 msgid "Install Runtime"
 msgstr "Instalar entorno de ejecución"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:809
+#: box-gui/src/box_gui/pages/settings_dialog.py:876
 msgid "Installed NW.js runtimes"
 msgstr "Entornos NW.js instalados"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:813
+#: box-gui/src/box_gui/pages/settings_dialog.py:880
 msgid "Available NW.js versions"
 msgstr "Versiones NW.js disponibles"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:825
+#: box-gui/src/box_gui/pages/settings_dialog.py:892
 msgid "Architecture"
 msgstr "Arquitectura"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:867
+#: box-gui/src/box_gui/pages/settings_dialog.py:934
 msgid "standard"
 msgstr "estándar"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:868
+#: box-gui/src/box_gui/pages/settings_dialog.py:935
 #, python-brace-format
 msgid "NW.js {version} for {architecture} ({flavor})"
 msgstr "NW.js {version} para {architecture} ({flavor})"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:898
+#: box-gui/src/box_gui/pages/settings_dialog.py:965
 #, python-brace-format
 msgid "Removing NW.js {version} …"
 msgstr "Eliminando NW.js {version} …"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:938
+#: box-gui/src/box_gui/pages/settings_dialog.py:1005
 #, python-brace-format
 msgid "Install NW.js {version} for {architecture}?"
 msgstr "¿Instalar NW.js {version} para {architecture}?"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:984
+#: box-gui/src/box_gui/pages/settings_dialog.py:1051
 #, python-brace-format
 msgid "Installing NW.js {version} …"
 msgstr "Instalando NW.js {version} …"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:995
+#: box-gui/src/box_gui/pages/settings_dialog.py:1062
 msgid "Detect Architecture"
 msgstr "Detectar arquitectura"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1007
+#: box-gui/src/box_gui/pages/settings_dialog.py:1074
 msgid "EasyRPG"
 msgstr "EasyRPG"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1015
+#: box-gui/src/box_gui/pages/settings_dialog.py:1082
 msgid "Installed EasyRPG runtimes"
 msgstr "Entornos EasyRPG instalados"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1019
+#: box-gui/src/box_gui/pages/settings_dialog.py:1086
 msgid "Available EasyRPG versions"
 msgstr "Versiones EasyRPG disponibles"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1048
+#: box-gui/src/box_gui/pages/settings_dialog.py:1115
 #, python-brace-format
 msgid "EasyRPG Player {version} for x64"
 msgstr "EasyRPG Player {version} para x64"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1067
+#: box-gui/src/box_gui/pages/settings_dialog.py:1134
 #, python-brace-format
 msgid "Removing EasyRPG Player {version} …"
 msgstr "Eliminando EasyRPG Player {version} …"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1077
+#: box-gui/src/box_gui/pages/settings_dialog.py:1144
 #, python-brace-format
 msgid "Install EasyRPG Player {version} for x64?"
 msgstr "¿Instalar EasyRPG Player {version} para x64?"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1106
+#: box-gui/src/box_gui/pages/settings_dialog.py:1173
 #, python-brace-format
 msgid "Installing EasyRPG Player {version} …"
 msgstr "Instalando EasyRPG Player {version} …"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1198
+#: box-gui/src/box_gui/pages/settings_dialog.py:1265
 msgid "HOME must be an absolute path"
 msgstr "HOME debe ser una ruta absoluta"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1237
+#: box-gui/src/box_gui/pages/settings_dialog.py:1304
 msgid "Data"
 msgstr "Datos"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1256
-#: box-gui/src/box_gui/pages/settings_dialog.py:1290
+#: box-gui/src/box_gui/pages/settings_dialog.py:1323
+#: box-gui/src/box_gui/pages/settings_dialog.py:1357
 msgid "Loading cleanup items …"
 msgstr "Cargando elementos de limpieza …"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1258
-#: box-gui/src/box_gui/pages/settings_dialog.py:1404
+#: box-gui/src/box_gui/pages/settings_dialog.py:1325
+#: box-gui/src/box_gui/pages/settings_dialog.py:1471
 msgid "No items."
 msgstr "No hay elementos."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1268
+#: box-gui/src/box_gui/pages/settings_dialog.py:1335
 msgid "Danger zone"
 msgstr "Zona peligrosa"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1269
+#: box-gui/src/box_gui/pages/settings_dialog.py:1336
 msgid "Delete all application data and uninstall the backend."
 msgstr "Elimina todos los datos de la aplicación y desinstala el backend."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1274
-#: box-gui/src/box_gui/pages/settings_dialog.py:1469
-#: box-gui/src/box_gui/pages/settings_dialog.py:1477
+#: box-gui/src/box_gui/pages/settings_dialog.py:1341
+#: box-gui/src/box_gui/pages/settings_dialog.py:1536
+#: box-gui/src/box_gui/pages/settings_dialog.py:1544
 msgid "Delete all data and uninstall backend"
 msgstr "Eliminar todos los datos y desinstalar el backend"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1308
-#: box-gui/src/box_gui/pages/settings_dialog.py:1459
+#: box-gui/src/box_gui/pages/settings_dialog.py:1375
+#: box-gui/src/box_gui/pages/settings_dialog.py:1526
 msgid "Remove Item"
 msgstr "Eliminar elemento"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1309
+#: box-gui/src/box_gui/pages/settings_dialog.py:1376
 #, python-brace-format
 msgid "Remove {label}?"
 msgstr "¿Eliminar {label}?"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1335
+#: box-gui/src/box_gui/pages/settings_dialog.py:1402
 msgid "Loading cleanup items failed."
 msgstr "Error al cargar los elementos de limpieza."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1336
+#: box-gui/src/box_gui/pages/settings_dialog.py:1403
 msgid "Load Items"
 msgstr "Cargar elementos"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1376
+#: box-gui/src/box_gui/pages/settings_dialog.py:1443
 msgid "Unknown game"
 msgstr "Juego desconocido"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1401
+#: box-gui/src/box_gui/pages/settings_dialog.py:1468
 #, python-brace-format
 msgid "{count} item"
 msgid_plural "{count} items"
 msgstr[0] "{count} elemento"
 msgstr[1] "{count} elementos"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1432
+#: box-gui/src/box_gui/pages/settings_dialog.py:1499
 #, python-brace-format
 msgid "Removing {label} …"
 msgstr "Eliminando {label} …"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1471
+#: box-gui/src/box_gui/pages/settings_dialog.py:1538
 msgid ""
 "This removes launcher cache and settings (including cached profiles) and "
 "uninstalls box-rpg. Games and source saves outside the cache are kept. Type "
@@ -1047,36 +1165,36 @@ msgstr ""
 "caché) y desinstala box-rpg. Los juegos y las partidas guardadas de origen "
 "fuera de la caché se conservan. Escribe DELETE ALL para confirmar."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1569
+#: box-gui/src/box_gui/pages/settings_dialog.py:1636
 #, python-brace-format
 msgid "backend uninstall failed: {details}"
 msgstr "Falló la desinstalación del backend: {details}"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1570
+#: box-gui/src/box_gui/pages/settings_dialog.py:1637
 msgid "backend uninstall failed."
 msgstr "Falló la desinstalación del backend."
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1586
+#: box-gui/src/box_gui/pages/settings_dialog.py:1653
 msgid "Delete All Data"
 msgstr "Eliminar todos los datos"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1655
+#: box-gui/src/box_gui/pages/settings_dialog.py:1722
 msgid "Authorized game roots"
 msgstr "Raíces de juego autorizadas"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1656
+#: box-gui/src/box_gui/pages/settings_dialog.py:1723
 msgid "Managed runtimes"
 msgstr "Entornos gestionados"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1657
+#: box-gui/src/box_gui/pages/settings_dialog.py:1724
 msgid "Download archives"
 msgstr "Archivos descargados"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1658
+#: box-gui/src/box_gui/pages/settings_dialog.py:1725
 msgid "Game profiles"
 msgstr "Perfiles de juego"
 
-#: box-gui/src/box_gui/pages/settings_dialog.py:1666
+#: box-gui/src/box_gui/pages/settings_dialog.py:1733
 msgid "Additional runtime settings or cache are stored here."
 msgstr "Se guardan configuraciones adicionales o cache de los entornos."
 
@@ -1104,6 +1222,14 @@ msgstr "Estás a punto de abrir {url}."
 #: box-gui/src/box_gui/widgets/external_link.py:35
 msgid "Open"
 msgstr "Abrir"
+
+#: box-gui/src/box_gui/app.py:193 box-gui/src/box_gui/app.py:216
+msgid "Box RPG Maker"
+msgstr "Box RPG Maker"
+
+#: box-gui/src/box_gui/app.py:196
+msgid "Configuration Error"
+msgstr "Error de configuración"
 
 #~ msgid ""
 #~ "Delete launcher cache and settings, then uninstall the backend. Cached "
@@ -1146,6 +1272,8 @@ msgstr "Abrir"
 #~ msgstr[0] "{count} entorno {noun} instalado."
 #~ msgstr[1] "{count} entornos {noun} instalados."
 
+# Legacy entry without a current source call site, kept because
+# test_i18n_app.py still covers it. See docs/box-gui/translations.md.
 # Legacy entry without a current source call site, kept because
 # test_i18n_app.py still covers it. See docs/box-gui/translations.md.
 # Legacy entry without a current source call site, kept because

@@ -144,3 +144,16 @@ Terms taken from the `box-rpg-maker` catalog; if a msgid contains a backend term
 | language | idioma | En grupo y fila «Language» → «Idioma» del selector de idioma. |
 | Set Language | Fijar idioma | Nombre de operación en diálogo de error; sigue el patrón «Set Runtime» → «Fijar entorno». |
 | System default | Del sistema | Opción concisa del selector de idioma; se lee como «Idioma: Del sistema» y evita el truncado en Adw.ComboRow. Distinto de «System» → «Sistema». |
+| tag | etiqueta | Etiqueta de git; `{tag}` queda literal. |
+| resolve (tag) | resolver | En «No se pudo resolver la etiqueta…»; distinto de «clone» → «clonar». |
+| signature verification | verificación de firma | En mensajes de `git verify-tag`; «firma» en minúscula. |
+| AppImage | AppImage | Formato de distribución; no traducir. |
+| update (noun) | actualización | En «AppImage Update Available» → «Actualización de AppImage disponible» y «Update Failed» → «Actualización fallida». |
+| update (verb) | actualizar | En botones y estados: «Updating…» → «Actualizando…», «Updated» → «Actualizado», «Update AppImage» → «Actualizar AppImage». |
+| automatic updates | actualizaciones automáticas | Grupo de ajustes; distinto de la descripción por juego «Para juegos con actualizaciones automáticas». |
+| check for updates | buscar actualizaciones | Fila «Check for updates» → «Buscar actualizaciones», en infinitivo. |
+| Set Updates | Fijar actualizaciones | Nombre de operación en diálogo de error; sigue el patrón «Set Language» → «Fijar idioma». |
+| skip (verb/button) | omitir | Botón «Skip» → «Omitir» en la página de actualización de AppImage. |
+| replace | reemplazar | En «Replacing AppImage …» → «Reemplazando AppImage …». |
+| restart | reiniciar | En «AppImage updated, restarting …» → «AppImage actualizado, reiniciando …». |
+| mirror | espejo | En «mirror drift» → «el espejo cambió». |
