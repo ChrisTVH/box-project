@@ -335,9 +335,11 @@ msgstr "Actualización de AppImage disponible"
 #: box-gui/src/box_gui/pages/backend_setup_page.py:453
 #, python-brace-format
 msgid ""
-"AppImage {current} → {latest}. Update to get the latest features and fixes."
+"AppImage {current} → {latest}.\n"
+"Update to get the latest features and fixes."
 msgstr ""
-"AppImage {current} → {latest}. Actualiza para obtener las últimas funciones y correcciones."
+"AppImage {current} → {latest}.\n"
+"Actualiza para obtener las últimas funciones y correcciones."
 
 #: box-gui/src/box_gui/pages/backend_setup_page.py:498
 msgid "Missing update version."

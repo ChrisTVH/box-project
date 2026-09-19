@@ -120,6 +120,8 @@ class BackendSetupPage(Adw.NavigationPage):
         self._heading_label.set_wrap(True)
         self._body_label = Gtk.Label(label=body)
         self._body_label.set_wrap(True)
+        self._body_label.set_xalign(0.5)
+        self._body_label.set_justify(Gtk.Justification.CENTER)
         self._body_label.add_css_class("dim")
         self._dep_group = Adw.PreferencesGroup(title=_("Dependencies"))
         self._dep_rows: list[Adw.ActionRow] = []
@@ -193,7 +195,7 @@ class BackendSetupPage(Adw.NavigationPage):
         content.append(scrolled)
         content.append(self._status_label)
         content.append(self._progress_bar)
-        action_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        action_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         action_box.set_halign(Gtk.Align.CENTER)
         action_box.append(self._action_button)
         action_box.append(self._skip_button)
@@ -442,8 +444,9 @@ class BackendSetupPage(Adw.NavigationPage):
         """Switch the page to AppImage update mode for one latest tag.
 
         Reuses the detection area: the heading becomes "AppImage Update
-        Available", the body names both versions, the action button offers
-        "Update AppImage", and a Skip button appears beside it.         The caller
+        Available", the body names both versions with a "v" prefix, the
+        action button offers "Update AppImage", and a Skip button appears
+        below it. The caller
         owns persistence: skipping must record the skipped version plus
         the check time, while the download chain replaces the running
         AppImage and restarts so the fresh process owns the backend gate.
@@ -469,9 +472,9 @@ class BackendSetupPage(Adw.NavigationPage):
         self._phase = InstallPhase.READY
         self._heading_label.set_text(_("AppImage Update Available"))
         self._body_label.set_text(
-            _("AppImage {current} → {latest}. Update to get the latest features and fixes.").format(
-                current=current, latest=latest_tag
-            )
+            _(
+                "AppImage {current} → {latest}.\nUpdate to get the latest features and fixes."
+            ).format(current=f"v{current}", latest=f"v{latest_tag}")
         )
         self._dep_group.set_visible(False)
         self._progress_bar.set_visible(False)
