@@ -144,7 +144,9 @@ def _classify_src_file(pkg: str, full_path: str, sub: str, repo_root: Path, plan
 
     for trigger, target_pkg in _CROSS_PACKAGE_FULL.items():
         if full_path.startswith(trigger):
-            plan.mark_full(target_pkg, f"{full_path}: touches the stable contract, checking {target_pkg}")
+            plan.mark_full(
+                target_pkg, f"{full_path}: touches the stable contract, checking {target_pkg}"
+            )
 
 
 def pytest_commands(plan: Plan) -> dict[str, list[str]]:
@@ -187,9 +189,13 @@ def main(argv: list[str]) -> int:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", nargs="?", default=".", help="Path inside the monorepo.")
-    parser.add_argument("--base", help="Diff this git ref against the working tree instead of HEAD.")
+    parser.add_argument(
+        "--base", help="Diff this git ref against the working tree instead of HEAD."
+    )
     parser.add_argument("--run", action="store_true", help="Execute the selected pytest commands.")
-    parser.add_argument("--quiet", action="store_true", help="Skip the per-file reasoning, print only the plan.")
+    parser.add_argument(
+        "--quiet", action="store_true", help="Skip the per-file reasoning, print only the plan."
+    )
     args = parser.parse_args(argv[1:])
 
     repo_root = _find_repo_root(args.path)

@@ -18,13 +18,13 @@ bash .agents/skills/test-impact/scripts/select_tests.sh --run    # plan + execut
 bash .agents/skills/test-impact/scripts/select_tests.sh --base origin/main --run
 ```
 
-Or directly: `python3 -m tools.test_selector [path] [--base <ref>] [--run] [--quiet]`.
+Or directly: `python3 -m tools.test.test_selector [path] [--base <ref>] [--run] [--quiet]`.
 
 With no `--base`, it looks at the working tree (staged + unstaged + untracked)
 against `HEAD` -- "what am I about to test right now". `--base <ref>` diffs
 a ref against the working tree instead, for reviewing a whole branch.
 
-## Selection rules (in `tools/test_selector.py`)
+## Selection rules (in `tools/test/test_selector.py`)
 
 1. `<pkg>/src/<toplevel>/<group>/...` changed and `<pkg>/tests/<group>/`
    exists -> run only that group.
@@ -52,6 +52,6 @@ and is skipped.
 - New src subdir with **no** test dir yet -> also automatic, falls back to
   a full run until you add the matching `tests/` dir.
 - New cross-package contract boundary (like `box.api`) -> add an entry to
-  `_CROSS_PACKAGE_FULL` in `tools/test_selector.py`.
+  `_CROSS_PACKAGE_FULL` in `tools/test/test_selector.py`.
 - Before a release or in CI, ignore this skill and run each package's full
   suite -- it's a local/dev speedup, not a substitute for the full gate.
