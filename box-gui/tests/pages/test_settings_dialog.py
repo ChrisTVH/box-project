@@ -578,6 +578,66 @@ def test_general_language_change_notifies(tmp_path: Path, monkeypatch: Any) -> N
     assert page._defaults.load().preferred_language == "en"
 
 
+def test_general_update_interval_group_order_and_entries(tmp_path: Path, monkeypatch: Any) -> None:
+    """The updates group sits after EasyRPG with fixed cadence entries."""
+    page, _paths, _repository = _make_general(monkeypatch, tmp_path)
+
+    titles = _general_group_titles(page)
+    assert titles.index("Preferred EasyRPG runtime") < titles.index("Automatic updates")
+    assert page._update_interval_group.get_title() == "Automatic updates"
+    assert page._update_interval_row.get_title() != ""
+    assert page._update_interval_row.get_title() == "Check for updates"
+    assert _combo_entries(page._update_interval_row) == [
+        "No",
+        "Every 12 hours",
+        "Daily",
+        "Every 2 days",
+        "Every 3 days",
+        "Weekly",
+    ]
+    assert page._update_interval_row.get_selected() == 5
+
+
+def test_general_set_update_interval_per_code(tmp_path: Path, monkeypatch: Any) -> None:
+    """Picking each cadence persists its stable storage code."""
+    page, _paths, _repository = _make_general(monkeypatch, tmp_path)
+    codes = ("off", "12h", "daily", "2d", "3d", "weekly")
+
+    for index, code in enumerate(codes):
+        page._update_interval_row.set_selected(index)
+        assert page._defaults.load().update_interval == code
+
+
+def test_general_unknown_update_interval_maps_to_weekly(tmp_path: Path, monkeypatch: Any) -> None:
+    """An unknown stored cadence renders as the weekly entry."""
+    page, _paths, _repository = _make_general(monkeypatch, tmp_path)
+    page._defaults.set_update_interval("fortnightly")
+    page.refresh_update_interval()
+
+    assert _combo_entries(page._update_interval_row) == [
+        "No",
+        "Every 12 hours",
+        "Daily",
+        "Every 2 days",
+        "Every 3 days",
+        "Weekly",
+    ]
+    assert page._update_interval_row.get_selected() == 5
+
+
+def test_general_update_interval_refresh_reflects_stored_value(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """An external cadence change appears after an explicit refresh."""
+    page, _paths, _repository = _make_general(monkeypatch, tmp_path)
+
+    page._defaults.set_update_interval("daily")
+    page.refresh_update_interval()
+
+    assert page._update_interval_row.get_selected() == 2
+    assert _combo_entries(page._update_interval_row)[2] == "Daily"
+
+
 def test_cleanup_profiles_group_title_and_description(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

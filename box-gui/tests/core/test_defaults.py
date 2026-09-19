@@ -1,13 +1,14 @@
-"""Defaults repository tests for the preferred language preference."""
+"""Defaults repository tests for language and automatic update preferences."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
+import pytest
 from box.paths import AppPaths
 
-from box_gui.core.defaults import DefaultsRepository, RuntimeDefaults
+from box_gui.core.defaults import DefaultsError, DefaultsRepository, RuntimeDefaults
 
 
 def _repository(tmp_path: Path) -> DefaultsRepository:
@@ -59,3 +60,166 @@ def test_corrupt_file_heals_on_set(tmp_path: Path) -> None:
     repository.defaults_file.write_text("not json", encoding="utf-8")
     repository.set_preferred_language("en")
     assert repository.load().preferred_language == "en"
+
+
+def test_update_interval_round_trip(tmp_path: Path) -> None:
+    """Each cadence code persists and reads back unchanged."""
+    repository = _repository(tmp_path)
+    for code in ("off", "12h", "daily", "2d", "3d", "weekly"):
+        repository.set_update_interval(code)
+        assert repository.load().update_interval == code
+
+
+def test_update_check_timestamps_round_trip(tmp_path: Path) -> None:
+    """Explicit check times persist as floats and read back unchanged."""
+    repository = _repository(tmp_path)
+    repository.record_appimage_check(1_700_000_000.0)
+    loaded = repository.load()
+    assert loaded.last_appimage_check_at == 1_700_000_000.0
+
+
+def test_skipped_versions_round_trip(tmp_path: Path) -> None:
+    """Skipped versions persist, and clearing stores None."""
+    repository = _repository(tmp_path)
+    repository.set_skipped_appimage_version("26.9.1")
+    loaded = repository.load()
+    assert loaded.skipped_appimage_version == "26.9.1"
+    repository.set_skipped_appimage_version(None)
+    loaded = repository.load()
+    assert loaded.skipped_appimage_version is None
+
+
+def test_update_setters_preserve_other_fields(tmp_path: Path) -> None:
+    """Update setters keep language, runtime, and sibling update fields."""
+    repository = _repository(tmp_path)
+    repository.set_preferred_easyrpg_runtime("0.8.1")
+    repository.set_preferred_language("es")
+    repository.set_update_interval("daily")
+    repository.record_appimage_check(1_700_000_000.0)
+    repository.set_skipped_appimage_version("26.9.1")
+    assert repository.load() == RuntimeDefaults(
+        preferred_easyrpg_runtime="0.8.1",
+        preferred_language="es",
+        update_interval="daily",
+        last_appimage_check_at=1_700_000_000.0,
+        skipped_appimage_version="26.9.1",
+    )
+    repository.set_update_interval("off")
+    assert repository.load().preferred_language == "es"
+    assert repository.load().last_appimage_check_at == 1_700_000_000.0
+    assert repository.load().skipped_appimage_version == "26.9.1"
+    repository.set_preferred_language("en")
+    assert repository.load().update_interval == "off"
+
+
+def test_corrupt_file_heals_on_set_update_interval(tmp_path: Path) -> None:
+    """Setting a cadence over garbage replaces it instead of failing."""
+    repository = _repository(tmp_path)
+    repository.defaults_file.parent.mkdir(parents=True, exist_ok=True)
+    repository.defaults_file.write_text("not json", encoding="utf-8")
+    repository.set_update_interval("daily")
+    assert repository.load().update_interval == "daily"
+
+
+def test_missing_update_fields_default_sensibly(tmp_path: Path) -> None:
+    """Old files without update keys load weekly cadence and empty state."""
+    repository = _repository(tmp_path)
+    repository.defaults_file.parent.mkdir(parents=True, exist_ok=True)
+    repository.defaults_file.write_text(
+        json.dumps({"version": 1, "preferred_language": "es"}), encoding="utf-8"
+    )
+    assert repository.load() == RuntimeDefaults(preferred_language="es")
+
+
+def test_unknown_interval_heals_to_weekly(tmp_path: Path) -> None:
+    """Unknown cadence codes load as weekly instead of failing."""
+    repository = _repository(tmp_path)
+    repository.defaults_file.parent.mkdir(parents=True, exist_ok=True)
+    repository.defaults_file.write_text(
+        json.dumps({"version": 1, "update_interval": "fortnightly"}), encoding="utf-8"
+    )
+    assert repository.load().update_interval == "weekly"
+
+
+def test_empty_skipped_versions_normalize_to_none(tmp_path: Path) -> None:
+    """Empty skipped versions load as no skipped version."""
+    repository = _repository(tmp_path)
+    repository.defaults_file.parent.mkdir(parents=True, exist_ok=True)
+    repository.defaults_file.write_text(
+        json.dumps({"version": 1, "skipped_appimage_version": ""}),
+        encoding="utf-8",
+    )
+    loaded = repository.load()
+    assert loaded.skipped_appimage_version is None
+
+
+@pytest.mark.parametrize("bad", ["yesterday", True, False, [], {}])
+def test_bad_timestamps_raise(tmp_path: Path, bad: object) -> None:
+    """Non-numeric timestamps fail validation instead of loading silently."""
+    repository = _repository(tmp_path)
+    repository.defaults_file.parent.mkdir(parents=True, exist_ok=True)
+    repository.defaults_file.write_text(
+        json.dumps({"version": 1, "last_appimage_check_at": bad}), encoding="utf-8"
+    )
+    with pytest.raises(DefaultsError):
+        repository.load()
+
+
+def test_int_timestamp_loads_as_float(tmp_path: Path) -> None:
+    """Integer timestamps load as floats for a stable in-memory type."""
+    repository = _repository(tmp_path)
+    repository.defaults_file.parent.mkdir(parents=True, exist_ok=True)
+    repository.defaults_file.write_text(
+        json.dumps({"version": 1, "last_appimage_check_at": 1700000000}),
+        encoding="utf-8",
+    )
+    assert repository.load().last_appimage_check_at == 1_700_000_000.0
+
+
+def test_unknown_interval_normalizes_to_weekly_on_write(tmp_path: Path) -> None:
+    """Unknown cadence codes store as weekly, matching read-time healing."""
+    repository = _repository(tmp_path)
+    repository.set_update_interval("fortnightly")
+    assert repository.load().update_interval == "weekly"
+    repository.set_update_interval("")
+    assert repository.load().update_interval == "weekly"
+
+
+def test_legacy_backend_keys_are_ignored(tmp_path: Path) -> None:
+    """Old files with backend keys load cleanly, dropping those keys."""
+    repository = _repository(tmp_path)
+    repository.defaults_file.parent.mkdir(parents=True, exist_ok=True)
+    repository.defaults_file.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "preferred_language": "es",
+                "update_interval": "daily",
+                "last_appimage_check_at": 1700000000,
+                "last_backend_check_at": 1700000123,
+                "skipped_appimage_version": "26.9.1",
+                "skipped_backend_version": "1.2.3",
+                "unknown_future_key": "kept-ignored",
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = repository.load()
+    assert loaded == RuntimeDefaults(
+        preferred_language="es",
+        update_interval="daily",
+        last_appimage_check_at=1_700_000_000.0,
+        skipped_appimage_version="26.9.1",
+    )
+
+
+def test_save_omits_backend_keys(tmp_path: Path) -> None:
+    """Persisted payloads carry only the AppImage update domain."""
+    repository = _repository(tmp_path)
+    repository.set_update_interval("daily")
+    repository.record_appimage_check(1_700_000_000.0)
+    repository.set_skipped_appimage_version("26.9.1")
+    payload = json.loads(repository.defaults_file.read_text(encoding="utf-8"))
+    assert "last_backend_check_at" not in payload
+    assert "skipped_backend_version" not in payload
+    assert payload["update_interval"] == "daily"

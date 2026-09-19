@@ -31,7 +31,11 @@ from box.runtime.catalog import RuntimeCatalog  # noqa: E402
 from box.runtime.easyrpg import EasyRPGCatalog, EasyRPGRuntime  # noqa: E402
 from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
-from box_gui.core.defaults import DefaultsRepository  # noqa: E402
+from box_gui.core.defaults import (  # noqa: E402
+    DEFAULT_UPDATE_INTERVAL,
+    UPDATE_INTERVAL_CODES,
+    DefaultsRepository,
+)
 from box_gui.core.display import abbreviate_display_path  # noqa: E402
 from box_gui.core.library import LibraryError, LibraryRepository  # noqa: E402
 from box_gui.gtk.workers import ProgressReporter  # noqa: E402
@@ -74,6 +78,25 @@ def _language_entries() -> tuple[tuple[str | None, str], ...]:
         ("en", "English (inglés)"),
         ("es", "Español (Spanish)"),
     )
+
+
+def _update_interval_entries() -> tuple[tuple[str, str], ...]:
+    """Return update-cadence entries with freshly translated labels.
+
+    Codes stay stable for storage while labels are re-translated on each
+    call, so the picker stays correct after a live language switch. The
+    order and codes come from ``UPDATE_INTERVAL_CODES`` (the single source
+    shared with defaults) while this module owns only the labels.
+    """
+    labels = {
+        "off": _("No"),
+        "12h": _("Every 12 hours"),
+        "daily": _("Daily"),
+        "2d": _("Every 2 days"),
+        "3d": _("Every 3 days"),
+        "weekly": _("Weekly"),
+    }
+    return tuple((code, labels[code]) for code in UPDATE_INTERVAL_CODES)
 
 
 def _unlisted_data_row(
@@ -184,6 +207,7 @@ class GeneralPage(Adw.PreferencesPage):
         self._loading_nwjs_runtime = False
         self._loading_easyrpg_runtime = False
         self._loading_language = False
+        self._loading_update_interval = False
         self._folder_dialog: Gtk.FileDialog | None = None
         self._root_rows: list[Adw.ActionRow] = []
         self._roots_group = Adw.PreferencesGroup(title=_("Allowed game roots"))
@@ -213,13 +237,22 @@ class GeneralPage(Adw.PreferencesPage):
         self._easyrpg_runtime_row.set_model(Gtk.StringList.new([_("Undefined")]))
         self._easyrpg_runtime_row.connect("notify::selected", self._on_easyrpg_runtime_selected)
         self._easyrpg_runtime_group.add(self._easyrpg_runtime_row)
+        self._update_interval_group = Adw.PreferencesGroup(title=_("Automatic updates"))
+        self._update_interval_row = Adw.ComboRow(title=_("Check for updates"))
+        self._update_interval_row.set_model(
+            Gtk.StringList.new([label for _code, label in _update_interval_entries()])
+        )
+        self._update_interval_row.connect("notify::selected", self._on_update_interval_selected)
+        self._update_interval_group.add(self._update_interval_row)
         self.add(self._roots_group)
         self.add(self._language_group)
         self.add(self._nwjs_runtime_group)
         self.add(self._easyrpg_runtime_group)
+        self.add(self._update_interval_group)
         self.refresh_roots()
         self.refresh_runtime()
         self.refresh_language()
+        self.refresh_update_interval()
 
     def refresh_roots(self) -> None:
         """Prune missing roots, then render the surviving configured roots."""
@@ -306,6 +339,27 @@ class GeneralPage(Adw.PreferencesPage):
             self._language_row.set_selected(selected)
         finally:
             self._loading_language = False
+
+    def refresh_update_interval(self) -> None:
+        """Rebuild the update-cadence picker from the stored preference."""
+        try:
+            preferred = self._defaults.load().update_interval
+        except Exception as exc:
+            _show_error(self, _("Load Settings"), exc)
+            return
+        entries = _update_interval_entries()
+        codes = [code for code, _label in entries]
+        if preferred in codes:
+            selected = codes.index(preferred)
+        else:
+            selected = codes.index(DEFAULT_UPDATE_INTERVAL)
+        labels = [label for _code, label in entries]
+        self._loading_update_interval = True
+        try:
+            self._update_interval_row.set_model(Gtk.StringList.new(labels))
+            self._update_interval_row.set_selected(selected)
+        finally:
+            self._loading_update_interval = False
 
     def add_root(self, root: Path) -> bool:
         """Confirm the root via the interaction, store it, and refresh the list."""
@@ -441,6 +495,27 @@ class GeneralPage(Adw.PreferencesPage):
                     GLib.idle_add(callback, value)
             except Exception:
                 pass
+
+    def _on_update_interval_selected(self, row: Adw.ComboRow, _pspec: object) -> None:
+        """Persist the picked update cadence from its stable code."""
+        if self._loading_update_interval:
+            return
+        model = row.get_model()
+        if not isinstance(model, Gtk.StringList):
+            return
+        selected = int(row.get_selected())
+        count = model.get_n_items()
+        if selected < 0 or selected >= count:
+            return
+        entries = _update_interval_entries()
+        if selected >= len(entries):
+            return
+        value = entries[selected][0]
+        try:
+            self._defaults.set_update_interval(value)
+        except Exception as exc:
+            _show_error(self, _("Set Updates"), exc)
+            self.refresh_update_interval()
 
     def _on_add_root_clicked(self, _button: Gtk.Button) -> None:
         """Open an async folder picker for a new allowed game root."""
