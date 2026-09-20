@@ -53,7 +53,7 @@ def test_generate_notes_lists_everything_since_previous_tag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """With a prior release, the range covers all of it with no truncation."""
-    entries = [f"abcdef{i} commit message number {i}" for i in range(12)]
+    entries = [f"abcdef{i} commit message number {i}" for i in range(8)]
     seen = _fake_git(
         monkeypatch,
         "\n".join(entries) + "\n",
@@ -66,11 +66,33 @@ def test_generate_notes_lists_everything_since_previous_tag(
     assert any(f"{PREV_TAG}..HEAD" in cmd for cmd in seen)
     assert not any("-n" in cmd for cmd in seen)
     bullets = _changelog_lines(notes)
-    assert len(bullets) == 12
+    assert len(bullets) == 8
     for entry in entries:
         short_hash, _, subject = entry.partition(" ")
         assert f"- `{short_hash}` {subject}" in bullets
     assert "...and more" not in notes
+
+
+def test_generate_notes_truncates_range_since_previous_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A long range since the previous tag caps at ten with an overflow hint."""
+    entries = [f"abcdef{i} commit message number {i}" for i in range(12)]
+    _fake_git(
+        monkeypatch,
+        "\n".join(entries) + "\n",
+        describe_stdout=PREV_TAG + "\n",
+        describe_code=0,
+    )
+
+    notes = release_notes.generate_notes(".", TAG)
+
+    bullets = _changelog_lines(notes)
+    assert len(bullets) == 10
+    for entry in entries[:10]:
+        short_hash, _, subject = entry.partition(" ")
+        assert f"- `{short_hash}` {subject}" in bullets
+    assert "...and more" in notes
 
 
 def test_generate_notes_ignores_non_release_tag(

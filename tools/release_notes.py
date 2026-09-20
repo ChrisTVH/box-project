@@ -119,9 +119,10 @@ def _changelog_lines(commits: list[str]) -> list[str]:
 def generate_notes(repo_root: str | Path, tag: str) -> str:
     """Build the release notes for ``tag`` from the static text plus git log.
 
-    The changelog spans the commits since the previous release tag. Only
-    when no previous tag exists (first release ever, tagless checkout) it
-    falls back to the most recent commits, hinting at truncation.
+    The changelog spans the commits since the previous release tag, capped
+    at the most recent ``MAX_COMMITS`` to avoid flooding the release notes.
+    Only when no previous tag exists (first release ever, tagless checkout)
+    it falls back to the most recent commits, hinting at truncation.
     """
     static = (
         f"Standalone AppImage of the box-gui frontend (GTK4 + libadwaita)"
@@ -157,8 +158,9 @@ def generate_notes(repo_root: str | Path, tag: str) -> str:
         shown = recent[:MAX_COMMITS]
         truncated = len(recent) > MAX_COMMITS
     else:
-        shown = _commits_since(repo_root, base_tag)
-        truncated = False
+        commits = _commits_since(repo_root, base_tag)
+        shown = commits[:MAX_COMMITS]
+        truncated = len(commits) > MAX_COMMITS
     if not shown:
         return f"{static}\n\n{header}"
     changelog = "\n".join(_changelog_lines(shown))
