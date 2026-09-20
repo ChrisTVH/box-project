@@ -263,16 +263,19 @@ def user_site_problems(home: Path | None = None, user_site: Path | None = None) 
 
 
 def resolve_tag_commit(url: str, tag: str, *, timeout: float = _LS_REMOTE_TIMEOUT_S) -> str | None:
-    """Resolve one tag to its commit via ``git ls-remote <url> <tag>``.
+    """Resolve one tag to its commit via ``git ls-remote --tags <url>``.
 
-    Runs git without a shell and prefers the peeled ``^{}`` line for
-    annotated tags, falling back to the plain tag line. Returns the hex
-    commit (40 or 64 chars) or None when the tag is absent, the output is
+    Fetches the full tag advertisement and filters locally: passing the
+    tag as a pattern suppresses the peeled ``^{}`` line on real forges,
+    which would make an annotated tag resolve to its tag-object hash
+    instead of the commit. Prefers the peeled ``^{}`` line, falling back
+    to the plain tag line for lightweight tags. Returns the hex commit
+    (40 or 64 chars) or None when the tag is absent, the output is
     malformed, or git exits non-zero. Transport errors (OSError,
     SubprocessError) propagate for the caller to treat as fallback.
     """
     proc = subprocess.run(
-        ["git", "ls-remote", url, tag, f"refs/tags/{tag}"],
+        ["git", "ls-remote", "--tags", url],
         capture_output=True,
         text=True,
         timeout=timeout,

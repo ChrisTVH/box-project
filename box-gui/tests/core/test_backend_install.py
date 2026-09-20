@@ -644,12 +644,17 @@ def test_resolve_tag_commit_prefers_peeled_line(monkeypatch: Any) -> None:
     plain = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
     def _fake_run(command: list[str], **kwargs: Any) -> Any:
-        assert command[:2] == ["git", "ls-remote"]
-        assert tag in command
+        # No tag patterns: patterns suppress the peeled ^{} line on real
+        # forges, so the full advertisement is filtered locally instead.
+        assert command == ["git", "ls-remote", "--tags", "https://example.invalid/repo"]
         return subprocess.CompletedProcess(
             command,
             0,
-            stdout=f"{plain}\trefs/tags/{tag}\n{peeled}\trefs/tags/{tag}^{{}}\n",
+            stdout=(
+                f"{plain}\trefs/tags/{tag}\n"
+                f"{peeled}\trefs/tags/{tag}^{{}}\n"
+                "dddddddddddddddddddddddddddddddddddddddd\trefs/tags/26.9.42\n"
+            ),
             stderr="",
         )
 
