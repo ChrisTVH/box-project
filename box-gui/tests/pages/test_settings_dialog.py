@@ -639,6 +639,174 @@ def test_general_update_interval_refresh_reflects_stored_value(
     assert _combo_entries(page._update_interval_row)[2] == "Daily"
 
 
+def _capture_alert_dialogs(monkeypatch: Any) -> list[Any]:
+    """Record presented alert dialogs without presenting them."""
+    shown: list[Any] = []
+
+    def _fake_present(dialog: Any, parent: Any | None = None) -> None:
+        shown.append(dialog)
+
+    monkeypatch.setattr(Adw.AlertDialog, "present", _fake_present)
+    return shown
+
+
+def test_general_check_updates_button_style_and_label(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The manual check button is full-width, green, and on its own card."""
+    page, _paths, _repository = _make_general(monkeypatch, tmp_path)
+    button = page._check_updates_button
+
+    assert button.get_label() == "Check for updates now"
+    assert button.get_hexpand() is True
+    assert "update-check" in button.get_css_classes()
+    card = list(_tree_order(page._update_check_group))
+    assert button in card
+    assert page._update_interval_row not in card
+
+
+def test_general_check_updates_without_updates_shows_modal(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """An up-to-date check shows the single-accept no-updates modal."""
+    page, _paths, _repository = _make_general(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "box_gui.core.app_info.get_embedded_tag", lambda: "26.9.1"
+    )
+    monkeypatch.setattr(
+        "box_gui.core.updates.discover_latest_tag", lambda *, timeout=15.0: ("26.9.1", "github")
+    )
+    shown = _capture_alert_dialogs(monkeypatch)
+    offered: list[tuple[str, str]] = []
+    page._on_update_available = lambda latest, source: offered.append((latest, source))
+
+    page._check_updates_button.emit("clicked")
+
+    assert page._checking_updates is True
+    assert page._check_updates_button.get_sensitive() is False
+    _pump()
+    _pump()
+
+    assert page._checking_updates is False
+    assert page._check_updates_button.get_sensitive() is True
+    assert offered == []
+    assert len(shown) == 1
+    assert shown[0].get_heading() == "No updates available."
+    assert shown[0].has_response("accept")
+    assert shown[0].get_response_label("accept") == "Accept"
+    assert shown[0].get_default_response() == "accept"
+    assert shown[0].get_close_response() == "accept"
+    assert page._defaults.load().last_appimage_check_at is not None
+
+
+def test_general_check_updates_with_update_forwards_to_host(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A newer release reaches the host callback with no modal."""
+    page, _paths, _repository = _make_general(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "box_gui.core.app_info.get_embedded_tag", lambda: "26.9.1"
+    )
+    monkeypatch.setattr(
+        "box_gui.core.updates.discover_latest_tag", lambda *, timeout=15.0: ("26.9.2", "github")
+    )
+    shown = _capture_alert_dialogs(monkeypatch)
+    offered: list[tuple[str, str]] = []
+    page._on_update_available = lambda latest, source: offered.append((latest, source))
+
+    page._check_updates_button.emit("clicked")
+    _pump()
+    _pump()
+
+    assert offered == [("26.9.2", "github")]
+    assert shown == []
+    assert page._check_updates_button.get_sensitive() is True
+
+
+def test_general_check_updates_discovery_error_shows_dialog(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A failed discovery shows an error dialog and releases the button."""
+    from box_gui.core.updates import UpdatesError
+
+    page, _paths, _repository = _make_general(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "box_gui.core.app_info.get_embedded_tag", lambda: "26.9.1"
+    )
+
+    def _failing_discover(*, timeout: float = 15.0) -> Any:
+        raise UpdatesError("cannot discover latest tag: boom")
+
+    monkeypatch.setattr("box_gui.core.updates.discover_latest_tag", _failing_discover)
+    shown = _capture_alert_dialogs(monkeypatch)
+
+    page._check_updates_button.emit("clicked")
+    _pump()
+    _pump()
+
+    assert len(shown) == 1
+    assert shown[0].get_heading() == "Check for Updates Failed"
+    assert page._check_updates_button.get_sensitive() is True
+
+
+def test_general_check_updates_without_tag_shows_dialog(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Outside an AppImage the manual check explains itself and stops."""
+    page, _paths, _repository = _make_general(monkeypatch, tmp_path)
+    monkeypatch.setattr("box_gui.core.app_info.get_embedded_tag", lambda: None)
+    shown = _capture_alert_dialogs(monkeypatch)
+    offered: list[tuple[str, str]] = []
+    page._on_update_available = lambda latest, source: offered.append((latest, source))
+
+    page._check_updates_button.emit("clicked")
+    _pump()
+    _pump()
+
+    assert offered == []
+    assert len(shown) == 1
+    assert shown[0].get_heading() == "Check for Updates Failed"
+    assert page._check_updates_button.get_sensitive() is True
+
+
+def test_settings_dialog_forwards_update_callback(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """SettingsDialog wires the update callback into the General page."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _stub_runtime_api(monkeypatch)
+    monkeypatch.setattr(runtime_module, "list_nwjs", lambda catalog: ())
+    monkeypatch.setattr(runtime_module, "list_easyrpg", lambda catalog: ())
+    monkeypatch.setattr(
+        runtime_module,
+        "fetch_nwjs_available",
+        lambda page, arch, sdk, *, paths=None: AvailableVersions(page=page, versions=()),
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "fetch_easyrpg_available",
+        lambda page, *, paths=None: AvailableEasyRPGVersions(page=page, versions=()),
+    )
+    paths = _make_paths(tmp_path)
+    repository = ConfigRepository(paths)
+    offered: list[tuple[str, str]] = []
+    dialog: Any = SettingsDialog(
+        paths,
+        repository,
+        None,
+        on_update_available=lambda latest, source: offered.append((latest, source)),
+    )
+    _pump()
+    _pump()
+
+    assert dialog._general_page._on_update_available is not None
+    dialog._general_page._on_update_available("26.9.2", "github")
+
+    assert offered == [("26.9.2", "github")]
+
+
 def test_cleanup_profiles_group_title_and_description(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

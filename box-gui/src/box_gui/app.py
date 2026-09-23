@@ -166,6 +166,8 @@ class BoxRpgApplication(Adw.Application):
                 b"border-radius: 20px; padding: 5px 13px; } "
                 b".chip-remove { min-height: 22px; min-width: 22px; "
                 b"padding: 0; border-radius: 9999px; } "
+                b".update-check { background-color: #326935; "
+                b"color: #cffcdf; } "
                 b".chip-flow > flowboxchild:hover, "
                 b".chip-flow > flowboxchild:active { background-color: transparent; } "
                 b".love-heart { color: @error_bg_color; } "
@@ -473,6 +475,58 @@ class BoxRpgApplication(Adw.Application):
             return
         dialog: SettingsDialog | None = None
 
+        def _on_update_available(latest: str, source: str) -> None:
+            """Close settings and show the AppImage update page for latest.
+
+            A manual check forces the offer: the cadence, due time, and any
+            skipped version are ignored because the user explicitly asked.
+            """
+            current = dialog
+            with contextlib.suppress(Exception):
+                if current is not None:
+                    current.close()
+            if self._backend_status.needs_setup:
+                return
+            navigation = self._navigation
+            if navigation is None:
+                return
+            try:
+                page = BackendSetupPage(self._backend_status, on_ready=self._restart_for_backend)
+            except Exception:
+                return
+
+            def _on_skip() -> None:
+                with contextlib.suppress(Exception):
+                    if self._defaults_repository is not None:
+                        self._defaults_repository.set_skipped_appimage_version(latest)
+                with contextlib.suppress(Exception):
+                    if self._defaults_repository is not None:
+                        self._defaults_repository.record_appimage_check()
+                with contextlib.suppress(Exception):
+                    navigation.pop()
+
+            def _on_update_done() -> None:
+                with contextlib.suppress(Exception):
+                    if self._defaults_repository is not None:
+                        self._defaults_repository.record_appimage_check()
+
+            try:
+                from box_gui.core.app_info import get_embedded_tag
+            except ImportError:
+                return
+            try:
+                embedded = get_embedded_tag()
+            except Exception:
+                embedded = None
+            try:
+                with contextlib.suppress(Exception):
+                    page.start_appimage_update(
+                        latest, _on_update_done, _on_skip, current_tag=embedded, source=source
+                    )
+                    navigation.push(page)
+            except Exception:
+                return
+
         def _on_full_wipe() -> None:
             """Close settings and return to backend setup after a full wipe."""
             current = dialog
@@ -558,6 +612,7 @@ class BoxRpgApplication(Adw.Application):
                         self._library,
                         on_full_wipe=_on_full_wipe,
                         on_language_changed=_on_language_changed,
+                        on_update_available=_on_update_available,
                     )
                 except Exception:
                     return
@@ -600,6 +655,7 @@ class BoxRpgApplication(Adw.Application):
                     self._library,
                     on_full_wipe=_on_full_wipe,
                     on_language_changed=_on_language_changed,
+                    on_update_available=_on_update_available,
                 )
             except Exception:
                 return
@@ -617,6 +673,7 @@ class BoxRpgApplication(Adw.Application):
             self._library,
             on_full_wipe=_on_full_wipe,
             on_language_changed=_on_language_changed,
+            on_update_available=_on_update_available,
         )
         dialog.present(parent)
 

@@ -194,6 +194,7 @@ class GeneralPage(Adw.PreferencesPage):
         interaction: Interaction | None = None,
         *,
         on_language_changed: Callable[[str | None], None] | None = None,
+        on_update_available: Callable[[str, str], None] | None = None,
     ) -> None:
         """Build the roots list and the preferred-runtime pickers."""
         super().__init__(name="general", title=_("General"))
@@ -202,6 +203,7 @@ class GeneralPage(Adw.PreferencesPage):
         self._repository = repository
         self._interaction = interaction
         self._on_language_changed = on_language_changed
+        self._on_update_available = on_update_available
         self._catalog = RuntimeCatalog(paths)
         self._easyrpg_catalog = EasyRPGCatalog(paths)
         self._defaults = DefaultsRepository(paths)
@@ -209,6 +211,7 @@ class GeneralPage(Adw.PreferencesPage):
         self._loading_easyrpg_runtime = False
         self._loading_language = False
         self._loading_update_interval = False
+        self._checking_updates = False
         self._folder_dialog: Gtk.FileDialog | None = None
         self._root_rows: list[Adw.ActionRow] = []
         self._roots_group = Adw.PreferencesGroup(title=_("Allowed game roots"))
@@ -245,11 +248,21 @@ class GeneralPage(Adw.PreferencesPage):
         )
         self._update_interval_row.connect("notify::selected", self._on_update_interval_selected)
         self._update_interval_group.add(self._update_interval_row)
+        # The manual check lives in its own card below the cadence row,
+        # mirroring the danger-zone action: sharing the row's card glues
+        # the button to it instead of rendering margins and corners.
+        self._update_check_group = Adw.PreferencesGroup()
+        self._check_updates_button = Gtk.Button(label=_("Check for updates now"))
+        self._check_updates_button.set_hexpand(True)
+        self._check_updates_button.add_css_class("update-check")
+        self._check_updates_button.connect("clicked", self._on_check_updates_clicked)
+        self._update_check_group.add(self._check_updates_button)
         self.add(self._roots_group)
         self.add(self._language_group)
         self.add(self._nwjs_runtime_group)
         self.add(self._easyrpg_runtime_group)
         self.add(self._update_interval_group)
+        self.add(self._update_check_group)
         self.refresh_roots()
         self.refresh_runtime()
         self.refresh_language()
@@ -517,6 +530,72 @@ class GeneralPage(Adw.PreferencesPage):
         except Exception as exc:
             _show_error(self, _("Set Updates"), exc)
             self.refresh_update_interval()
+
+    def _on_check_updates_clicked(self, _button: Gtk.Button) -> None:
+        """Discover the latest release on a worker thread, then route it."""
+        if self._checking_updates:
+            return
+        self._checking_updates = True
+        self._check_updates_button.set_sensitive(False)
+        try:
+            _run_in_thread(
+                self._discover_update,
+                self._on_check_done,
+                self._on_check_error,
+            )
+        except Exception:
+            self._checking_updates = False
+            self._check_updates_button.set_sensitive(True)
+            raise
+
+    def _discover_update(self) -> tuple[str, str] | None:
+        """Return (latest, source) when an update is offered, else None.
+
+        An explicit check ignores the automatic cadence and any skipped
+        version: the user asked, so any newer release is worth offering.
+        """
+        from box_gui.core.app_info import get_embedded_tag
+        from box_gui.core.appimage_update import should_offer_appimage_update
+        from box_gui.core.updates import UpdatesError, discover_latest_tag
+
+        embedded = get_embedded_tag()
+        if embedded is None:
+            raise BoxError(_("Updates are only available in AppImage builds."))
+        try:
+            latest, source = discover_latest_tag(timeout=15.0)
+        except UpdatesError as exc:
+            raise BoxError(str(exc)) from exc
+        if should_offer_appimage_update(embedded, latest, None):
+            return (latest, source)
+        return None
+
+    def _on_check_done(self, result: tuple[str, str] | None) -> None:
+        """Show the no-updates modal or forward a found update to the host.
+
+        A missing host callback drops a found update by design: production
+        always wires ``on_update_available`` through SettingsDialog.
+        """
+        self._checking_updates = False
+        self._check_updates_button.set_sensitive(True)
+        with contextlib.suppress(Exception):
+            self._defaults.record_appimage_check()
+        if result is None:
+            dialog = Adw.AlertDialog(heading=_("No updates available."))
+            dialog.add_response("accept", _("Accept"))
+            dialog.set_default_response("accept")
+            dialog.set_close_response("accept")
+            dialog.present(self)
+            return
+        latest, source = result
+        callback = self._on_update_available
+        if callback is not None:
+            callback(latest, source)
+
+    def _on_check_error(self, error: BaseException) -> None:
+        """Show discovery failures with an alert dialog."""
+        self._checking_updates = False
+        self._check_updates_button.set_sensitive(True)
+        _show_error(self, _("Check for Updates"), error)
 
     def _on_add_root_clicked(self, _button: Gtk.Button) -> None:
         """Open an async folder picker for a new allowed game root."""
@@ -1856,13 +1935,18 @@ class SettingsDialog(Adw.PreferencesDialog):
         library: LibraryRepository | None = None,
         on_full_wipe: Callable[[], None] | None = None,
         on_language_changed: Callable[[str | None], None] | None = None,
+        on_update_available: Callable[[str, str], None] | None = None,
     ) -> None:
         """Build and add the four settings pages without dialog search."""
         super().__init__(title=_("Settings"))
         if hasattr(self, "set_search_enabled"):
             self.set_search_enabled(False)
         self._general_page = GeneralPage(
-            paths, repository, interaction, on_language_changed=on_language_changed
+            paths,
+            repository,
+            interaction,
+            on_language_changed=on_language_changed,
+            on_update_available=on_update_available,
         )
         self._nwjs_page = NwjsPage(paths)
         self._easyrpg_page = EasyrpgPage(paths)
