@@ -79,6 +79,14 @@ def test_i18n_translates_core_chrome() -> None:
         _("Additional runtime settings or cache are stored here.")
         == "Se guardan configuraciones adicionales o cache de los entornos."
     )
+    assert _("Check for updates now") == "Comprobar actualizaciones"
+    assert _("No updates available.") == "No hay actualizaciones disponibles."
+    assert _("Accept") == "Aceptar"
+    assert _("Check for Updates") == "Comprobar actualizaciones"
+    assert (
+        _("Updates are only available in AppImage builds.")
+        == "Las actualizaciones solo están disponibles en las compilaciones AppImage."
+    )
 
 
 def test_i18n_uses_spanish_plural_forms_and_preserves_placeholders() -> None:

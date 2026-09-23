@@ -927,6 +927,26 @@ msgstr "Fijar idioma"
 msgid "Set Updates"
 msgstr "Fijar actualizaciones"
 
+#: box-gui/src/box_gui/pages/settings_dialog.py:254
+msgid "Check for updates now"
+msgstr "Comprobar actualizaciones"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:559
+msgid "Updates are only available in AppImage builds."
+msgstr "Las actualizaciones solo están disponibles en las compilaciones AppImage."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:575
+msgid "No updates available."
+msgstr "No hay actualizaciones disponibles."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:576
+msgid "Accept"
+msgstr "Aceptar"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:590
+msgid "Check for Updates"
+msgstr "Comprobar actualizaciones"
+
 #: box-gui/src/box_gui/pages/settings_dialog.py:514
 msgid "Add game root"
 msgstr "Añadir raíz de juego"

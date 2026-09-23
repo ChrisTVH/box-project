@@ -152,6 +152,9 @@ Terms taken from the `box-rpg-maker` catalog; if a msgid contains a backend term
 | update (verb) | actualizar | En botones y estados: «Updating…» → «Actualizando…», «Updated» → «Actualizado», «Update AppImage» → «Actualizar AppImage». |
 | automatic updates | actualizaciones automáticas | Grupo de ajustes; distinto de la descripción por juego «Para juegos con actualizaciones automáticas». |
 | check for updates | buscar actualizaciones | Fila «Check for updates» → «Buscar actualizaciones», en infinitivo. |
+| check for updates now | comprobar actualizaciones | Botón «Check for updates now» → «Comprobar actualizaciones»; msgid distinto de la fila para no colisionar. |
+| no updates available | no hay actualizaciones disponibles | Modal «No updates available.» → «No hay actualizaciones disponibles.»; sigue el patrón «No versions available.» → «No hay versiones disponibles.». |
+| accept (button) | aceptar | Botón «Accept» → «Aceptar» en el modal sin actualizaciones. |
 | Set Updates | Fijar actualizaciones | Nombre de operación en diálogo de error; sigue el patrón «Set Language» → «Fijar idioma». |
 | skip (verb/button) | omitir | Botón «Skip» → «Omitir» en la página de actualización de AppImage. |
 | replace | reemplazar | En «Replacing AppImage …» → «Reemplazando AppImage …». |
