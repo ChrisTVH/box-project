@@ -13,6 +13,7 @@ import threading
 from collections.abc import Callable
 from functools import cache
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import gi
@@ -548,6 +549,9 @@ class _RuntimePage(Adw.PreferencesPage):
     """Shared installed list, version browser, pager, and status for one engine."""
 
     _ALLOWS_OPTIONS: bool = False
+    # Delay before the loading status appears; fast loads finish without any
+    # flicker while slow ones still surface the spinner.
+    _STATUS_DELAY_MS: int = 3000
 
     def __init__(self, paths: AppPaths, *, name: str, title: str) -> None:
         """Build the installed/browser/pager/status groups without loading yet."""
@@ -560,9 +564,16 @@ class _RuntimePage(Adw.PreferencesPage):
         self._installed_keys: frozenset[Any] = frozenset()
         self._last_available: Any | None = None
         self._busy = False
+        self._initial_load_pending = True
+        self._scroll_token = 0
+        self._status_timeout = 0
+        self.on_changed: Callable[[], None] | None = None
         self._installed_rows: list[Adw.ActionRow] = []
         self._browser_rows: list[Adw.ActionRow] = []
         self._installed_group = Adw.PreferencesGroup(title=self._installed_title())
+        # Hidden until the installed list lands; an empty header with no rows
+        # is noise, so the group only shows when runtimes exist.
+        self._installed_group.set_visible(False)
         self._browser_group = Adw.PreferencesGroup(title=self._browser_title())
         self._empty_row, _label = _unlisted_data_row(_("No versions available."))
         self._empty_row.set_sensitive(False)
@@ -587,8 +598,10 @@ class _RuntimePage(Adw.PreferencesPage):
         if self._ALLOWS_OPTIONS:
             self.add(self._build_options_group())
         self.add(self._browser_group)
-        self.add(self._pager_group)
+        # Status above the pager so loading and error messages stay visible
+        # without scrolling past the page controls.
         self.add(self._status_group)
+        self.add(self._pager_group)
         self._prev_button.connect("clicked", self._on_prev_clicked)
         self._next_button.connect("clicked", self._on_next_clicked)
 
@@ -628,6 +641,18 @@ class _RuntimePage(Adw.PreferencesPage):
         """Return the hide-installed key for one available version."""
         raise NotImplementedError
 
+    def _fetch_context(self) -> Any:
+        """Snapshot fetch options on the main thread (NW.js overrides this)."""
+        return None
+
+    def _fetch_available_for(self, page: int, context: Any) -> Any:
+        """Fetch one page with a snapshot context instead of live options."""
+        return self._fetch_available(page)
+
+    def _available_key_for(self, version: str, context: Any) -> Any:
+        """Build a hide-installed key with a snapshot context."""
+        return self._available_key(version)
+
     def request_install(self, version: str, button: Gtk.Button | None = None) -> None:
         """Confirm an install with a separate alert dialog."""
         raise NotImplementedError
@@ -645,56 +670,160 @@ class _RuntimePage(Adw.PreferencesPage):
             self._on_installed_error,
         )
 
+    def _fetch_virtual(
+        self, virtual_page: int, installed_snapshot: frozenset[Any], context: Any
+    ) -> Any:
+        """Resolve one virtual page, backfilling past installed versions."""
+        resolve = getattr(runtime_api, "resolve_virtual_page", None)
+        if resolve is None:
+            return self._fetch_available_for(virtual_page, context)
+        first_raw: list[Any] = []
+
+        def _fetch_backend(backend_page: int) -> tuple[tuple[str, ...], dict[str, int | None]]:
+            raw = self._fetch_available_for(backend_page, context)
+            if not first_raw:
+                first_raw.append(raw)
+            return (
+                tuple(raw.versions),
+                dict(getattr(raw, "sizes", {}) or {}),
+            )
+
+        def _is_excluded(version: str) -> bool:
+            return self._available_key_for(version, context) in installed_snapshot
+
+        window, sizes = resolve(
+            _fetch_backend, _is_excluded, virtual_page, page_size=10, max_backend_pages=50
+        )
+        if not first_raw:
+            return SimpleNamespace(page=virtual_page, versions=window, sizes=sizes)
+        first = first_raw[0]
+        try:
+            return type(first)(page=virtual_page, versions=window, sizes=sizes)
+        except TypeError:
+            return SimpleNamespace(page=virtual_page, versions=window, sizes=sizes)
+
     def load_page(self, page: int) -> None:
-        """Fetch one page of versions on a worker thread, clamped at page one."""
+        """Fetch one virtual page on a worker thread, clamped at page one."""
         clamped = max(1, page)
         self._page = clamped
         self._request_id += 1
         token = self._request_id
         self._spinner.start()
+        # Guard the pager buttons for the whole load so double paging cannot
+        # stack stale requests. The pager row itself only hides together with
+        # the delayed loading status, never on fast loads.
+        self._prev_button.set_sensitive(False)
+        self._next_button.set_sensitive(False)
+        if self._status_timeout:
+            GLib.source_remove(self._status_timeout)
+            self._status_timeout = 0
+        installed_snapshot = frozenset(self._installed_keys)
+        context = self._fetch_context()
 
         def _fetch() -> Any:
-            return self._fetch_available(clamped)
+            return self._fetch_virtual(clamped, installed_snapshot, context)
 
         def _done(available: Any) -> None:
             if token != self._request_id:
                 return
             self._on_page_done(available)
 
+        def _fail(error: BaseException) -> None:
+            if token != self._request_id:
+                return
+            self._on_page_error(error)
+
+        def _delayed_status() -> bool:
+            self._status_timeout = 0
+            if token != self._request_id:
+                return False
+            self._pager_group.set_visible(False)
+            self._set_status(_("Loading runtimes."))
+            return False
+
+        self._status_timeout = GLib.timeout_add(self._STATUS_DELAY_MS, _delayed_status)
         _run_in_thread(
             _fetch,
             _done,
-            self._on_page_error,
+            _fail,
         )
+
+    def refresh_browser(self) -> None:
+        """Reload the current virtual page of versions."""
+        self.load_page(self._page)
 
     def _on_installed_done(self, runtimes: tuple[RuntimeInfo | EasyRPGRuntime, ...]) -> None:
         """Render installed runtimes on the main loop."""
         self._spinner.stop()
-        self._installed_keys = frozenset(self._installed_key(runtime) for runtime in runtimes)
+        initial, self._initial_load_pending = self._initial_load_pending, False
+        old_keys = self._installed_keys
+        new_keys = frozenset(self._installed_key(runtime) for runtime in runtimes)
+        self._installed_keys = new_keys
+        scroll = self._captured_scroll()
         self._clear_rows(self._installed_group, self._installed_rows)
         for runtime in runtimes:
             row = self._make_installed_row(runtime)
             self._installed_group.add(row)
             self._installed_rows.append(row)
-        if runtimes:
+        self._installed_group.set_visible(bool(runtimes))
+        self._restore_scroll(scroll)
+        if initial or new_keys != old_keys or self._last_available is None:
+            self.load_page(self._page)
+        elif self._browser_rows or runtimes:
             self._status_group.set_visible(False)
         else:
-            self._set_status(_("No {noun} runtimes installed.").format(noun=self._engine_noun()))
-        last = self._last_available
-        if last is not None:
-            self._render_browser(last)
+            last = self._last_available
+            if last is not None:
+                self._render_browser(last)
 
     def _on_installed_error(self, error: BaseException) -> None:
         """Show installed-list failures with an alert dialog."""
         self._spinner.stop()
         self._set_status(_("Loading installed runtimes failed."))
         self._show_error(_("Load Runtimes"), error)
+        if self._initial_load_pending:
+            self._initial_load_pending = False
+            self.load_page(self._page)
 
     def _on_page_done(self, available: Any) -> None:
         """Render one page of versions on the main loop."""
+        if self._status_timeout:
+            GLib.source_remove(self._status_timeout)
+            self._status_timeout = 0
         self._spinner.stop()
         self._last_available = available
         self._render_browser(available)
+        self._pager_group.set_visible(True)
+        self._prev_button.set_sensitive(available.page > 1 and not self._busy)
+        self._next_button.set_sensitive(not self._busy)
+
+    def _captured_scroll(self) -> float | None:
+        """Return the ancestor scrolled-window position, if the page is shown."""
+        try:
+            ancestor = self.get_ancestor(Gtk.ScrolledWindow)
+            if ancestor is None:
+                return None
+            return float(ancestor.get_vadjustment().get_value())
+        except Exception:
+            return None
+
+    def _restore_scroll(self, value: float | None) -> None:
+        """Restore a captured scroll position on the next main-loop turn."""
+        if value is None:
+            return
+        self._scroll_token += 1
+        token = self._scroll_token
+
+        def _apply() -> bool:
+            if token != self._scroll_token:
+                return False
+            ancestor = self.get_ancestor(Gtk.ScrolledWindow)
+            if ancestor is not None:
+                with contextlib.suppress(Exception):
+                    ancestor.get_vadjustment().set_value(value)
+            return False
+
+        GLib.idle_add(_apply)
 
     def _render_browser(self, available: Any) -> None:
         """Filter installed versions and render browser rows with size suffixes."""
@@ -708,6 +837,7 @@ class _RuntimePage(Adw.PreferencesPage):
         self._page = available.page
         self._versions = filtered
         self._sizes = raw_sizes
+        scroll = self._captured_scroll()
         self._clear_rows(self._browser_group, self._browser_rows)
         for version in filtered:
             row, _label = _unlisted_data_row(self._display_version(version))
@@ -720,8 +850,11 @@ class _RuntimePage(Adw.PreferencesPage):
         self._empty_row.set_visible(not filtered)
         self._pager_label.set_text(_("Page {page}").format(page=available.page))
         self._prev_button.set_sensitive(available.page > 1 and not self._busy)
-        if not filtered:
+        if filtered:
+            self._status_group.set_visible(False)
+        else:
             self._set_status(_("No versions available."))
+        self._restore_scroll(scroll)
 
     def _display_version(self, version: str) -> str:
         """Render one browser version with its size suffix when known."""
@@ -735,9 +868,15 @@ class _RuntimePage(Adw.PreferencesPage):
 
     def _on_page_error(self, error: BaseException) -> None:
         """Show version-list failures with an alert dialog."""
+        if self._status_timeout:
+            GLib.source_remove(self._status_timeout)
+            self._status_timeout = 0
         self._spinner.stop()
         self._set_status(_("Loading versions failed."))
         self._show_error(_("Load Versions"), error)
+        self._pager_group.set_visible(True)
+        self._prev_button.set_sensitive(self._page > 1 and not self._busy)
+        self._next_button.set_sensitive(not self._busy)
 
     def _make_install_handler(self, version: str) -> Callable[[Gtk.Button], None]:
         """Build a per-version install callback opening the confirm dialog."""
@@ -760,7 +899,8 @@ class _RuntimePage(Adw.PreferencesPage):
         """Refresh the installed list after a removal."""
         self._set_busy(False)
         self.refresh_installed()
-        self.load_page(self._page)
+        if self.on_changed is not None:
+            self.on_changed()
 
     def _on_remove_error(self, error: BaseException) -> None:
         """Show removal failures with an alert dialog, then refresh."""
@@ -768,7 +908,6 @@ class _RuntimePage(Adw.PreferencesPage):
         self._set_status(_("Removal failed."))
         self._show_error(_("Remove Runtime"), error)
         self.refresh_installed()
-        self.load_page(self._page)
 
     def _begin_install(
         self,
@@ -777,6 +916,7 @@ class _RuntimePage(Adw.PreferencesPage):
         button: Gtk.Button | None = None,
     ) -> None:
         """Install one runtime on a worker thread, spinning inside its button."""
+        self._set_status(status)
         self._set_busy(True)
         if button is not None:
             spinner = Gtk.Spinner()
@@ -815,7 +955,8 @@ class _RuntimePage(Adw.PreferencesPage):
         self._set_busy(False)
         self._set_status(_("Install complete."))
         self.refresh_installed()
-        self.load_page(self._page)
+        if self.on_changed is not None:
+            self.on_changed()
 
     def _on_install_error(self, error: BaseException) -> None:
         """Show install failures with an alert dialog."""
@@ -876,8 +1017,9 @@ class NwjsPage(_RuntimePage):
         super().__init__(paths, name="nwjs", title=_("NW.js"))
         self.set_icon_name("box-rpg-nwjs-symbolic")
         self._resolve_default_architecture()
+        # The first browser page loads chained from refresh_installed so the
+        # installed snapshot is fresh and the list renders only once.
         self.refresh_installed()
-        self.load_page(1)
 
     def _installed_title(self) -> str:
         """Return the installed NW.js group title."""
@@ -921,7 +1063,15 @@ class NwjsPage(_RuntimePage):
 
     def _fetch_available(self, page: int) -> Any:
         """Fetch one page of installable NW.js versions for the picked options."""
-        arch, sdk = self._arch, self._sdk
+        return self._fetch_available_for(page, (self._arch, self._sdk))
+
+    def _fetch_context(self) -> Any:
+        """Snapshot the picked architecture and SDK for a worker-thread fetch."""
+        return (self._arch, self._sdk)
+
+    def _fetch_available_for(self, page: int, context: Any) -> Any:
+        """Fetch one page with a snapshot (architecture, SDK) pair."""
+        arch, sdk = context
         fetch = runtime_api.fetch_nwjs_available
         if _accepts_paths(fetch):
             return fetch(page, arch, sdk, paths=self._paths)
@@ -935,6 +1085,11 @@ class NwjsPage(_RuntimePage):
     def _available_key(self, version: str) -> Any:
         """Return the hide-installed key for one available NW.js version."""
         return (version, self._arch, self._sdk)
+
+    def _available_key_for(self, version: str, context: Any) -> Any:
+        """Build a hide-installed key with a snapshot (architecture, SDK) pair."""
+        arch, sdk = context
+        return (version, arch, sdk)
 
     def _make_installed_row(self, runtime: RuntimeInfo | EasyRPGRuntime) -> Adw.ActionRow:
         """Build one installed NW.js row with its remove button."""
@@ -1082,8 +1237,9 @@ class EasyrpgPage(_RuntimePage):
         super().__init__(paths, name="easyrpg", title=_("EasyRPG"))
         self.set_icon_name("box-rpg-easyrpg-symbolic")
         self._catalog = EasyRPGCatalog(paths)
+        # The first browser page loads chained from refresh_installed so the
+        # installed snapshot is fresh and the list renders only once.
         self.refresh_installed()
-        self.load_page(1)
 
     def _installed_title(self) -> str:
         """Return the installed EasyRPG group title."""
@@ -1317,6 +1473,7 @@ class CleanupPage(Adw.PreferencesPage):
         self._library = library
         self._on_full_wipe = on_full_wipe
         self._busy = False
+        self.on_category_changed: Callable[[str], None] | None = None
         self._groups: dict[str, Adw.PreferencesGroup] = {}
         self._expanders: dict[str, Adw.ExpanderRow] = {}
         self._rows: dict[str, list[Adw.ActionRow]] = {}
@@ -1522,6 +1679,8 @@ class CleanupPage(Adw.PreferencesPage):
         def _handler(_result: None) -> None:
             self._set_busy(False)
             self.refresh_category(item.category)
+            if self.on_category_changed is not None:
+                self.on_category_changed(item.category)
 
         return _handler
 
@@ -1708,6 +1867,24 @@ class SettingsDialog(Adw.PreferencesDialog):
         self._nwjs_page = NwjsPage(paths)
         self._easyrpg_page = EasyrpgPage(paths)
         self._cleanup_page = CleanupPage(paths, repository, library, on_full_wipe=on_full_wipe)
+
+        def _on_engine_changed() -> None:
+            self._general_page.refresh_runtime()
+            self._cleanup_page.refresh_category("runtimes")
+            self._cleanup_page.refresh_category("downloads")
+
+        def _on_cleanup_category_changed(category: str) -> None:
+            if category != "runtimes":
+                return
+            self._general_page.refresh_runtime()
+            self._nwjs_page.refresh_installed()
+            self._nwjs_page.refresh_browser()
+            self._easyrpg_page.refresh_installed()
+            self._easyrpg_page.refresh_browser()
+
+        self._nwjs_page.on_changed = _on_engine_changed
+        self._easyrpg_page.on_changed = _on_engine_changed
+        self._cleanup_page.on_category_changed = _on_cleanup_category_changed
         self.add(self._general_page)
         self.add(self._nwjs_page)
         self.add(self._easyrpg_page)

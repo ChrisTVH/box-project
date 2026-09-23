@@ -198,6 +198,7 @@ def _make_runtime(
     nwjs_page: Any = NwjsPage(paths)
     easyrpg_page: Any = EasyrpgPage(paths)
     _pump()
+    _pump()
     return nwjs_page, easyrpg_page, seen
 
 
@@ -699,7 +700,8 @@ def test_nwjs_pager_next_previous_and_clamp(
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
-    pages = {1: ("3.0.0", "2.0.0"), 2: ("1.0.0",), 3: ()}
+    first_page = tuple(f"3.{index}.0" for index in range(10))
+    pages = {1: first_page, 2: ("1.0.0",), 3: ()}
     monkeypatch.setattr(runtime_module, "list_nwjs", lambda catalog: ())
     monkeypatch.setattr(runtime_module, "list_easyrpg", lambda catalog: ())
     monkeypatch.setattr(
@@ -716,9 +718,10 @@ def test_nwjs_pager_next_previous_and_clamp(
     )
     page: Any = NwjsPage(_make_paths(tmp_path))
     _pump()
+    _pump()
 
     assert page._page == 1
-    assert page._versions == ("3.0.0", "2.0.0")
+    assert page._versions == first_page
     assert page._prev_button.get_sensitive() is False
     page._next_button.emit("clicked")
     _pump()
@@ -746,7 +749,8 @@ def test_easyrpg_pager_next_previous_and_clamp(
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
-    pages = {1: ("0.8.1", "0.8.0"), 2: ("0.7.0",)}
+    first_page = tuple(f"0.9.{index}" for index in range(10))
+    pages = {1: first_page, 2: ("0.7.0",)}
     monkeypatch.setattr(runtime_module, "list_nwjs", lambda catalog: ())
     monkeypatch.setattr(runtime_module, "list_easyrpg", lambda catalog: ())
     monkeypatch.setattr(
@@ -763,9 +767,10 @@ def test_easyrpg_pager_next_previous_and_clamp(
     )
     page: Any = EasyrpgPage(_make_paths(tmp_path))
     _pump()
+    _pump()
 
     assert page._page == 1
-    assert page._versions == ("0.8.1", "0.8.0")
+    assert page._versions == first_page
     page._next_button.emit("clicked")
     _pump()
     assert page._page == 2
@@ -1803,6 +1808,7 @@ def _make_nwjs_browser(
     )
     page: Any = NwjsPage(_make_paths(tmp_path))
     _pump()
+    _pump()
     return page, {"seen": seen, "current": current}
 
 
@@ -1839,6 +1845,7 @@ def _make_easyrpg_browser(
     )
     monkeypatch.setattr(runtime_module, "fetch_easyrpg_available", _fake_fetch)
     page: Any = EasyrpgPage(_make_paths(tmp_path))
+    _pump()
     _pump()
     return page, {"seen": seen, "current": current}
 
@@ -2096,8 +2103,424 @@ def test_fetch_without_paths_param_still_works(
     nwjs_page: Any = NwjsPage(_make_paths(tmp_path))
     easyrpg_page: Any = EasyrpgPage(_make_paths(tmp_path))
     _pump()
+    _pump()
 
     assert nwjs_page._versions == ("1.0.0",)
     assert easyrpg_page._versions == ("0.8.1",)
     assert settings_module._accepts_paths(_old_fetch_nwjs) is False
     assert settings_module._accepts_paths(_old_fetch_easyrpg) is False
+
+
+def test_virtual_backfill_disjoint_pages(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Disjoint backend pages backfill virtual pages without duplication."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _stub_runtime_api(monkeypatch)
+    first_backend = tuple(f"10.{index}.0" for index in range(10))
+    second_backend = tuple(f"9.{index}.0" for index in range(10))
+    pages = {1: first_backend, 2: second_backend, 3: ()}
+    fetch_calls: list[int] = []
+    installed_version = first_backend[0]
+    installed = (
+        RuntimeInfo(
+            RuntimeSpec(version=installed_version, architecture="x64", sdk=False),
+            tmp_path / "rt",
+            tmp_path / "rt" / "nw",
+        ),
+    )
+    monkeypatch.setattr(runtime_module, "list_nwjs", lambda catalog: tuple(installed))
+    monkeypatch.setattr(runtime_module, "list_easyrpg", lambda catalog: ())
+
+    def _fake_fetch(page: int, arch: str, sdk: bool, *, paths: Any = None) -> Any:
+        fetch_calls.append(page)
+        return _available_nwjs_for_test(page, pages.get(page, ()), None)
+
+    monkeypatch.setattr(runtime_module, "fetch_nwjs_available", _fake_fetch)
+    monkeypatch.setattr(
+        runtime_module,
+        "fetch_easyrpg_available",
+        lambda page, *, paths=None: AvailableEasyRPGVersions(page=page, versions=()),
+    )
+    page: Any = NwjsPage(_make_paths(tmp_path))
+    _pump()
+    _pump()
+
+    assert len(page._browser_rows) == 10
+    assert len(page._versions) == 10
+    assert installed_version not in page._versions
+    assert tuple(page._versions[:9]) == tuple(
+        version for version in first_backend if version != installed_version
+    )
+    assert page._versions[9] == second_backend[0]
+    assert len(set(page._versions)) == 10
+    assert 1 in fetch_calls and 2 in fetch_calls
+    first_window = tuple(page._versions)
+
+    page.load_page(2)
+    _pump()
+
+    assert tuple(page._versions) == tuple(second_backend[1:])
+    assert len(page._browser_rows) == 9
+    assert set(page._versions).isdisjoint(set(first_window))
+
+
+def _make_dialog_for_cross_refresh(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Any:
+    """Create a SettingsDialog with empty stubbed backends and drained loads."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _stub_runtime_api(monkeypatch)
+    monkeypatch.setattr(runtime_module, "list_nwjs", lambda catalog: ())
+    monkeypatch.setattr(runtime_module, "list_easyrpg", lambda catalog: ())
+    monkeypatch.setattr(
+        runtime_module,
+        "fetch_nwjs_available",
+        lambda page, arch, sdk, *, paths=None: AvailableVersions(page=page, versions=()),
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "fetch_easyrpg_available",
+        lambda page, *, paths=None: AvailableEasyRPGVersions(page=page, versions=()),
+    )
+
+    class _FakeCatalog:
+        def __init__(self, paths: Any, repository: Any) -> None:
+            pass
+
+        def list(self, category: str | None = None) -> tuple[Any, ...]:
+            return ()
+
+        def remove(self, item: Any) -> None:
+            raise AssertionError("no removal expected")
+
+    monkeypatch.setattr(settings_module, "CleanupCatalog", _FakeCatalog)
+    paths = _make_paths(tmp_path)
+    repository = ConfigRepository(paths)
+    dialog: Any = SettingsDialog(paths, repository, None)
+    _pump()
+    _pump()
+    return dialog
+
+
+def test_engine_on_changed_refreshes_general_and_cleanup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Engine on_changed refreshes General pickers and Cleanup runtimes/downloads."""
+    dialog: Any = _make_dialog_for_cross_refresh(monkeypatch, tmp_path)
+    assert dialog._nwjs_page.on_changed is not None
+    assert dialog._easyrpg_page.on_changed is not None
+    general_calls: list[bool] = []
+    cleanup_calls: list[str] = []
+
+    def _fake_general() -> None:
+        general_calls.append(True)
+
+    def _fake_cleanup(category: str) -> None:
+        cleanup_calls.append(category)
+
+    dialog._general_page.refresh_runtime = _fake_general  # type: ignore[method-assign]
+    dialog._cleanup_page.refresh_category = _fake_cleanup  # type: ignore[method-assign]
+
+    dialog._nwjs_page.on_changed()
+    assert general_calls == [True]
+    assert cleanup_calls == ["runtimes", "downloads"]
+
+    general_calls.clear()
+    cleanup_calls.clear()
+    dialog._easyrpg_page.on_changed()
+    assert general_calls == [True]
+    assert cleanup_calls == ["runtimes", "downloads"]
+
+
+def test_cleanup_runtimes_removal_refreshes_engines_and_general(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Cleanup runtimes removal refreshes both engine pages and General."""
+    dialog: Any = _make_dialog_for_cross_refresh(monkeypatch, tmp_path)
+    assert dialog._cleanup_page.on_category_changed is not None
+    general_calls: list[bool] = []
+    nwjs_installed_calls: list[bool] = []
+    nwjs_browser_calls: list[bool] = []
+    easyrpg_installed_calls: list[bool] = []
+    easyrpg_browser_calls: list[bool] = []
+
+    def _fake_general() -> None:
+        general_calls.append(True)
+
+    def _fake_nwjs_installed() -> None:
+        nwjs_installed_calls.append(True)
+
+    def _fake_nwjs_browser() -> None:
+        nwjs_browser_calls.append(True)
+
+    def _fake_easyrpg_installed() -> None:
+        easyrpg_installed_calls.append(True)
+
+    def _fake_easyrpg_browser() -> None:
+        easyrpg_browser_calls.append(True)
+
+    dialog._general_page.refresh_runtime = _fake_general  # type: ignore[method-assign]
+    dialog._nwjs_page.refresh_installed = _fake_nwjs_installed  # type: ignore[method-assign]
+    dialog._nwjs_page.refresh_browser = _fake_nwjs_browser  # type: ignore[method-assign]
+    dialog._easyrpg_page.refresh_installed = _fake_easyrpg_installed  # type: ignore[method-assign]
+    dialog._easyrpg_page.refresh_browser = _fake_easyrpg_browser  # type: ignore[method-assign]
+
+    dialog._cleanup_page.on_category_changed("runtimes")
+    assert general_calls == [True]
+    assert nwjs_installed_calls == [True]
+    assert nwjs_browser_calls == [True]
+    assert easyrpg_installed_calls == [True]
+    assert easyrpg_browser_calls == [True]
+
+    general_calls.clear()
+    nwjs_installed_calls.clear()
+    nwjs_browser_calls.clear()
+    easyrpg_installed_calls.clear()
+    easyrpg_browser_calls.clear()
+    dialog._cleanup_page.on_category_changed("downloads")
+    assert general_calls == []
+    assert nwjs_installed_calls == []
+    assert nwjs_browser_calls == []
+    assert easyrpg_installed_calls == []
+    assert easyrpg_browser_calls == []
+
+    item = _make_item("runtimes", "Runtime One", tmp_path)
+    refresh_calls: list[str] = []
+    origin_refresh = dialog._cleanup_page.refresh_category
+
+    def _recording_refresh(category: str) -> None:
+        refresh_calls.append(category)
+        origin_refresh(category)
+
+    dialog._cleanup_page.refresh_category = _recording_refresh  # type: ignore[method-assign]
+    dialog._cleanup_page._make_remove_done_handler(item)(None)
+    assert refresh_calls == ["runtimes"]
+    assert general_calls == [True]
+    assert nwjs_installed_calls == [True]
+    assert nwjs_browser_calls == [True]
+
+
+def test_begin_install_surfaces_status(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """_begin_install shows its status text in the shared status row."""
+    page, _state = _make_nwjs_browser(monkeypatch, tmp_path, available=("1.0.0",))
+    status = "Installing NW.js 9.9.9 …"
+
+    page._begin_install(status, lambda reporter: object())
+
+    assert page._status_label.get_text() == status
+    assert page._status_group.get_visible() is True
+    _pump()
+    _pump()
+
+
+def test_pager_click_blocks_buttons_without_hiding_pager(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Paging dims the buttons at once but hides the pager only if slow."""
+    versions = tuple(f"1.{index}.0" for index in range(10))
+    page, _state = _make_nwjs_browser(monkeypatch, tmp_path, available=versions)
+
+    assert page._pager_group.get_visible() is True
+    page._next_button.emit("clicked")
+
+    assert page._pager_group.get_visible() is True
+    assert page._prev_button.get_sensitive() is False
+    assert page._next_button.get_sensitive() is False
+    assert page._status_group.get_visible() is False
+    _pump()
+
+    assert page._versions == ()
+    assert page._pager_group.get_visible() is True
+    assert page._prev_button.get_sensitive() is True
+    assert page._status_label.get_text() == "No versions available."
+
+
+def test_loading_status_delayed_until_slow_load(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The loading status only appears when a page load turns slow."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _stub_runtime_api(monkeypatch)
+    gate = threading.Event()
+    monkeypatch.setattr(runtime_module, "list_nwjs", lambda catalog: ())
+    monkeypatch.setattr(runtime_module, "list_easyrpg", lambda catalog: ())
+
+    def _gated_fetch(page: int, arch: str, sdk: bool, *, paths: Any = None) -> Any:
+        assert gate.wait(timeout=10)
+        return _available_nwjs_for_test(page, ("1.0.0",), None)
+
+    monkeypatch.setattr(runtime_module, "fetch_nwjs_available", _gated_fetch)
+    monkeypatch.setattr(
+        runtime_module,
+        "fetch_easyrpg_available",
+        lambda page, *, paths=None: AvailableEasyRPGVersions(page=page, versions=()),
+    )
+    page: Any = NwjsPage(_make_paths(tmp_path))
+    page._STATUS_DELAY_MS = 60
+
+    _pump(400)
+
+    assert page._pager_group.get_visible() is False
+    assert page._status_group.get_visible() is True
+    assert page._status_label.get_text() == "Loading runtimes."
+    gate.set()
+    _pump()
+
+    assert page._versions == ("1.0.0",)
+    assert page._pager_group.get_visible() is True
+    assert page._next_button.get_sensitive() is True
+    assert page._status_group.get_visible() is False
+
+
+def test_page_done_hides_status_when_rows_present(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A rendered browser page hides the status row even with no installed."""
+    page, _state = _make_nwjs_browser(monkeypatch, tmp_path, available=("1.0.0", "0.9.0"))
+    page._set_status("Loading runtimes.")
+
+    assert page._status_group.get_visible() is True
+    page._on_page_done(_available_nwjs_for_test(1, ("1.0.0", "0.9.0"), None))
+
+    assert page._browser_rows != []
+    assert page._status_group.get_visible() is False
+
+
+def test_installed_done_without_runtimes_hides_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """No installed runtimes means no installed message while rows exist."""
+    page, state = _make_nwjs_browser(monkeypatch, tmp_path, available=("1.0.0",))
+    page._set_status("Loading runtimes.")
+    state["current"]["installed"] = ()
+
+    page._on_installed_done(())
+
+    assert page._browser_rows != []
+    assert page._status_group.get_visible() is False
+    assert "installed" not in page._status_label.get_text()
+
+
+def test_initial_browser_load_waits_for_installed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The first browser fetch runs chained after the installed list lands."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _stub_runtime_api(monkeypatch)
+    seen: dict[str, Any] = {"fetch": []}
+    monkeypatch.setattr(runtime_module, "list_nwjs", lambda catalog: ())
+    monkeypatch.setattr(runtime_module, "list_easyrpg", lambda catalog: ())
+
+    def _fake_fetch(page: int, arch: str, sdk: bool, *, paths: Any = None) -> Any:
+        seen["fetch"].append((page, arch, sdk))
+        return _available_nwjs_for_test(page, ("1.0.0",), None)
+
+    monkeypatch.setattr(runtime_module, "fetch_nwjs_available", _fake_fetch)
+    monkeypatch.setattr(
+        runtime_module,
+        "fetch_easyrpg_available",
+        lambda page, *, paths=None: AvailableEasyRPGVersions(page=page, versions=()),
+    )
+    page: Any = NwjsPage(_make_paths(tmp_path))
+
+    assert seen["fetch"] == []
+    _pump()
+    _pump()
+
+    assert seen["fetch"][0] == (1, "x64", False)
+    assert page._versions == ("1.0.0",)
+
+
+def test_render_browser_preserves_scroll(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Rebuilding browser rows restores the scrolled-window position."""
+    page, _state = _make_nwjs_browser(
+        monkeypatch, tmp_path, available=tuple(f"1.{index}.0" for index in range(10))
+    )
+
+    class _FakeAdjustment:
+        def __init__(self) -> None:
+            self.applied: list[float] = []
+            self._value = 33.0
+
+        def get_value(self) -> float:
+            return self._value
+
+        def set_value(self, value: float) -> None:
+            self.applied.append(value)
+            self._value = value
+
+    class _FakeScrolled:
+        def __init__(self, adjustment: _FakeAdjustment) -> None:
+            self._adjustment = adjustment
+
+        def get_vadjustment(self) -> _FakeAdjustment:
+            return self._adjustment
+
+    adjustment = _FakeAdjustment()
+    monkeypatch.setattr(page, "get_ancestor", lambda _ancestor_type: _FakeScrolled(adjustment))
+    page._render_browser(
+        _available_nwjs_for_test(1, tuple(f"1.{index}.0" for index in range(10)), None)
+    )
+
+    assert adjustment.applied == []
+    _pump()
+
+    assert adjustment.applied == [33.0]
+
+
+def _tree_order(widget: Any) -> Any:
+    """Yield a widget and its descendants in container order."""
+    yield widget
+    try:
+        children = list(widget.observe_children())
+    except Exception:
+        return
+    for child in children:
+        yield from _tree_order(child)
+
+
+def test_status_group_sits_above_pager(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The loading status renders above the page controls."""
+    page, _state = _make_nwjs_browser(monkeypatch, tmp_path, available=("1.0.0",))
+    order = list(_tree_order(page))
+
+    assert page._status_label in order
+    assert page._pager_label in order
+    assert order.index(page._status_label) < order.index(page._pager_label)
+
+
+def test_installed_group_hidden_without_runtimes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The installed header hides when no runtimes are installed."""
+    page, _state = _make_nwjs_browser(monkeypatch, tmp_path, available=("1.0.0",))
+
+    assert page._installed_rows == []
+    assert page._installed_group.get_visible() is False
+    assert page._browser_rows != []
+
+
+def test_installed_group_shown_with_runtimes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The installed header shows while runtimes are installed."""
+    installed = (
+        RuntimeInfo(
+            RuntimeSpec(version="1.0.0", architecture="x64", sdk=False),
+            tmp_path / "rt",
+            tmp_path / "rt" / "nw",
+        ),
+    )
+    page, _state = _make_nwjs_browser(
+        monkeypatch, tmp_path, available=("1.0.0", "0.9.0"), installed=installed
+    )
+
+    assert len(page._installed_rows) == 1
+    assert page._installed_group.get_visible() is True
