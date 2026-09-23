@@ -400,3 +400,91 @@ def test_installed_specs_narrow_exceptions(tmp_path: Path, monkeypatch: pytest.M
         pass
     else:
         raise AssertionError("unexpected errors must propagate")
+
+
+def test_nwjs_virtual_page_backfills_from_next_backend_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Virtual page one borrows from backend page two when one version is installed."""
+    paths = _paths(tmp_path)
+    first = tuple(f"v0.{20 - index}.0" for index in range(10))
+    second = tuple(f"v0.{10 - index}.0" for index in range(10))
+    installed = (_nwjs_runtime(first[0], "x64", False, tmp_path / "rt"),)
+    backend: dict[int, tuple[str, ...]] = {1: first, 2: second}
+
+    def _fake_list_nwjs(catalog: RuntimeCatalog) -> tuple[RuntimeInfo, ...]:
+        return installed
+
+    monkeypatch.setattr(runtime_cli, "api_list_nwjs", _fake_list_nwjs)
+
+    def fake_fetch(
+        page: int, architecture: str, sdk: bool, *, paths: AppPaths | None = None
+    ) -> AvailableVersions:
+        versions = backend.get(page, ())
+        sizes = {second[0]: 1500} if page == 2 else {}
+        return AvailableVersions(page=page, versions=versions, sizes=sizes)
+
+    monkeypatch.setattr(runtime_cli, "fetch_available_versions", fake_fetch)
+
+    assert runtime_cli.available(paths, 1, False, "x64", False) == 0
+    first_output = capsys.readouterr().out
+
+    assert first[0] not in first_output
+    for version in first[1:]:
+        assert version in first_output
+    assert f"{second[0]} (1.5 kB)" in first_output
+    assert "  10. " in first_output
+    assert "  11. " not in first_output
+
+    assert runtime_cli.available(paths, 2, False, "x64", False) == 0
+    second_output = capsys.readouterr().out
+
+    assert second[0] not in second_output
+    for version in second[1:]:
+        assert version in second_output
+    assert first[1] not in second_output
+    assert "  9. " in second_output
+    assert "  10. " not in second_output
+
+
+def test_easyrpg_virtual_page_backfills_from_next_backend_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """EasyRPG virtual pages borrow without repeating the borrowed version."""
+    paths = _paths(tmp_path)
+    first = tuple(f"0.{20 - index}.0" for index in range(10))
+    second = tuple(f"0.{10 - index}.0" for index in range(10))
+    installed = (EasyRPGRuntime(first[0], tmp_path / "easy"),)
+    backend: dict[int, tuple[str, ...]] = {1: first, 2: second}
+
+    def _fake_list_easyrpg(catalog: EasyRPGCatalog) -> tuple[EasyRPGRuntime, ...]:
+        return installed
+
+    monkeypatch.setattr(runtime_cli, "api_list_easyrpg", _fake_list_easyrpg)
+
+    def fake_fetch(page: int, *, paths: AppPaths | None = None) -> AvailableEasyRPGVersions:
+        versions = backend.get(page, ())
+        sizes = {second[0]: 2500000} if page == 2 else {}
+        return AvailableEasyRPGVersions(page=page, versions=versions, sizes=sizes)
+
+    monkeypatch.setattr(runtime_cli, "fetch_easyrpg_versions", fake_fetch)
+
+    assert runtime_cli._easyrpg_available(paths, 1, False) == 0  # pyright: ignore[reportPrivateUsage]
+    first_output = capsys.readouterr().out
+
+    assert first[0] not in first_output
+    for version in first[1:]:
+        assert version in first_output
+    assert f"{second[0]} (2.5 MB)" in first_output
+    assert "  10. " in first_output
+    assert "  11. " not in first_output
+
+    assert runtime_cli._easyrpg_available(paths, 2, False) == 0  # pyright: ignore[reportPrivateUsage]
+    second_output = capsys.readouterr().out
+
+    assert second[0] not in second_output
+    for version in second[1:]:
+        assert version in second_output
+    assert first[1] not in second_output
+    assert "  9. " in second_output
+    assert "  10. " not in second_output

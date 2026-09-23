@@ -12,6 +12,7 @@ from box.runtime.downloader import install_runtime as install_nwjs_runtime
 from box.runtime.easyrpg import AvailableEasyRPGVersions, EasyRPGCatalog, EasyRPGRuntime
 from box.runtime.easyrpg import fetch_available_versions as fetch_easyrpg_versions
 from box.runtime.easyrpg import install_runtime as install_easyrpg_runtime
+from box.runtime.paging import resolve_virtual_page
 from box.runtime.platform import current_architecture as _current_architecture
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "list_nwjs",
     "remove_easyrpg",
     "remove_nwjs",
+    "resolve_virtual_page",
 ]
 
 

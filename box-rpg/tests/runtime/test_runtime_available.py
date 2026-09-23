@@ -101,7 +101,10 @@ def test_interactive_selection_uses_ten_item_pages(
         return next(choices)
 
     assert runtime.select_interactively(paths, 1, "x64", False, read=_fake_read) == 0
-    assert pages == [1, 2]
+    # Virtual pagination re-scans backend pages from page one for each virtual
+    # page; the single-version stub is a short (last) backend page, so both
+    # virtual pages resolve from backend page one.
+    assert pages == [1, 1]
 
 
 def test_interactive_selection_handles_end_of_input(

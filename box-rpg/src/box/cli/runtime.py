@@ -23,6 +23,7 @@ from box.runtime.easyrpg import (
     EasyRPGCatalog,
 )
 from box.runtime.easyrpg import normalize_version as normalize_easyrpg_version
+from box.runtime.paging import resolve_virtual_page
 from box.runtime.platform import normalize_architecture
 from box.runtime.validator import normalize_version as normalize_nwjs_version
 from box.utils.i18n import _
@@ -92,24 +93,28 @@ def _nwjs_spec_for_available(version: str, architecture: str, sdk: bool) -> Runt
     return RuntimeSpec(normalized_version, normalized_arch, sdk)
 
 
-def _filter_nwjs_available(
-    available_versions: AvailableVersions,
-    installed: frozenset[RuntimeSpec],
+def _fetch_nwjs_virtual_page(
+    virtual_page: int,
     architecture: str,
     sdk: bool,
+    installed: frozenset[RuntimeSpec],
+    paths: AppPaths,
+    page_size: int = 10,
 ) -> AvailableVersions:
-    """Return one page without installed runtimes, keeping sizes for survivors."""
-    filtered = tuple(
-        version
-        for version in available_versions.versions
-        if _nwjs_spec_for_available(version, architecture, sdk) not in installed
+    """Return one virtual page of NW.js versions with installed specs hidden."""
+    clamped = max(1, virtual_page)
+
+    def fetch_page(backend_page: int) -> tuple[tuple[str, ...], dict[str, int | None]]:
+        fetched = fetch_available_versions(backend_page, architecture, sdk, paths=paths)
+        return fetched.versions, dict(fetched.sizes)
+
+    def is_excluded(version: str) -> bool:
+        return _nwjs_spec_for_available(version, architecture, sdk) in installed
+
+    versions, sizes = resolve_virtual_page(
+        fetch_page, is_excluded, clamped, page_size=page_size
     )
-    sizes = {
-        version: available_versions.sizes[version]
-        for version in filtered
-        if version in available_versions.sizes
-    }
-    return AvailableVersions(page=available_versions.page, versions=filtered, sizes=sizes)
+    return AvailableVersions(page=clamped, versions=versions, sizes=sizes)
 
 
 def _easyrpg_key(version: str) -> str:
@@ -120,20 +125,26 @@ def _easyrpg_key(version: str) -> str:
         return version
 
 
-def _filter_easyrpg_available(
-    available_versions: AvailableEasyRPGVersions,
+def _fetch_easyrpg_virtual_page(
+    virtual_page: int,
     installed: frozenset[str],
+    paths: AppPaths,
+    page_size: int = 10,
 ) -> AvailableEasyRPGVersions:
-    """Return one page without installed EasyRPG runtimes, keeping sizes."""
-    filtered = tuple(
-        version for version in available_versions.versions if _easyrpg_key(version) not in installed
+    """Return one virtual page of EasyRPG versions with installed keys hidden."""
+    clamped = max(1, virtual_page)
+
+    def fetch_page(backend_page: int) -> tuple[tuple[str, ...], dict[str, int | None]]:
+        fetched = fetch_easyrpg_versions(backend_page, paths=paths)
+        return fetched.versions, dict(fetched.sizes)
+
+    def is_excluded(version: str) -> bool:
+        return _easyrpg_key(version) in installed
+
+    versions, sizes = resolve_virtual_page(
+        fetch_page, is_excluded, clamped, page_size=page_size
     )
-    sizes = {
-        version: available_versions.sizes[version]
-        for version in filtered
-        if version in available_versions.sizes
-    }
-    return AvailableEasyRPGVersions(page=available_versions.page, versions=filtered, sizes=sizes)
+    return AvailableEasyRPGVersions(page=clamped, versions=versions, sizes=sizes)
 
 
 def _display_version(version: str, sizes: dict[str, int | None]) -> str:
@@ -154,9 +165,10 @@ def available(
     """List online stable versions or interactively install one."""
     if interactive:
         return select_interactively(paths, page, architecture, sdk)
-    raw = fetch_available_versions(page, architecture, sdk, paths=paths)
     installed = _installed_nwjs_specs(paths)
-    _print_available(_filter_nwjs_available(raw, installed, architecture, sdk), architecture, sdk)
+    _print_available(
+        _fetch_nwjs_virtual_page(page, architecture, sdk, installed, paths), architecture, sdk
+    )
     return 0
 
 
@@ -173,7 +185,7 @@ def select_interactively(
     page = initial_page
     while True:
         try:
-            raw = fetch_available_versions(page, architecture, sdk, paths=paths)
+            available_versions = _fetch_nwjs_virtual_page(page, architecture, sdk, installed, paths)
         except RuntimeError as exc:
             write(_("Could not load the version list: {error}").format(error=exc))
             try:
@@ -185,7 +197,6 @@ def select_interactively(
                 write(_("Selection cancelled."))
                 return 0
             continue
-        available_versions = _filter_nwjs_available(raw, installed, architecture, sdk)
         _print_available(available_versions, architecture, sdk, write)
         prompt = _("Select 1-{count}, [n]ext, [p]revious, or [q]uit: ").format(
             count=len(available_versions.versions)
@@ -305,15 +316,14 @@ def _easyrpg_available(
 ) -> int:
     """List online EasyRPG Player releases or choose one to install."""
     if not interactive:
-        raw = fetch_easyrpg_versions(page, paths=paths)
         installed = _installed_easyrpg_keys(paths)
-        _print_easyrpg_versions(_filter_easyrpg_available(raw, installed), write)
+        _print_easyrpg_versions(_fetch_easyrpg_virtual_page(page, installed, paths), write)
         return 0
     installed = _installed_easyrpg_keys(paths)
     current_page = page
     while True:
         try:
-            raw = fetch_easyrpg_versions(current_page, paths=paths)
+            versions = _fetch_easyrpg_virtual_page(current_page, installed, paths)
         except RuntimeError as exc:
             write(_("Could not load the version list: {error}").format(error=exc))
             try:
@@ -325,7 +335,6 @@ def _easyrpg_available(
                 write(_("Selection cancelled."))
                 return 0
             continue
-        versions = _filter_easyrpg_available(raw, installed)
         _print_easyrpg_versions(versions, write)
         prompt = _("Select 1-{count}, [n]ext, [p]revious, or [q]uit: ").format(
             count=len(versions.versions)
