@@ -206,9 +206,11 @@ class LibraryPage(Adw.NavigationPage):
         self._locate_dialog: Gtk.FileDialog | None = None
         self._add_button = Gtk.Button.new_from_icon_name("box-rpg-plus-symbolic")
         self._add_button.set_tooltip_text(_("Add game"))
+        self._add_button.add_css_class("header-action")
         self._add_button.connect("clicked", self._on_add_clicked)
         self._settings_button = Gtk.Button.new_from_icon_name("box-rpg-settings-symbolic")
         self._settings_button.set_tooltip_text(_("Settings"))
+        self._settings_button.add_css_class("header-action")
         self._settings_button.connect("clicked", self._on_settings_clicked)
         self._list_box = Gtk.ListBox()
         self._list_box.add_css_class("boxed-list-separate")

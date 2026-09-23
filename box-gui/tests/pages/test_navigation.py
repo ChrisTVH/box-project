@@ -442,6 +442,18 @@ def test_corrupt_library_shows_alert(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert page._entries == ()
 
 
+def test_header_buttons_use_enlarged_style(tmp_path: Path) -> None:
+    """The add and settings header buttons share the enlarged style."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository)
+
+    assert "header-action" in page._add_button.get_css_classes()
+    assert "header-action" in page._settings_button.get_css_classes()
+
+
 def test_settings_button_uses_callback(tmp_path: Path) -> None:
     """The gear button presents Settings through its callback."""
     _require_display()

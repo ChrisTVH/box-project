@@ -168,6 +168,8 @@ class BoxRpgApplication(Adw.Application):
                 b"padding: 0; border-radius: 9999px; } "
                 b".update-check { background-color: #326935; "
                 b"color: #cffcdf; } "
+                b".header-action { min-width: 18px; min-height: 18px; } "
+                b".header-action image { -gtk-icon-size: 24px; } "
                 b".chip-flow > flowboxchild:hover, "
                 b".chip-flow > flowboxchild:active { background-color: transparent; } "
                 b".love-heart { color: @error_bg_color; } "
