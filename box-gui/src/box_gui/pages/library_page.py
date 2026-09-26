@@ -1135,7 +1135,14 @@ class LibraryPage(Adw.NavigationPage):
     def _on_remove_action(
         self, _action: Gio.SimpleAction, _parameter: object, entry: LibraryEntry
     ) -> None:
-        """Remove one entry, then refresh the visible list."""
+        """Remove one entry, then refresh the visible list.
+
+        The entry's exact allowed game root is unregistered as well, so a
+        removed game does not keep a stale authorization behind. Only that
+        exact root is touched: unrelated roots (which CLI users may rely
+        on) are never pruned or cleared. A failing unregistration is
+        reported but never rolls back the library removal.
+        """
         try:
             self._library.remove(entry)
         except LibraryError as exc:
@@ -1144,6 +1151,16 @@ class LibraryPage(Adw.NavigationPage):
         except OSError as exc:
             self._show_alert(_("Unexpected Error"), str(exc) or exc.__class__.__name__)
             return
+        repository = self._repository
+        if repository is not None:
+            remove_allowed_root = getattr(repository, "remove_allowed_root", None)
+            if remove_allowed_root is not None:
+                try:
+                    remove_allowed_root(entry.path)
+                except ConfigurationError as exc:
+                    self._show_alert(_("Configuration Error"), str(exc) or exc.__class__.__name__)
+                except OSError as exc:
+                    self._show_alert(_("Unexpected Error"), str(exc) or exc.__class__.__name__)
         self.refresh()
 
     def _on_locate_clicked(self, _button: Gtk.Button, entry: LibraryEntry) -> None:
