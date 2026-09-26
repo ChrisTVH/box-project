@@ -17,7 +17,7 @@ New modules have an obvious home by dependency direction:
 
 Key files:
 
-- `src/box_gui/app.py`: `Adw.Application` entry point. Owns `AppPaths`, `ConfigRepository`, `LibraryRepository`, `DefaultsRepository`, and `GtkInteraction`. Holds a single `Adw.NavigationView` and presents the Settings dialog on demand. Loads frontend and backend catalogs at startup.
+- `src/box_gui/app.py`: `Adw.Application` entry point. Owns `AppPaths`, `ConfigRepository`, `LibraryRepository`, `DefaultsRepository`, and `GtkInteraction`. Holds a single `Adw.NavigationView` and presents the Settings dialog and the Debugging window on demand. Loads frontend and backend catalogs at startup.
 - `src/box_gui/core/library.py`: game library persistence. `LibraryEntry` dataclass and `LibraryRepository` with `load`, `save`, `add`, `remove`, `reorder`, and `update` over `library.json`. No GTK dependency.
 - `src/box_gui/core/defaults.py`: global defaults over `defaults.json`, currently the preferred EasyRPG Player version. Same atomic-write and user-only-permission pattern as `library.py`. No GTK dependency.
 - `src/box_gui/pages/library_page.py`: root page with tag `library`. Folder picker, inspection-to-add flow, rows with runtime pill and reorder/remove menu, Settings entry point.
