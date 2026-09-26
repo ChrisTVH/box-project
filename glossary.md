@@ -145,6 +145,7 @@ Terms taken from the `box-rpg-maker` catalog; if a msgid contains a backend term
 | Set Language | Fijar idioma | Nombre de operación en diálogo de error; sigue el patrón «Set Runtime» → «Fijar entorno». |
 | System default | Del sistema | Opción concisa del selector de idioma; se lee como «Idioma: Del sistema» y evita el truncado en Adw.ComboRow. Distinto de «System» → «Sistema». |
 | tag | etiqueta | Etiqueta de git; `{tag}` queda literal. |
+| annotated tag | etiqueta anotada | En «La etiqueta {tag} no es una etiqueta anotada; se rechaza la instalación: {detail}»; se refiere a la etiqueta con objeto de etiqueta, frente a la ligera. |
 | resolve (tag) | resolver | En «No se pudo resolver la etiqueta…»; distinto de «clone» → «clonar». |
 | signature verification | verificación de firma | En mensajes de `git verify-tag`; «firma» en minúscula. |
 | AppImage | AppImage | Formato de distribución; no traducir. |
@@ -160,3 +161,11 @@ Terms taken from the `box-rpg-maker` catalog; if a msgid contains a backend term
 | replace | reemplazar | En «Replacing AppImage …» → «Reemplazando AppImage …». |
 | restart | reiniciar | En «AppImage updated, restarting …» → «AppImage actualizado, reiniciando …». |
 | mirror | espejo | En «mirror drift» → «el espejo cambió». |
+| launch (noun) | inicio | Evento de arranque: «Launch failed.» → «Inicio fallido.»; botón «Launch» → «Iniciar». Distinto de «launch (verb)» → «iniciar». |
+| Debugging | Depuración | Título de la ventana de depuración y del icono que la abre en el pie de la biblioteca; el nombre interno `depuracion` no se traduce. Vive fuera de Ajustes porque libadwaita mueve la barra de pestañas al pie del diálogo a partir de 5 páginas. Distinto del grupo «Diagnostics» → «Diagnóstico» que la ventana contiene. |
+| Diagnostics | Diagnóstico | Grupo dentro de la página «Depuración»; coherente con «Diagnose failed.» → «Diagnóstico fallido.». |
+| Set Diagnostics | Fijar diagnóstico | Nombre de operación en diálogo de error; sigue el patrón «Set Updates» → «Fijar actualizaciones». |
+| debug log | log de depuración | Fila de Ajustes: «Record ci-mount debug log» → «Registrar el log de depuración de ci-mount»; se evita «registro de depuración» para no repetir «Registrar el registro…». |
+| log file | archivo de log | Fila de Ajustes «ci-mount log file» → «Archivo de log de ci-mount». |
+| trace (log) | traza | En «Record the ci-mount trace…» → «la traza de ci-mount» y «Trace file: {path}» → «Archivo de traza: {path}»; `{path}` queda literal. |
+| adding a game | añadiendo un juego | En el velo de progreso de la biblioteca: «Añadiendo un juego a la biblioteca…» / «Añadiendo {count} juegos a la biblioteca…»; mantener la elipsis `…`. |
