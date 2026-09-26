@@ -46,6 +46,12 @@ class RuntimeDefaults:
     update_interval: str = _DEFAULT_UPDATE_INTERVAL
     last_appimage_check_at: float | None = None
     skipped_appimage_version: str | None = None
+    # ci-mount daemon diagnosis: the trace switch and its log file. A None
+    # log keeps the default under the launcher cache root, and the switch is
+    # replayed into the process environment at startup (see
+    # core.cimount_debug), so the daemon inherits it on the next launch.
+    ci_mount_debug_enabled: bool = False
+    ci_mount_debug_log: str | None = None
 
 
 class DefaultsRepository:
@@ -84,6 +90,8 @@ class DefaultsRepository:
             "update_interval": defaults.update_interval,
             "last_appimage_check_at": defaults.last_appimage_check_at,
             "skipped_appimage_version": defaults.skipped_appimage_version,
+            "ci_mount_debug_enabled": defaults.ci_mount_debug_enabled,
+            "ci_mount_debug_log": defaults.ci_mount_debug_log,
         }
         content = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
         _atomic_write_text(self._file, content)
@@ -115,6 +123,22 @@ class DefaultsRepository:
     def set_skipped_appimage_version(self, version: str | None) -> RuntimeDefaults:
         """Store or clear the skipped AppImage version, keeping other fields."""
         return self.save(replace(self._load_or_blank(), skipped_appimage_version=version))
+
+    def set_ci_mount_debug(self, enabled: bool, log: str | None = None) -> RuntimeDefaults:
+        """Store the ci-mount trace switch and log file, keeping other fields.
+
+        A blank log stores None so the default cache-root path applies, and
+        disabling keeps the previously chosen file so the developer does not
+        retype it on the next diagnosis.
+        """
+        normalized = log.strip() if log is not None else None
+        return self.save(
+            replace(
+                self._load_or_blank(),
+                ci_mount_debug_enabled=bool(enabled),
+                ci_mount_debug_log=normalized or None,
+            )
+        )
 
     def _load_or_blank(self) -> RuntimeDefaults:
         """Load defaults, healing unreadable files with blank defaults."""
@@ -153,6 +177,15 @@ def _decode_defaults(payload: object, source: Path) -> RuntimeDefaults:
         raise DefaultsError(f"invalid defaults file {source}: bad skipped_appimage_version")
     if skipped_appimage == "":
         skipped_appimage = None
+    # Missing ci-mount keys mean "no trace", matching a clean environment.
+    ci_mount_enabled = _decode_flag(
+        payload.get("ci_mount_debug_enabled"), source, "ci_mount_debug_enabled"
+    )
+    ci_mount_log = payload.get("ci_mount_debug_log")
+    if ci_mount_log is not None and not isinstance(ci_mount_log, str):
+        raise DefaultsError(f"invalid defaults file {source}: bad ci_mount_debug_log")
+    if ci_mount_log == "":
+        ci_mount_log = None
     # Unknown keys are ignored, including legacy backend keys
     # (last_backend_check_at, skipped_backend_version): the backend has no
     # independent release channel, so only the AppImage domain persists here.
@@ -162,7 +195,18 @@ def _decode_defaults(payload: object, source: Path) -> RuntimeDefaults:
         update_interval=interval_value,
         last_appimage_check_at=appimage_checked,
         skipped_appimage_version=skipped_appimage,
+        ci_mount_debug_enabled=ci_mount_enabled,
+        ci_mount_debug_log=ci_mount_log,
     )
+
+
+def _decode_flag(value: object, source: Path, field: str) -> bool:
+    """Validate an optional on/off flag, defaulting to False when absent."""
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        raise DefaultsError(f"invalid defaults file {source}: bad {field}")
+    return value
 
 
 def _decode_timestamp(value: object, source: Path, field: str) -> float | None:

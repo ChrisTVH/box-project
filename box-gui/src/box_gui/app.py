@@ -75,6 +75,31 @@ def _restart_process() -> None:
     os.execv(sys.executable, [sys.executable, *sys.argv])
 
 
+def _apply_stored_ci_mount_debug(paths: AppPathsT, defaults: DefaultsRepository) -> None:
+    """Replay the stored ci-mount trace switch into the environment.
+
+    The preference outlives the process, so it must be re-exported before
+    the first game launch or an enabled switch would show as on while the
+    daemon logs nothing. A missing or malformed debug preference must never
+    block startup, so the documented preference failures are caught
+    explicitly instead of a bare ``Exception``, which would also swallow a
+    real bug in the replay itself.
+    """
+    from box_gui.core.cimount_debug import apply_debug_log
+
+    try:
+        stored = defaults.load()
+        apply_debug_log(stored.ci_mount_debug_enabled, stored.ci_mount_debug_log, paths)
+    except OSError, ValueError:
+        # DefaultsError (the frontend's own failure type, a ValueError
+        # subclass) covers a malformed, unreadable, or wrongly versioned
+        # defaults.json; the OSError covers a file that cannot be read and a
+        # log directory that cannot be prepared. The daemon then inherits no
+        # trace variable, which is exactly the state a clean shell starts
+        # from, so the run continues without diagnostics.
+        return
+
+
 class BoxRpgApplication(Adw.Application):
     """GTK application presenting the library navigation view."""
 
@@ -121,6 +146,7 @@ class BoxRpgApplication(Adw.Application):
         self._startup_error: ConfigurationErrorT | None = None
         self._navigation: Adw.NavigationView | None = None
         self._css_provider: Gtk.CssProvider | None = None
+        self._debugging_dialog: Adw.Dialog | None = None
         self._backend_status: BackendStatus = check_backend()
         app_paths_cls = AppPaths
         config_repository_cls = ConfigRepository
@@ -145,6 +171,7 @@ class BoxRpgApplication(Adw.Application):
             self._repository = config_repository_cls(paths)
             self._library = LibraryRepository(paths)
             self._defaults_repository = DefaultsRepository(paths)
+            _apply_stored_ci_mount_debug(paths, self._defaults_repository)
             if GtkInteraction is not None:
                 self._interaction = GtkInteraction(parent=None)
         except Exception as exc:
@@ -168,8 +195,10 @@ class BoxRpgApplication(Adw.Application):
                 b"padding: 0; border-radius: 9999px; } "
                 b".update-check { background-color: #326935; "
                 b"color: #cffcdf; } "
-                b".header-action { min-width: 18px; min-height: 18px; } "
-                b".header-action image { -gtk-icon-size: 24px; } "
+                # The library footer debug button matches the header action
+                # buttons, so both share one rule: their sizes cannot drift.
+                b".header-action, .footer-action { min-width: 18px; min-height: 18px; } "
+                b".header-action image, .footer-action image { -gtk-icon-size: 24px; } "
                 b".chip-flow > flowboxchild:hover, "
                 b".chip-flow > flowboxchild:active { background-color: transparent; } "
                 b".love-heart { color: @error_bg_color; } "
@@ -267,6 +296,7 @@ class BoxRpgApplication(Adw.Application):
             library=library,
             on_open_game=self._open_game,
             on_open_settings=self.present_settings,
+            on_open_debugging=self.present_debugging,
             paths=paths,
             repository=repository,
             interaction=self._interaction,
@@ -678,6 +708,45 @@ class BoxRpgApplication(Adw.Application):
             on_update_available=_on_update_available,
         )
         dialog.present(parent)
+
+    def present_debugging(self, parent: Gtk.Widget) -> None:
+        """Present the Debugging window opened from the library footer.
+
+        The page is imported lazily so startup never depends on it, the
+        same convention as ``present_settings``. Adw.PreferencesWindow is
+        deprecated in libadwaita 1.9, so the window is an
+        Adw.PreferencesDialog holding the single page: it supplies the
+        title bar and close button that a bare Adw.Dialog does not, and
+        with one page libadwaita shows no tab switcher at all. The dialog
+        is kept on ``self`` while open: a local would let the only strong
+        reference die and take the window with it.
+        """
+        if self._paths is None:
+            return
+        try:
+            from box_gui.pages.settings_dialog import DebuggingPage
+        except ImportError:
+            return
+        dialog = Adw.PreferencesDialog(title=_("Debugging"), content_width=520, content_height=380)
+        if hasattr(dialog, "set_search_enabled"):
+            dialog.set_search_enabled(False)
+        dialog.add(DebuggingPage(self._paths))
+        self._debugging_dialog = dialog
+        dialog.connect("closed", self._on_debugging_dialog_closed)
+        root = parent.get_root()
+        if isinstance(root, Gtk.Window):
+            dialog.present(root)
+        else:
+            dialog.present()
+
+    def _on_debugging_dialog_closed(self, dialog: Adw.Dialog) -> None:
+        """Drop the closed Debugging window so it can be garbage collected.
+
+        Guarded so an older window closing late never clears the reference
+        to a newer one opened in the meantime.
+        """
+        if self._debugging_dialog is dialog:
+            self._debugging_dialog = None
 
 
 def main(argv: list[str] | None = None) -> None:

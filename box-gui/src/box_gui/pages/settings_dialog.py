@@ -1,4 +1,11 @@
-"""Settings dialog with General, runtime, and cleanup pages."""
+"""Settings dialog with General, runtime, and cleanup pages.
+
+The ci-mount diagnostics also live here as ``DebuggingPage``, but the
+Settings dialog does not host it: a fifth page makes libadwaita drop the
+header tab bar for a bottom one (it needs more width than
+``110pt * n_pages``), so the library footer opens that page in its own
+window instead.
+"""
 
 from __future__ import annotations
 
@@ -32,6 +39,10 @@ from box.runtime.catalog import RuntimeCatalog  # noqa: E402
 from box.runtime.easyrpg import EasyRPGCatalog, EasyRPGRuntime  # noqa: E402
 from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
+from box_gui.core.cimount_debug import (  # noqa: E402
+    apply_debug_log,
+    default_debug_log_path,
+)
 from box_gui.core.defaults import (  # noqa: E402
     DEFAULT_UPDATE_INTERVAL,
     UPDATE_INTERVAL_CODES,
@@ -45,6 +56,7 @@ from box_gui.i18n import _, ngettext  # noqa: E402
 __all__ = [
     "SUPPORTED_LANGUAGES",
     "CleanupPage",
+    "DebuggingPage",
     "EasyrpgPage",
     "GeneralPage",
     "NwjsPage",
@@ -1417,6 +1429,120 @@ class EasyrpgPage(_RuntimePage):
         )
 
 
+class DebuggingPage(Adw.PreferencesPage):
+    """Diagnosis-only controls hosted by the library footer's Debugging window."""
+
+    def __init__(self, paths: AppPaths) -> None:
+        """Build the diagnostics group and render the stored trace choice."""
+        super().__init__(name="depuracion", title=_("Debugging"))
+        self.set_icon_name("box-rpg-bug-symbolic")
+        self._paths = paths
+        self._defaults = DefaultsRepository(paths)
+        self._loading_ci_mount_debug = False
+        self._ci_mount_debug_applied = False
+        # Tracing lives on its own page so it never obstructs the everyday
+        # settings; the group description states that the trace exists for
+        # bug reports, and the switch subtitle names the file the daemon
+        # will actually write to.
+        self._ci_mount_debug_group = Adw.PreferencesGroup(
+            title=_("Diagnostics"),
+            description=_(
+                "Record the ci-mount trace to a log file to diagnose game launch "
+                "failures. Leave it off unless you are reporting a bug."
+            ),
+        )
+        self._ci_mount_debug_row = Adw.SwitchRow(
+            title=_("Record ci-mount debug log"),
+            subtitle=_("Applies to the next game launch."),
+        )
+        self._ci_mount_debug_row.connect("notify::active", self._on_ci_mount_debug_toggled)
+        # The path row stays sensitive while the switch is off so a path can
+        # be prepared before tracing starts; applying it stores it either way.
+        self._ci_mount_debug_path_row = Adw.EntryRow(title=_("ci-mount log file"))
+        self._ci_mount_debug_path_row.set_show_apply_button(True)
+        self._ci_mount_debug_path_row.connect("apply", self._on_ci_mount_debug_path_applied)
+        self._ci_mount_debug_group.add(self._ci_mount_debug_row)
+        self._ci_mount_debug_group.add(self._ci_mount_debug_path_row)
+        self.add(self._ci_mount_debug_group)
+        self.refresh_ci_mount_debug()
+
+    def refresh_ci_mount_debug(self) -> None:
+        """Render the ci-mount trace switch and path from the stored choice."""
+        try:
+            stored = self._defaults.load()
+        except Exception as exc:
+            _show_error(self, _("Load Settings"), exc)
+            return
+        self._ci_mount_debug_applied = stored.ci_mount_debug_enabled
+        self._loading_ci_mount_debug = True
+        try:
+            self._ci_mount_debug_row.set_active(stored.ci_mount_debug_enabled)
+            self._ci_mount_debug_path_row.set_text(stored.ci_mount_debug_log or "")
+        finally:
+            self._loading_ci_mount_debug = False
+        self._set_ci_mount_debug_subtitle(stored.ci_mount_debug_enabled)
+
+    def _on_ci_mount_debug_toggled(self, row: Adw.SwitchRow, _pspec: object) -> None:
+        """Persist the ci-mount trace switch and mirror it into the environment.
+
+        The last applied state is compared instead of trusting the loading
+        flag: ``notify::active`` is deferred once the row sits inside a
+        group, so a failed save that snaps the switch back would otherwise
+        re-enter here and report a second error.
+        """
+        enabled = bool(row.get_active())
+        if self._loading_ci_mount_debug or enabled == self._ci_mount_debug_applied:
+            return
+        self._apply_ci_mount_debug(enabled)
+
+    def _on_ci_mount_debug_path_applied(self, row: Adw.EntryRow) -> None:
+        """Re-apply the ci-mount trace after the log file is edited."""
+        if self._loading_ci_mount_debug:
+            return
+        self._apply_ci_mount_debug(bool(self._ci_mount_debug_row.get_active()), row.get_text())
+
+    def _apply_ci_mount_debug(self, enabled: bool, path: str | None = None) -> None:
+        """Store the ci-mount trace choice, then export or drop the env var.
+
+        The daemon inherits this process environment, so a change only
+        reaches launches started after it is applied here. The chosen file
+        is stored even while the switch is off, so re-enabling tracing
+        reuses it instead of forcing a retype.
+        """
+        chosen = self._ci_mount_debug_path_row.get_text() if path is None else path
+        stored = chosen.strip() or None
+        try:
+            self._defaults.set_ci_mount_debug(enabled, stored)
+        except Exception as exc:
+            _show_error(self, _("Set Diagnostics"), exc)
+            self.refresh_ci_mount_debug()
+            return
+        self._ci_mount_debug_applied = enabled
+        try:
+            effective = apply_debug_log(enabled, stored, self._paths)
+        except Exception as exc:
+            _show_error(self, _("Set Diagnostics"), exc)
+            return
+        self._set_ci_mount_debug_subtitle(enabled, effective)
+
+    def _set_ci_mount_debug_subtitle(self, enabled: bool, effective: str | None = None) -> None:
+        """Show the effective trace file while enabled, else the launch note.
+
+        ``effective`` is the value the launcher actually exported, which
+        ``apply_debug_log`` expands to an absolute path. Falling back to
+        the raw entry text would advertise a different location than the
+        one the daemon writes to whenever the user typed ``~`` or a
+        relative path.
+        """
+        if not enabled:
+            self._ci_mount_debug_row.set_subtitle(_("Applies to the next game launch."))
+            return
+        shown = effective or self._ci_mount_debug_path_row.get_text().strip()
+        if not shown:
+            shown = str(default_debug_log_path(self._paths))
+        self._ci_mount_debug_row.set_subtitle(_("Trace file: {path}").format(path=shown))
+
+
 # Game roots are managed in GeneralPage, so the Data page skips them.
 _CLEANUP_CATEGORIES: tuple[str, ...] = tuple(c for c in CATEGORIES if c != "roots")
 
@@ -1924,7 +2050,9 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     Callers show it with ``.present(parent_window)``. Dialog search stays
     disabled: libadwaita matches every titled row dialog-wide with no way
-    to scope the filter to option sections.
+    to scope the filter to option sections. Debugging is deliberately not
+    hosted here: ``DebuggingPage`` lives in its own window opened from the
+    library footer, so the dialog keeps four pages and its header tabs.
     """
 
     def __init__(
