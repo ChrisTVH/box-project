@@ -15,7 +15,7 @@ gi.require_version("Adw", "1")
 from box.api import AppPaths, ConfigRepository  # noqa: E402
 from box.api.inspect import Inspection  # noqa: E402
 from box.api.interaction import Interaction  # noqa: E402
-from box.errors import BoxError  # noqa: E402
+from box.errors import BoxError, ConfigurationError  # noqa: E402
 from box.models import EngineName  # noqa: E402
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
@@ -36,7 +36,7 @@ from box_gui.core.sessions import (  # noqa: E402
 )
 from box_gui.gtk.icons import DROP_ICON_NAME, FOLDER_ICON_NAME, HEART_ICON_NAME  # noqa: E402
 from box_gui.gtk.interaction import AllowX11Interaction  # noqa: E402
-from box_gui.i18n import _  # noqa: E402
+from box_gui.i18n import _, ngettext  # noqa: E402
 from box_gui.widgets.external_link import confirm_and_open_external_link  # noqa: E402
 from box_gui.widgets.icon_widget import build_game_icon  # noqa: E402
 
@@ -152,6 +152,15 @@ def inspection_error_heading(error: BaseException) -> str:
     return _("Unexpected Error")
 
 
+def _busy_message(count: int) -> str:
+    """Return the busy-veil message for the pending inspection count."""
+    return ngettext(
+        "Adding a game to the library…",
+        "Adding {count} games to the library…",
+        count,
+    ).format(count=count)
+
+
 def _pill_text(entry: LibraryEntry) -> str:
     """Return the runtime pill text, never inventing a version."""
     engine_name = _ENGINE_PILL_NAMES.get(entry.engine or "")
@@ -181,6 +190,7 @@ class LibraryPage(Adw.NavigationPage):
         library: LibraryRepository,
         on_open_game: Callable[[LibraryEntry], None] | None = None,
         on_open_settings: Callable[[Gtk.Widget], None] | None = None,
+        on_open_debugging: Callable[[Gtk.Widget], None] | None = None,
         paths: AppPaths | None = None,
         repository: ConfigRepository | None = None,
         interaction: Interaction | None = None,
@@ -192,6 +202,7 @@ class LibraryPage(Adw.NavigationPage):
         self._library = library
         self._on_open_game = on_open_game
         self._on_open_settings = on_open_settings
+        self._on_open_debugging = on_open_debugging
         self._paths = paths
         self._repository = repository
         self._defaults_repository = defaults_repository
@@ -223,6 +234,7 @@ class LibraryPage(Adw.NavigationPage):
         self._file_dialog: Gtk.FileDialog | None = None
         self._footer: Gtk.Widget | None = None
         self._version_button: Gtk.Button | None = None
+        self._debug_button: Gtk.Button | None = None
         self._drop_target: Gtk.DropTarget | None = None
         self._drop_target_list: Gtk.DropTarget | None = None
         self._drop_targets: list[Gtk.DropTarget] = []
@@ -230,6 +242,10 @@ class LibraryPage(Adw.NavigationPage):
         self._drop_overlay: Gtk.Overlay | None = None
         self._drop_hint: Gtk.Widget | None = None
         self._drop_hint_icon: Gtk.Image | None = None
+        self._pending_inspects: int = 0
+        self._busy_veil: Gtk.Widget | None = None
+        self._busy_spinner: Gtk.Spinner | None = None
+        self._busy_label: Gtk.Label | None = None
         self.set_child(self._build_view())
         self.connect("map", self._on_mapped)
         self.connect("unmap", self._on_unmapped)
@@ -237,7 +253,7 @@ class LibraryPage(Adw.NavigationPage):
         self.refresh()
 
     def _build_footer(self) -> Gtk.Widget:
-        """Build the fixed footer with a centered credit and right version."""
+        """Build the fixed footer: debug left, centered credit, version right."""
         version = _get_app_version()
         author = _get_app_author()
         heart_name = _get_heart_icon_name()
@@ -267,11 +283,23 @@ class LibraryPage(Adw.NavigationPage):
         version_button.set_valign(Gtk.Align.CENTER)
         version_button.set_tooltip_text(_("Open project repository"))
         version_button.connect("clicked", self._on_version_clicked)
+        # The debugging switch is hosted in its own window, not in Settings,
+        # so the footer is the single entry point to it. It docks left to keep
+        # the centered credit in place, and shares the header-action CSS
+        # measurements so its icon matches the header buttons.
+        debug_button = Gtk.Button.new_from_icon_name("box-rpg-bug-symbolic")
+        debug_button.add_css_class("flat")
+        debug_button.add_css_class("footer-action")
+        debug_button.set_valign(Gtk.Align.CENTER)
+        debug_button.set_tooltip_text(_("Debugging"))
+        debug_button.connect("clicked", self._on_debug_clicked)
+        bar.set_start_widget(debug_button)
         bar.set_center_widget(message)
         bar.set_end_widget(version_button)
         footer.append(bar)
         self._footer = footer
         self._version_button = version_button
+        self._debug_button = debug_button
         return footer
 
     def _show_drop_hint(self) -> None:
@@ -465,6 +493,86 @@ class LibraryPage(Adw.NavigationPage):
         self._drop_hint_icon = icon
         return veil
 
+    def _build_busy_veil(self) -> Gtk.Widget:
+        """Build the hidden busy veil with a spinner and a pending-count message.
+
+        It reuses the drop-hint veil class so the dimming is visually
+        identical, and never targets events, so the drop controllers under
+        the overlay keep working while an inspection runs.
+        """
+        veil = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        veil.set_halign(Gtk.Align.FILL)
+        veil.set_valign(Gtk.Align.FILL)
+        veil.set_hexpand(True)
+        veil.set_vexpand(True)
+        veil.add_css_class("drop-hint-veil")
+        veil.set_can_target(False)
+        veil.set_visible(False)
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        inner.set_halign(Gtk.Align.CENTER)
+        inner.set_valign(Gtk.Align.CENTER)
+        inner.set_can_target(False)
+        spinner = Gtk.Spinner()
+        spinner.set_halign(Gtk.Align.CENTER)
+        spinner.set_can_target(False)
+        # The veil is always shown with a pending inspection, so seed the
+        # label with the singular message: the plural form would render
+        # "Adding 0 games to the library…" until the first _set_busy call.
+        message = Gtk.Label(label=_busy_message(1))
+        message.set_wrap(True)
+        message.set_halign(Gtk.Align.CENTER)
+        message.set_can_target(False)
+        inner.append(spinner)
+        inner.append(message)
+        veil.append(inner)
+        self._busy_veil = veil
+        self._busy_spinner = spinner
+        self._busy_label = message
+        return veil
+
+    def _set_busy(self, busy: bool) -> None:
+        """Dim the page while at least one inspection is in flight.
+
+        The veil only covers the page content: the header bar and the
+        footer version and debug buttons live outside the overlay, so
+        they are dimmed by toggling their sensitivity, as are the
+        library rows.
+        The message always names the pending count, so a multi-folder
+        drop reports how much is left.
+        """
+        veil = self._busy_veil
+        if veil is not None:
+            veil.set_visible(busy)
+        spinner = self._busy_spinner
+        if spinner is not None:
+            if busy:
+                spinner.start()
+            else:
+                spinner.stop()
+        label = self._busy_label
+        if label is not None:
+            # The message names a game being added, so the plural form only
+            # applies above one: a settled counter must never leave the
+            # nonsensical "Adding 0 games" behind on a hidden veil.
+            label.set_text(_busy_message(max(1, self._pending_inspects)))
+        self._add_button.set_sensitive(not busy)
+        self._settings_button.set_sensitive(not busy)
+        if self._version_button is not None:
+            self._version_button.set_sensitive(not busy)
+        if self._debug_button is not None:
+            self._debug_button.set_sensitive(not busy)
+        self._list_box.set_sensitive(not busy)
+
+    def _begin_inspect(self) -> None:
+        """Count a dispatched inspection and show the busy state."""
+        self._pending_inspects += 1
+        self._set_busy(True)
+
+    def _end_inspect(self) -> None:
+        """Drop a settled inspection, hiding the veil once none are left."""
+        self._pending_inspects = max(0, self._pending_inspects - 1)
+        self._set_busy(self._pending_inspects > 0)
+
     def _build_view(self) -> Adw.ToolbarView:
         """Assemble the header bar, game list, footer, and drop target."""
         view = Adw.ToolbarView()
@@ -488,6 +596,7 @@ class LibraryPage(Adw.NavigationPage):
         overlay = Gtk.Overlay()
         overlay.set_child(scrolled)
         overlay.add_overlay(self._build_drop_hint())
+        overlay.add_overlay(self._build_busy_veil())
         self._drop_overlay = overlay
         self._attach_drop_target(overlay)
         # Keep one file target on the scrolled window so the legacy
@@ -537,6 +646,12 @@ class LibraryPage(Adw.NavigationPage):
         user lands where display name, runtime, and files are configured.
         Multi-drops pass ``open_detail=False`` so only the list refreshes
         instead of stacking one detail page per folder.
+
+        The busy state is counted, not toggled: a multi-folder drop
+        dispatches one inspection per path, so the veil stays up until
+        the last callback settles. Both early returns above happen before
+        ``_begin_inspect``, and a dispatch that raises synchronously
+        settles the count again below, so the counter cannot leak.
         """
         try:
             from box_gui.gtk.workers import run_inspect
@@ -546,12 +661,24 @@ class LibraryPage(Adw.NavigationPage):
         paths = self._paths
         if paths is None:
             return
-        run_inspect(
-            paths,
-            path,
-            lambda inspection: self._on_inspect_done(inspection, open_detail=open_detail),
-            self._on_inspect_error,
-        )
+
+        def _on_done(inspection: Inspection) -> None:
+            self._end_inspect()
+            self._on_inspect_done(inspection, open_detail=open_detail)
+
+        def _on_error(error: BaseException) -> None:
+            self._end_inspect()
+            self._on_inspect_error(error)
+
+        self._begin_inspect()
+        try:
+            run_inspect(paths, path, _on_done, _on_error)
+        except Exception as exc:
+            # Dispatch can fail before any callback is scheduled (a worker
+            # thread that cannot start, or an interpreter shutting down).
+            # Settle the count here or the veil would never come down.
+            self._end_inspect()
+            self._show_alert(_("Unexpected Error"), str(exc) or exc.__class__.__name__)
 
     def _build_row(self, entry: LibraryEntry, *, show_reorder: bool = True) -> Adw.ActionRow:
         """Build one title-only row with an icon, pills, menu, and launch button.
@@ -1131,7 +1258,14 @@ class LibraryPage(Adw.NavigationPage):
         self.inspect_and_add(Path(path))
 
     def _on_inspect_done(self, inspection: Inspection, *, open_detail: bool = True) -> None:
-        """Add the inspected game, then open its detail page unless suppressed."""
+        """Add the inspected game, then open its detail page unless suppressed.
+
+        The new folder is also registered as an allowed game root, so the
+        first launch does not ask the user to authorize a root they just
+        pointed at. A failure there is reported but never rolled back:
+        the game stays in the library and only the later launch may need
+        consent.
+        """
         try:
             preferred_runtime = self._preferred_runtime_for_engine(inspection.game.engine)
         except Exception:
@@ -1149,9 +1283,36 @@ class LibraryPage(Adw.NavigationPage):
         except OSError as exc:
             self._show_alert(_("Unexpected Error"), str(exc) or exc.__class__.__name__)
             return
+        self._register_allowed_root(inspection.game.root)
         self.refresh()
         if open_detail and self._on_open_game is not None:
             self._on_open_game(created)
+
+    def _register_allowed_root(self, root: Path) -> None:
+        """Remember one freshly added game root as an allowed game root.
+
+        Root resolution, traversal rejection, and the file format stay
+        with the backend: this only calls the blessed ``add_allowed_root``
+        API, never the internal verbatim-consent path, and pages built
+        without a configuration repository silently skip it.
+
+        Security trade-off: dropping or picking a folder now authorizes
+        that root without a consent dialog. That is intentional, because
+        the user explicitly pointed at the folder, and it is the same
+        folder the backend will validate again on every launch. A
+        failing write (unreadable or unwritable config) is reported and
+        then ignored: the game is already in the library, so removing it
+        would lose more than the missing authorization.
+        """
+        repository = self._repository
+        if repository is None:
+            return
+        try:
+            repository.add_allowed_root(root)
+        except ConfigurationError as exc:
+            self._show_alert(_("Configuration Error"), str(exc) or exc.__class__.__name__)
+        except OSError as exc:
+            self._show_alert(_("Unexpected Error"), str(exc) or exc.__class__.__name__)
 
     def _on_inspect_error(self, error: BaseException) -> None:
         """Show inspection failures with an Adw.AlertDialog."""
@@ -1162,6 +1323,11 @@ class LibraryPage(Adw.NavigationPage):
         """Present the Settings dialog through the wired callback."""
         if self._on_open_settings is not None:
             self._on_open_settings(self)
+
+    def _on_debug_clicked(self, _button: Gtk.Button) -> None:
+        """Present the Debugging window through the wired callback."""
+        if self._on_open_debugging is not None:
+            self._on_open_debugging(self)
 
     def _show_alert(self, heading: str, body: str) -> None:
         """Present a single-close alert over this page."""
