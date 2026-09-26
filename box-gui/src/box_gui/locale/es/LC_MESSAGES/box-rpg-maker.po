@@ -175,6 +175,13 @@ msgstr "La instalación falló con el código de salida {code}."
 msgid "Could not confirm the installed box-rpg version."
 msgstr "No se pudo confirmar la versión instalada de box-rpg."
 
+#: box-gui/src/box_gui/core/backend_install.py:418
+#, python-brace-format
+msgid "Tag {tag} is not an annotated tag; refusing to install: {detail}"
+msgstr ""
+"La etiqueta {tag} no es una etiqueta anotada; se rechaza la instalación: "
+"{detail}"
+
 #: box-gui/src/box_gui/core/backend_install.py:420
 #, python-brace-format
 msgid ""
@@ -475,6 +482,13 @@ msgstr ""
 #: box-gui/src/box_gui/pages/library_page.py:151
 msgid "Inspection Failed"
 msgstr "Inspección fallida"
+
+#: box-gui/src/box_gui/pages/library_page.py:158
+#, python-brace-format
+msgid "Adding a game to the library…"
+msgid_plural "Adding {count} games to the library…"
+msgstr[0] "Añadiendo un juego a la biblioteca…"
+msgstr[1] "Añadiendo {count} juegos a la biblioteca…"
 
 #: box-gui/src/box_gui/pages/game_detail_page.py:84
 #: box-gui/src/box_gui/pages/library_page.py:982
@@ -883,6 +897,32 @@ msgstr "Cargar raíces"
 msgid "Load Runtimes"
 msgstr "Cargar entornos"
 
+#: box-gui/src/box_gui/pages/settings_dialog.py:271
+msgid "Diagnostics"
+msgstr "Diagnóstico"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:272
+msgid ""
+"Record the ci-mount trace to a log file to diagnose game launch failures. "
+"Leave it off unless you are reporting a bug."
+msgstr ""
+"Registra la traza de ci-mount en un archivo de log para diagnosticar fallos "
+"de inicio de los juegos. Déjalo desactivado salvo que estés informando de un "
+"error."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:278
+msgid "Record ci-mount debug log"
+msgstr "Registrar el log de depuración de ci-mount"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:279
+#: box-gui/src/box_gui/pages/settings_dialog.py:627
+msgid "Applies to the next game launch."
+msgstr "Se aplica al siguiente inicio del juego."
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:284
+msgid "ci-mount log file"
+msgstr "Archivo de log de ci-mount"
+
 #: box-gui/src/box_gui/pages/settings_dialog.py:276
 #: box-gui/src/box_gui/pages/settings_dialog.py:303
 #: box-gui/src/box_gui/pages/settings_dialog.py:325
@@ -926,6 +966,16 @@ msgstr "Fijar idioma"
 #: box-gui/src/box_gui/pages/settings_dialog.py:509
 msgid "Set Updates"
 msgstr "Fijar actualizaciones"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:613
+#: box-gui/src/box_gui/pages/settings_dialog.py:620
+msgid "Set Diagnostics"
+msgstr "Fijar diagnóstico"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:631
+#, python-brace-format
+msgid "Trace file: {path}"
+msgstr "Archivo de traza: {path}"
 
 #: box-gui/src/box_gui/pages/settings_dialog.py:254
 msgid "Check for updates now"
@@ -1114,6 +1164,10 @@ msgstr "Instalando EasyRPG Player {version} …"
 #: box-gui/src/box_gui/pages/settings_dialog.py:1265
 msgid "HOME must be an absolute path"
 msgstr "HOME debe ser una ruta absoluta"
+
+#: box-gui/src/box_gui/pages/settings_dialog.py:1430
+msgid "Debugging"
+msgstr "Depuración"
 
 #: box-gui/src/box_gui/pages/settings_dialog.py:1304
 msgid "Data"
