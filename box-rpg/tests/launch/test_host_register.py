@@ -157,9 +157,10 @@ def test_register_host_game_success_uses_busctl_without_shell(
         seen["kwargs"] = dict(kwargs)
         assert kwargs.get("close_fds") is True
         assert kwargs.get("stdin") is subprocess.DEVNULL
-        assert kwargs.get("stdout") is subprocess.DEVNULL
+        assert kwargs.get("stdout") is subprocess.PIPE
         assert kwargs.get("stderr") is subprocess.DEVNULL
         assert kwargs.get("shell", False) is False
+        assert kwargs.get("text") is True
         assert "timeout" in kwargs
         return _completed(list(args), 0)
 

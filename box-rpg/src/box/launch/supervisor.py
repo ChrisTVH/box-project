@@ -636,7 +636,7 @@ def _supervisor_main(
             _pipe_error(pipe_write, str(exc))
             with suppress(OSError):
                 proc.terminate()
-            with suppress(OSError):
+            with suppress(OSError, subprocess.TimeoutExpired):
                 proc.wait(timeout=5)
             _terminate_proxy(proxy)
             os.close(pipe_write)
@@ -657,7 +657,7 @@ def _supervisor_main(
                 _pipe_error(pipe_write, str(exc))
                 with suppress(OSError):
                     proc.terminate()
-                with suppress(OSError):
+                with suppress(OSError, subprocess.TimeoutExpired):
                     proc.wait(timeout=5)
                 _terminate_proxy(proxy)
                 os.close(pipe_write)
@@ -671,7 +671,7 @@ def _supervisor_main(
                     _gamemode.unregister_host_game(child_pid)
             with suppress(OSError):
                 proc.terminate()
-            with suppress(OSError):
+            with suppress(OSError, subprocess.TimeoutExpired):
                 proc.wait(timeout=5)
             _terminate_proxy(proxy)
             os.close(pipe_write)

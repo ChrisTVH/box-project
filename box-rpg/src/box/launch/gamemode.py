@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from collections.abc import Mapping
@@ -147,9 +148,10 @@ def unregister_argv(pid: int) -> list[str]:
 def register_host_game(pid: int, *, timeout: float = HOST_DBUS_TIMEOUT) -> None:
     """Register one host PID with gamemoded; fail closed on any error.
 
-    Runs busctl with no shell, closed fds, and DEVNULL streams inside a
-    short bounded timeout; gamemoded is D-Bus-activatable so startup never
-    blocks beyond that timeout. Any failure raises LaunchError.
+    Runs busctl with no shell, closed fds, DEVNULL stdin/stderr, and
+    captured stdout inside a short bounded timeout; gamemoded is
+    D-Bus-activatable so startup never blocks beyond that timeout.
+    Any failure raises LaunchError.
     """
     _validate_host_pid(pid)
     require_bus_client()
@@ -158,10 +160,11 @@ def register_host_game(pid: int, *, timeout: float = HOST_DBUS_TIMEOUT) -> None:
             register_argv(pid),
             close_fds=True,
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             timeout=timeout,
             check=False,
+            text=True,
         )
     except OSError as exc:
         raise LaunchError(
@@ -172,6 +175,15 @@ def register_host_game(pid: int, *, timeout: float = HOST_DBUS_TIMEOUT) -> None:
             _("cannot register game with GameMode; retry without --gamemode")
         ) from exc
     if completed.returncode != 0:
+        raise LaunchError(_("cannot register game with GameMode; retry without --gamemode"))
+    # gamemoded always answers RegisterGame with D-Bus success carrying an
+    # int32 status (i 0 registered, i -1 accepted-not-registered, i -2
+    # rejected), so busctl exits 0 even when unboosted. Fail closed on an
+    # explicit non-zero status; missing output (old mocks, older busctl)
+    # stays backward compatible and counts as success.
+    output = completed.stdout or ""
+    match = re.search(r"\bi\s+(-?\d+)", output)
+    if match is not None and int(match.group(1)) != 0:
         raise LaunchError(_("cannot register game with GameMode; retry without --gamemode"))
 
 
