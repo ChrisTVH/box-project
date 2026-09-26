@@ -1781,6 +1781,35 @@ def test_remove_works_on_ghost(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     assert _row_titles(page) == ["Kept"]
 
 
+def test_removing_unregisters_exact_game_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Removing a game forgets its exact allowed root while keeping others."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    game = tmp_path / "game"
+    game.mkdir()
+    other = tmp_path / "other"
+    other.mkdir()
+    entry = repository.add(game, "Game")
+    page, paths = _make_wired_page(tmp_path, repository)
+    config = ConfigRepository(paths)
+    config.add_allowed_root(game)
+    config.add_allowed_root(other)
+
+    page._on_remove_action(None, None, entry)
+
+    assert repository.load() == ()
+    assert _row_titles(page) == []
+    remaining = ConfigRepository(paths).load().allowed_game_roots
+    assert game not in remaining
+    assert game.resolve() not in remaining
+    assert other in remaining or other.resolve() in remaining
+
+
 def test_ghost_launch_guard_never_inspects(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Clicking launch on a ghost alerts without any inspection or launch."""
     _require_display()
