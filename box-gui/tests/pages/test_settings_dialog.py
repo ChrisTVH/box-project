@@ -29,9 +29,11 @@ try:
     from gi.repository import Adw, GLib, Gtk
 
     import box_gui.pages.settings_dialog as settings_module
+    from box_gui.core.cimount_debug import CIMOUNT_DEBUG_LOG_ENV
     from box_gui.core.display import abbreviate_display_path
     from box_gui.pages.settings_dialog import (
         CleanupPage,
+        DebuggingPage,
         EasyrpgPage,
         GeneralPage,
         NwjsPage,
@@ -55,8 +57,10 @@ except Exception:
     GLib: Any = None
     Gtk: Any = None
     settings_module: Any = None
+    CIMOUNT_DEBUG_LOG_ENV: Any = None  # pyright: ignore[reportConstantRedefinition]
     abbreviate_display_path: Any = None
     CleanupPage: Any = None
+    DebuggingPage: Any = None
     EasyrpgPage: Any = None
     GeneralPage: Any = None
     NwjsPage: Any = None
@@ -237,6 +241,22 @@ def _make_general(
         repository.add_allowed_root(root)
     page: Any = GeneralPage(paths, repository, interaction, on_language_changed=on_language_changed)
     return page, paths, repository
+
+
+def _make_debugging(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> tuple[Any, Any]:
+    """Create a DebuggingPage with a real defaults repository and a clean env."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    # The ci-mount trace switch mutates the process environment, so every
+    # page starts from "no logging" and the change is undone at teardown.
+    monkeypatch.delenv(CIMOUNT_DEBUG_LOG_ENV, raising=False)
+    paths = _make_paths(tmp_path)
+    page: Any = DebuggingPage(paths)
+    return page, paths
 
 
 def _make_cleanup(
@@ -637,6 +657,221 @@ def test_general_update_interval_refresh_reflects_stored_value(
 
     assert page._update_interval_row.get_selected() == 2
     assert _combo_entries(page._update_interval_row)[2] == "Daily"
+
+
+def test_debugging_page_identity_and_diagnostics_group(tmp_path: Path, monkeypatch: Any) -> None:
+    """The Debugging page owns the trace controls, off by default."""
+    page, _paths = _make_debugging(monkeypatch, tmp_path)
+
+    assert page.get_name() == "depuracion"
+    assert page.get_title() == "Debugging"
+    assert page.get_icon_name() == "box-rpg-bug-symbolic"
+    assert page._ci_mount_debug_group.get_title() == "Diagnostics"
+    assert page._ci_mount_debug_row.get_title() == "Record ci-mount debug log"
+    assert page._ci_mount_debug_row.get_active() is False
+    assert page._ci_mount_debug_path_row.get_text() == ""
+
+
+def test_general_page_drops_the_diagnostics_group(tmp_path: Path, monkeypatch: Any) -> None:
+    """The trace controls no longer clutter the everyday settings page."""
+    page, _paths, _repository = _make_general(monkeypatch, tmp_path)
+
+    assert "Diagnostics" not in _general_group_titles(page)
+
+
+def test_debugging_ci_mount_debug_toggle_sets_and_removes_env(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Enabling exports the default path; disabling unsets the variable."""
+    page, paths = _make_debugging(monkeypatch, tmp_path)
+    expected = str(paths.cache_root / "ci-mount-debug.log")
+
+    page._ci_mount_debug_row.set_active(True)
+    assert os.environ[CIMOUNT_DEBUG_LOG_ENV] == expected
+    assert page._ci_mount_debug_row.get_subtitle() == f"Trace file: {expected}"
+
+    page._ci_mount_debug_row.set_active(False)
+    assert CIMOUNT_DEBUG_LOG_ENV not in os.environ
+    assert page._ci_mount_debug_row.get_subtitle() == "Applies to the next game launch."
+
+
+def test_debugging_ci_mount_debug_uses_chosen_path(tmp_path: Path, monkeypatch: Any) -> None:
+    """A typed path replaces the default and is exported as chosen."""
+    page, _paths = _make_debugging(monkeypatch, tmp_path)
+    chosen = tmp_path / "traces" / "ci.log"
+    page._ci_mount_debug_path_row.set_text(str(chosen))
+
+    page._ci_mount_debug_row.set_active(True)
+
+    assert os.environ[CIMOUNT_DEBUG_LOG_ENV] == str(chosen)
+    assert page._ci_mount_debug_row.get_subtitle() == f"Trace file: {chosen}"
+
+
+def test_debugging_ci_mount_debug_subtitle_shows_the_expanded_home_path(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A typed ~ path is advertised expanded, matching what the daemon writes.
+
+    The daemon inherits the exported value and resolves it against its own
+    working directory, so a subtitle recomputed from the raw entry text
+    would point at a location the daemon never opens.
+    """
+    page, _paths = _make_debugging(monkeypatch, tmp_path)
+    # _make_paths only feeds HOME to AppPaths, so point the expansion the
+    # export performs at the same isolated home.
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    page._ci_mount_debug_path_row.set_text("~/traces/ci.log")
+
+    page._ci_mount_debug_row.set_active(True)
+
+    expected = str(tmp_path / "home" / "traces" / "ci.log")
+    assert page._ci_mount_debug_row.get_subtitle() == f"Trace file: {expected}"
+    assert os.environ[CIMOUNT_DEBUG_LOG_ENV] == expected
+    assert page._ci_mount_debug_path_row.get_text() == "~/traces/ci.log"
+
+    page._ci_mount_debug_row.set_active(False)
+
+    assert page._ci_mount_debug_row.get_subtitle() == "Applies to the next game launch."
+    assert CIMOUNT_DEBUG_LOG_ENV not in os.environ
+
+
+def test_debugging_ci_mount_debug_subtitle_shows_the_resolved_relative_path(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A relative path is advertised absolute, never against the daemon's cwd.
+
+    The value is resolved against the launcher's own working directory at
+    apply time, so the subtitle has to report that resolved location.
+    """
+    page, _paths = _make_debugging(monkeypatch, tmp_path)
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    monkeypatch.chdir(workdir)
+    page._ci_mount_debug_path_row.set_text("traces/ci.log")
+
+    page._ci_mount_debug_row.set_active(True)
+
+    expected = str(workdir / "traces" / "ci.log")
+    assert page._ci_mount_debug_row.get_subtitle() == f"Trace file: {expected}"
+    assert os.environ[CIMOUNT_DEBUG_LOG_ENV] == expected
+
+
+def test_debugging_ci_mount_debug_apply_button_reexports_path(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Applying the edited entry re-exports the new path while enabled."""
+    page, _paths = _make_debugging(monkeypatch, tmp_path)
+    page._ci_mount_debug_row.set_active(True)
+    edited = tmp_path / "edited.log"
+    page._ci_mount_debug_path_row.set_text(str(edited))
+
+    page._ci_mount_debug_path_row.emit("apply")
+
+    assert os.environ[CIMOUNT_DEBUG_LOG_ENV] == str(edited)
+    assert page._defaults.load().ci_mount_debug_log == str(edited)
+
+
+def test_debugging_ci_mount_debug_apply_while_disabled_keeps_env_unset(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Editing the path with tracing off stores it but exports nothing."""
+    page, _paths = _make_debugging(monkeypatch, tmp_path)
+    chosen = tmp_path / "later.log"
+    page._ci_mount_debug_path_row.set_text(str(chosen))
+
+    page._ci_mount_debug_path_row.emit("apply")
+
+    assert CIMOUNT_DEBUG_LOG_ENV not in os.environ
+    stored = page._defaults.load()
+    assert stored.ci_mount_debug_enabled is False
+    assert stored.ci_mount_debug_log == str(chosen)
+
+
+def test_debugging_ci_mount_debug_round_trips_through_defaults(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A stored choice renders back after an explicit refresh."""
+    page, _paths = _make_debugging(monkeypatch, tmp_path)
+    chosen = tmp_path / "kept.log"
+    page._ci_mount_debug_path_row.set_text(str(chosen))
+    page._ci_mount_debug_row.set_active(True)
+
+    page._ci_mount_debug_row.set_active(False)
+    page.refresh_ci_mount_debug()
+
+    assert page._ci_mount_debug_row.get_active() is False
+    assert page._ci_mount_debug_path_row.get_text() == str(chosen)
+
+
+def test_debugging_ci_mount_debug_cleared_path_falls_back_to_default(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Clearing the entry while enabled re-exports the default path."""
+    page, paths = _make_debugging(monkeypatch, tmp_path)
+    page._ci_mount_debug_path_row.set_text(str(tmp_path / "first.log"))
+    page._ci_mount_debug_row.set_active(True)
+
+    page._ci_mount_debug_path_row.set_text("")
+    page._ci_mount_debug_path_row.emit("apply")
+
+    expected = str(paths.cache_root / "ci-mount-debug.log")
+    assert os.environ[CIMOUNT_DEBUG_LOG_ENV] == expected
+    assert page._defaults.load().ci_mount_debug_log is None
+
+
+def test_debugging_ci_mount_debug_load_error_shows_dialog(tmp_path: Path, monkeypatch: Any) -> None:
+    """A corrupt defaults file shows a dialog and leaves the switch off.
+
+    DefaultsError is a ValueError rather than a BoxError, so the shared
+    error helper reports it as an unexpected error, like every other
+    DefaultsRepository failure on this page.
+    """
+    page, _paths = _make_debugging(monkeypatch, tmp_path)
+    page._defaults.defaults_file.write_text("not json", encoding="utf-8")
+    shown = _capture_alert_dialogs(monkeypatch)
+
+    page.refresh_ci_mount_debug()
+
+    assert len(shown) == 1
+    assert shown[0].get_heading() == "Unexpected Error"
+    assert page._ci_mount_debug_row.get_active() is False
+
+
+def test_debugging_ci_mount_debug_save_error_shows_dialog(tmp_path: Path, monkeypatch: Any) -> None:
+    """A failing store shows a dialog and the switch snaps back to stored state."""
+    page, _paths = _make_debugging(monkeypatch, tmp_path)
+    shown = _capture_alert_dialogs(monkeypatch)
+
+    def _failing_save(defaults: Any) -> Any:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(page._defaults, "save", _failing_save)
+    page._ci_mount_debug_row.set_active(True)
+
+    # One dialog only: the snap-back must not re-enter the toggle handler.
+    assert len(shown) == 1
+    assert shown[0].get_heading() == "Unexpected Error"
+    assert page._ci_mount_debug_row.get_active() is False
+    assert CIMOUNT_DEBUG_LOG_ENV not in os.environ
+
+
+def test_debugging_ci_mount_debug_blank_loaded_flag_maps_to_off(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A non-boolean stored flag fails validation instead of enabling tracing."""
+    import json
+
+    page, _paths = _make_debugging(monkeypatch, tmp_path)
+    page._defaults.defaults_file.write_text(
+        json.dumps({"version": 1, "ci_mount_debug_enabled": "yes"}), encoding="utf-8"
+    )
+    shown = _capture_alert_dialogs(monkeypatch)
+
+    page.refresh_ci_mount_debug()
+
+    assert len(shown) == 1
+    assert page._ci_mount_debug_row.get_active() is False
+    assert CIMOUNT_DEBUG_LOG_ENV not in os.environ
 
 
 def _capture_alert_dialogs(monkeypatch: Any) -> list[Any]:

@@ -25,7 +25,7 @@ try:
 
     from box.api import AppPaths, ConfigRepository
     from box.api.inspect import Inspection
-    from box.errors import BoxError
+    from box.errors import BoxError, ConfigurationError
     from box.models import EngineName, GameInfo
     from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
@@ -41,6 +41,7 @@ except Exception:
     ConfigRepository: Any = None
     Inspection: Any = None
     BoxError: Any = Exception
+    ConfigurationError: Any = Exception
     EngineName: Any = None
     GameInfo: Any = None
     Adw: Any = None
@@ -1136,6 +1137,10 @@ def test_inspect_and_add_tolerates_broken_globals(
     class _FailingConfig:
         def load(self) -> Any:
             raise BoxError("broken config")
+
+        def add_allowed_root(self, _root: Path) -> None:
+            """Stand in for the blessed allowed-root write on a broken config."""
+            return None
 
     repository = _make_repository(tmp_path)
     page = LibraryPage(
@@ -2301,6 +2306,58 @@ def test_version_button_opens_external_link(
     assert calls[0][1] == "https://gitlab.com/christvh/box-project"
 
 
+def test_footer_debug_button_is_the_start_widget(tmp_path: Path) -> None:
+    """The bug button docks left in the footer, keeping the credit centered."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+
+    button = page._debug_button
+    assert button is not None
+    assert button.get_tooltip_text() == "Debugging"
+    assert button.has_css_class("flat")
+    icons = [
+        str(widget.get_icon_name() or "")
+        for widget in _footer_widgets(page)
+        if isinstance(widget, Gtk.Image)
+    ]
+    assert "box-rpg-bug-symbolic" in icons
+    bar = button.get_parent()
+    assert isinstance(bar, Gtk.CenterBox)
+    assert bar.get_start_widget() is button
+    assert bar.get_end_widget() is page._version_button
+    assert bar.get_center_widget() is not button
+
+
+def test_debug_button_uses_callback(tmp_path: Path) -> None:
+    """The bug button presents the Debugging window through its callback."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    shown: list[Any] = []
+    page = LibraryPage(library=repository, on_open_debugging=shown.append)
+
+    page._debug_button.emit("clicked")
+
+    assert shown == [page]
+
+
+def test_debug_button_without_callback_is_inert(tmp_path: Path) -> None:
+    """A page with no debugging callback stays quiet instead of raising."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+
+    page._debug_button.emit("clicked")
+
+    assert page._debug_button.get_sensitive() is True
+
+
 def test_drop_single_folder_calls_inspect(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Dropping one folder resolves its path into inspect-and-add."""
     _require_display()
@@ -2653,3 +2710,446 @@ def test_incompatible_drag_leaves_hint_hidden(tmp_path: Path) -> None:
     assert page._drop_hint.get_visible() is False
     assert page._on_drop_motion(_Target(), 0.0, 0.0) == 0
     assert page._drop_hint.get_visible() is False
+
+
+def _install_deferred_inspect(monkeypatch: pytest.MonkeyPatch, factory: Any) -> list[Any]:
+    """Serve fake inspections that park their callbacks for later replay.
+
+    Unlike ``_install_fake_inspect`` this never calls back inline, so the
+    page stays busy between the dispatch and the test invoking the stored
+    ``(on_done, on_error)`` pair.
+    """
+    parked: list[Any] = []
+    module = types.ModuleType("box_gui.gtk.workers")
+
+    def _run_inspect(_paths: Any, path: Any, on_done: Any, on_error: Any) -> None:
+        def _finish() -> None:
+            on_done(factory(path))
+
+        parked.append((_finish, on_error))
+        return None
+
+    def _run_in_thread(fn: Any, on_done: Any, on_error: Any) -> None:
+        try:
+            result = fn()
+        except BaseException as exc:
+            on_error(exc)
+        else:
+            on_done(result)
+        return None
+
+    module.run_inspect = _run_inspect  # type: ignore[attr-defined]
+    module.run_in_thread = _run_in_thread  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "box_gui.gtk.workers", module)
+    monkeypatch.setattr(gtk, "workers", module, raising=False)
+    return parked
+
+
+def _install_raising_inspect(monkeypatch: pytest.MonkeyPatch, error: BaseException) -> list[Any]:
+    """Serve a run_inspect that fails before any callback is scheduled.
+
+    A worker thread that cannot start (``can't start new thread``) or an
+    interpreter shutting down propagates out of the dispatch itself, so
+    neither ``on_done`` nor ``on_error`` ever runs and only the page can
+    settle the busy state.
+    """
+    calls: list[Any] = []
+    module = types.ModuleType("box_gui.gtk.workers")
+
+    def _run_inspect(_paths: Any, path: Any, on_done: Any, on_error: Any) -> None:
+        calls.append(path)
+        raise error
+
+    module.run_inspect = _run_inspect  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "box_gui.gtk.workers", module)
+    monkeypatch.setattr(gtk, "workers", module, raising=False)
+    return calls
+
+
+def test_busy_veil_shows_while_inspecting_and_hides_after(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The veil covers the list during an inspection and clears once it lands."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "busy"
+    root.mkdir()
+    parked = _install_deferred_inspect(monkeypatch, lambda path: _make_inspection(path, "Busy"))
+    page = LibraryPage(
+        library=repository, on_open_game=lambda entry: None, paths=_make_paths(tmp_path)
+    )
+
+    assert page._busy_veil is not None
+    assert page._busy_veil.has_css_class("drop-hint-veil")
+    assert page._busy_veil.get_can_target() is False
+    assert page._busy_veil.get_visible() is False
+    assert page._busy_spinner is not None
+    assert page._busy_label is not None
+
+    page.inspect_and_add(root, open_detail=False)
+
+    assert page._busy_veil.get_visible() is True
+    assert page._busy_label.get_text() == "Adding a game to the library…"
+    assert page._pending_inspects == 1
+
+    finish, _fail = parked[0]
+    finish()
+
+    assert page._busy_veil.get_visible() is False
+    assert page._pending_inspects == 0
+    assert [entry.display_name for entry in repository.load()] == ["Busy"]
+
+
+def test_inspection_error_clears_the_busy_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failed inspection reports itself and re-enables the page."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "busy-error"
+    root.mkdir()
+    parked = _install_deferred_inspect(monkeypatch, lambda path: _make_inspection(path, "Broken"))
+    page = LibraryPage(
+        library=repository, on_open_game=lambda entry: None, paths=_make_paths(tmp_path)
+    )
+
+    page.inspect_and_add(root, open_detail=False)
+
+    assert page._busy_veil.get_visible() is True
+
+    _finish, fail = parked[0]
+    fail(BoxError("inspection exploded"))
+
+    assert page._busy_veil.get_visible() is False
+    assert page._pending_inspects == 0
+    assert page._add_button.get_sensitive() is True
+    assert len(presented) == 1
+    assert presented[0].get_heading() == "Inspection Failed"
+    assert repository.load() == ()
+
+
+def test_multi_add_keeps_the_veil_until_the_last_inspection(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Two pending inspections keep the veil up until the second one settles."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    first = tmp_path / "pending-one"
+    second = tmp_path / "pending-two"
+    first.mkdir()
+    second.mkdir()
+    parked = _install_deferred_inspect(monkeypatch, lambda path: _make_inspection(path, path.name))
+    page = LibraryPage(
+        library=repository, on_open_game=lambda entry: None, paths=_make_paths(tmp_path)
+    )
+
+    class _FakeList:
+        def __init__(self, files: Any) -> None:
+            self._files = files
+
+        def get_files(self) -> Any:
+            return list(self._files)
+
+    dropped = _FakeList([Gio.File.new_for_path(str(first)), Gio.File.new_for_path(str(second))])
+
+    assert page._on_drop(None, dropped, 0.0, 0.0) is True
+
+    assert len(parked) == 2
+    assert page._pending_inspects == 2
+    assert page._busy_veil.get_visible() is True
+    assert page._busy_label.get_text() == "Adding 2 games to the library…"
+
+    parked[0][0]()
+
+    assert page._pending_inspects == 1
+    assert page._busy_veil.get_visible() is True
+    assert page._add_button.get_sensitive() is False
+
+    parked[1][0]()
+
+    assert page._pending_inspects == 0
+    assert page._busy_veil.get_visible() is False
+    assert sorted(entry.display_name for entry in repository.load()) == [
+        "pending-one",
+        "pending-two",
+    ]
+
+
+def test_header_and_footer_buttons_go_insensitive_while_busy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The controls outside the overlay dim with the page and come back."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "dimmed"
+    root.mkdir()
+    parked = _install_deferred_inspect(monkeypatch, lambda path: _make_inspection(path, "Dimmed"))
+    page = LibraryPage(
+        library=repository, on_open_game=lambda entry: None, paths=_make_paths(tmp_path)
+    )
+
+    assert page._add_button.get_sensitive() is True
+    assert page._settings_button.get_sensitive() is True
+    assert page._version_button is not None
+    assert page._version_button.get_sensitive() is True
+    assert page._list_box.get_sensitive() is True
+
+    page.inspect_and_add(root, open_detail=False)
+
+    assert page._add_button.get_sensitive() is False
+    assert page._settings_button.get_sensitive() is False
+    assert page._version_button.get_sensitive() is False
+    assert page._list_box.get_sensitive() is False
+
+    parked[0][0]()
+
+    assert page._add_button.get_sensitive() is True
+    assert page._settings_button.get_sensitive() is True
+    assert page._version_button.get_sensitive() is True
+    assert page._list_box.get_sensitive() is True
+
+
+def test_debug_button_goes_insensitive_while_busy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The footer bug button dims with the page and comes back when settled."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "debug-dimmed"
+    root.mkdir()
+    parked = _install_deferred_inspect(monkeypatch, lambda path: _make_inspection(path, "Dimmed"))
+    page = LibraryPage(
+        library=repository, on_open_game=lambda entry: None, paths=_make_paths(tmp_path)
+    )
+
+    assert page._debug_button.get_sensitive() is True
+
+    page.inspect_and_add(root, open_detail=False)
+
+    assert page._debug_button.get_sensitive() is False
+
+    parked[0][0]()
+
+    assert page._debug_button.get_sensitive() is True
+
+
+def test_inspect_dispatch_failure_settles_the_busy_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A dispatch that raises before scheduling settles the count and alerts.
+
+    run_inspect propagates when the worker thread cannot start, so no
+    callback ever runs: without an explicit settle the veil would stay up
+    and the header buttons insensitive for the rest of the session.
+    """
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "no-thread"
+    root.mkdir()
+    calls = _install_raising_inspect(monkeypatch, RuntimeError("can't start new thread"))
+    page = LibraryPage(
+        library=repository, on_open_game=lambda entry: None, paths=_make_paths(tmp_path)
+    )
+
+    page.inspect_and_add(root, open_detail=False)
+
+    assert [str(path) for path in calls] == [str(root)]
+    assert len(presented) == 1
+    assert presented[0].get_heading() == "Unexpected Error"
+    assert presented[0].get_body() == "can't start new thread"
+    assert page._pending_inspects == 0
+    assert page._busy_veil.get_visible() is False
+    assert page._add_button.get_sensitive() is True
+    assert page._settings_button.get_sensitive() is True
+    assert repository.load() == ()
+
+
+def test_end_inspect_clamps_at_zero(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Settling more inspections than started never drives the counter below zero.
+
+    A clamp-free decrement would leave a negative count that keeps the veil
+    up forever and advertises a negative pending number to the user.
+    """
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    page = LibraryPage(library=repository, on_open_game=lambda entry: None)
+
+    assert page._pending_inspects == 0
+
+    page._end_inspect()
+    page._end_inspect()
+
+    assert page._pending_inspects == 0
+    assert page._busy_veil.get_visible() is False
+    assert page._add_button.get_sensitive() is True
+    assert page._settings_button.get_sensitive() is True
+    assert page._list_box.get_sensitive() is True
+
+
+def test_busy_veil_label_never_names_zero_games(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The seeded and settling messages name a real pending game, never zero.
+
+    "Adding 0 games" is nonsense the user can read: it is the label a
+    single-folder inspection starts with and the one left behind if a
+    counter update ever runs while nothing is pending.
+    """
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    first = tmp_path / "mixed-ok"
+    second = tmp_path / "mixed-bad"
+    first.mkdir()
+    second.mkdir()
+    parked = _install_deferred_inspect(monkeypatch, lambda path: _make_inspection(path, path.name))
+    page = LibraryPage(
+        library=repository, on_open_game=lambda entry: None, paths=_make_paths(tmp_path)
+    )
+
+    class _FakeList:
+        def __init__(self, files: Any) -> None:
+            self._files = files
+
+        def get_files(self) -> Any:
+            return list(self._files)
+
+    dropped = _FakeList([Gio.File.new_for_path(str(first)), Gio.File.new_for_path(str(second))])
+
+    # Before any inspection the veil still carries the singular seed text.
+    assert page._busy_label.get_text() == "Adding a game to the library…"
+
+    assert page._on_drop(None, dropped, 0.0, 0.0) is True
+
+    assert len(parked) == 2
+    assert page._pending_inspects == 2
+    assert page._busy_veil.get_visible() is True
+    assert page._busy_label.get_text() == "Adding 2 games to the library…"
+
+    parked[0][0]()
+
+    # The first one landed, but the drop is unfinished: keep the veil up.
+    assert page._pending_inspects == 1
+    assert page._busy_veil.get_visible() is True
+    assert page._add_button.get_sensitive() is False
+    assert page._busy_label.get_text() == "Adding a game to the library…"
+    assert "0 games" not in page._busy_label.get_text()
+
+    _finish, fail = parked[1]
+    fail(BoxError("second drop exploded"))
+
+    assert page._pending_inspects == 0
+    assert page._busy_veil.get_visible() is False
+    assert page._add_button.get_sensitive() is True
+    assert "0 games" not in page._busy_label.get_text()
+    assert [entry.display_name for entry in repository.load()] == ["mixed-ok"]
+    assert len(presented) == 1
+    assert presented[0].get_heading() == "Inspection Failed"
+
+
+def test_adding_registers_the_game_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A new game folder is stored as an allowed game root for later launches."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    _capture_alerts(monkeypatch)
+    paths = _make_paths(tmp_path)
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "registered"
+    root.mkdir()
+    resolved_root = root.resolve()
+    _install_fake_inspect(monkeypatch, lambda path: _make_inspection(resolved_root, "Registered"))
+    page = LibraryPage(
+        library=repository,
+        on_open_game=lambda entry: None,
+        paths=paths,
+        repository=ConfigRepository(paths),
+    )
+
+    page.inspect_and_add(resolved_root, open_detail=False)
+
+    assert [entry.display_name for entry in repository.load()] == ["Registered"]
+    assert resolved_root in ConfigRepository(paths).load().allowed_game_roots
+
+
+def test_allowed_root_failure_keeps_the_game_and_alerts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A rejected allowed root is reported without undoing the library add."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "kept"
+    root.mkdir()
+    _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, "Kept"))
+
+    class _RefusingRepository:
+        preferred_runtime = None
+
+        def load(self) -> Any:
+            return self
+
+        def add_allowed_root(self, _root: Path) -> None:
+            raise ConfigurationError("cannot resolve allowed game root")
+
+    page = LibraryPage(
+        library=repository,
+        on_open_game=lambda entry: None,
+        paths=_make_paths(tmp_path),
+        repository=_RefusingRepository(),
+    )
+
+    page.inspect_and_add(root, open_detail=False)
+
+    assert [entry.display_name for entry in repository.load()] == ["Kept"]
+    assert _row_titles(page) == ["Kept"]
+    assert len(presented) == 1
+    assert presented[0].get_heading() == "Configuration Error"
+
+
+def test_adding_without_a_repository_stores_the_game(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A page without a configuration repository adds games silently."""
+    _require_display()
+    with contextlib.suppress(Exception):
+        Adw.init()
+    presented = _capture_alerts(monkeypatch)
+    repository = _make_repository(tmp_path)
+    root = tmp_path / "no-repository"
+    root.mkdir()
+    _install_fake_inspect(monkeypatch, lambda path: _make_inspection(path, "No Repository"))
+    page = LibraryPage(
+        library=repository, on_open_game=lambda entry: None, paths=_make_paths(tmp_path)
+    )
+
+    page.inspect_and_add(root, open_detail=False)
+
+    assert [entry.display_name for entry in repository.load()] == ["No Repository"]
+    assert presented == []
+    assert page._busy_veil.get_visible() is False

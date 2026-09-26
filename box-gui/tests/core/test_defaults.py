@@ -223,3 +223,128 @@ def test_save_omits_backend_keys(tmp_path: Path) -> None:
     assert "last_backend_check_at" not in payload
     assert "skipped_backend_version" not in payload
     assert payload["update_interval"] == "daily"
+
+
+def test_ci_mount_debug_round_trip(tmp_path: Path) -> None:
+    """The ci-mount trace switch and log file persist and read back."""
+    repository = _repository(tmp_path)
+    repository.set_ci_mount_debug(True, "/tmp/ci-mount.log")
+
+    loaded = repository.load()
+    assert loaded.ci_mount_debug_enabled is True
+    assert loaded.ci_mount_debug_log == "/tmp/ci-mount.log"
+
+    repository.set_ci_mount_debug(False, "/tmp/ci-mount.log")
+    loaded = repository.load()
+    assert loaded.ci_mount_debug_enabled is False
+    assert loaded.ci_mount_debug_log == "/tmp/ci-mount.log"
+
+
+def test_ci_mount_debug_omitted_log_keeps_the_default(
+    tmp_path: Path,
+) -> None:
+    """A cleared path stores None so the cache-root default applies."""
+    repository = _repository(tmp_path)
+    repository.set_ci_mount_debug(True, "   ")
+
+    loaded = repository.load()
+    assert loaded.ci_mount_debug_enabled is True
+    assert loaded.ci_mount_debug_log is None
+
+
+def test_ci_mount_debug_without_log_stores_none(tmp_path: Path) -> None:
+    """Enabling without a path keeps the file unset, never a blank string."""
+    repository = _repository(tmp_path)
+    repository.set_ci_mount_debug(True)
+
+    assert repository.load().ci_mount_debug_log is None
+
+
+def test_missing_ci_mount_fields_default_to_no_trace(tmp_path: Path) -> None:
+    """Old files without the ci-mount keys load with logging off."""
+    repository = _repository(tmp_path)
+    repository.defaults_file.parent.mkdir(parents=True, exist_ok=True)
+    repository.defaults_file.write_text(
+        json.dumps({"version": 1, "preferred_language": "es"}), encoding="utf-8"
+    )
+
+    loaded = repository.load()
+    assert loaded.ci_mount_debug_enabled is False
+    assert loaded.ci_mount_debug_log is None
+
+
+def test_empty_ci_mount_log_normalizes_to_none(tmp_path: Path) -> None:
+    """An empty stored log loads as no log file."""
+    repository = _repository(tmp_path)
+    repository.defaults_file.parent.mkdir(parents=True, exist_ok=True)
+    repository.defaults_file.write_text(
+        json.dumps({"version": 1, "ci_mount_debug_enabled": True, "ci_mount_debug_log": ""}),
+        encoding="utf-8",
+    )
+
+    loaded = repository.load()
+    assert loaded.ci_mount_debug_enabled is True
+    assert loaded.ci_mount_debug_log is None
+
+
+@pytest.mark.parametrize("bad", ["yes", 1, 0, [], {}])
+def test_bad_ci_mount_flag_raises(tmp_path: Path, bad: object) -> None:
+    """Non-boolean trace flags fail validation instead of loading silently."""
+    repository = _repository(tmp_path)
+    repository.defaults_file.parent.mkdir(parents=True, exist_ok=True)
+    repository.defaults_file.write_text(
+        json.dumps({"version": 1, "ci_mount_debug_enabled": bad}), encoding="utf-8"
+    )
+    with pytest.raises(DefaultsError):
+        repository.load()
+
+
+def test_bad_ci_mount_log_raises(tmp_path: Path) -> None:
+    """A non-string trace path fails validation."""
+    repository = _repository(tmp_path)
+    repository.defaults_file.parent.mkdir(parents=True, exist_ok=True)
+    repository.defaults_file.write_text(
+        json.dumps({"version": 1, "ci_mount_debug_log": 42}), encoding="utf-8"
+    )
+    with pytest.raises(DefaultsError):
+        repository.load()
+
+
+def test_ci_mount_debug_preserves_other_fields(tmp_path: Path) -> None:
+    """The trace setter keeps language, runtime, and update preferences."""
+    repository = _repository(tmp_path)
+    repository.set_preferred_easyrpg_runtime("0.8.1")
+    repository.set_preferred_language("es")
+    repository.set_update_interval("daily")
+    repository.set_ci_mount_debug(True, "/tmp/ci-mount.log")
+
+    loaded = repository.load()
+    assert loaded == RuntimeDefaults(
+        preferred_easyrpg_runtime="0.8.1",
+        preferred_language="es",
+        update_interval="daily",
+        ci_mount_debug_enabled=True,
+        ci_mount_debug_log="/tmp/ci-mount.log",
+    )
+
+
+def test_save_persists_ci_mount_keys(tmp_path: Path) -> None:
+    """The written payload carries both ci-mount fields for the next run."""
+    repository = _repository(tmp_path)
+    repository.set_ci_mount_debug(True, "/tmp/ci-mount.log")
+
+    payload = json.loads(repository.defaults_file.read_text(encoding="utf-8"))
+    assert payload["ci_mount_debug_enabled"] is True
+    assert payload["ci_mount_debug_log"] == "/tmp/ci-mount.log"
+
+
+def test_corrupt_file_heals_on_set_ci_mount_debug(tmp_path: Path) -> None:
+    """Storing the trace over garbage replaces the file instead of failing."""
+    repository = _repository(tmp_path)
+    repository.defaults_file.parent.mkdir(parents=True, exist_ok=True)
+    repository.defaults_file.write_text("not json", encoding="utf-8")
+    repository.set_ci_mount_debug(True, "/tmp/ci-mount.log")
+
+    loaded = repository.load()
+    assert loaded.ci_mount_debug_enabled is True
+    assert loaded.ci_mount_debug_log == "/tmp/ci-mount.log"
