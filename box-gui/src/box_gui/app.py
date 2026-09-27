@@ -147,6 +147,7 @@ class BoxRpgApplication(Adw.Application):
         self._navigation: Adw.NavigationView | None = None
         self._css_provider: Gtk.CssProvider | None = None
         self._debugging_dialog: Adw.Dialog | None = None
+        self._just_updated_tag: str | None = None
         self._backend_status: BackendStatus = check_backend()
         app_paths_cls = AppPaths
         config_repository_cls = ConfigRepository
@@ -215,8 +216,26 @@ class BoxRpgApplication(Adw.Application):
                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
             )
 
+    def _fresh_backend_status(self) -> BackendStatus:
+        """Return a fresh backend gate result, keeping the last one on failure."""
+        try:
+            return check_backend()
+        except Exception:
+            return self._backend_status
+
     def do_activate(self) -> None:
         """Present the main window, creating it on first activation."""
+        try:
+            from box_gui.core.appimage_update import consume_post_appimage_update
+
+            consumed_tag = consume_post_appimage_update()
+        except Exception:
+            consumed_tag = None
+            with contextlib.suppress(Exception):
+                os.environ.pop("BOX_RPG_MAKER_POST_APPIMAGE_UPDATE", None)
+        if consumed_tag is not None:
+            self._just_updated_tag = consumed_tag
+            self._backend_status = self._fresh_backend_status()
         self._ensure_runtime_pill_style()
         _register_bundled_icons()
         startup_error = self._startup_error
@@ -264,6 +283,27 @@ class BoxRpgApplication(Adw.Application):
             setter = getattr(self._interaction, "set_parent", None)
             if callable(setter):
                 setter(window)
+            window.present()
+            with contextlib.suppress(Exception):
+                GLib.idle_add(self._maybe_check_updates)
+            return
+        try:
+            reactivated = self._fresh_backend_status()
+        except Exception:
+            reactivated = None
+        if reactivated is not None and reactivated.needs_setup:
+            self._backend_status = reactivated
+            navigation = self._navigation
+            if navigation is not None:
+                try:
+                    visible = navigation.get_visible_page()
+                except Exception:
+                    visible = None
+                if not isinstance(visible, BackendSetupPage):
+                    with contextlib.suppress(Exception):
+                        navigation.push(
+                            BackendSetupPage(reactivated, on_ready=self._restart_for_backend)
+                        )
         window.present()
         with contextlib.suppress(Exception):
             GLib.idle_add(self._maybe_check_updates)
@@ -323,6 +363,18 @@ class BoxRpgApplication(Adw.Application):
         Degrades silently except for showing the update page itself.
         """
         try:
+            if getattr(self, "_just_updated_tag", None):
+                with contextlib.suppress(Exception):
+                    self._just_updated_tag = None
+                return False
+            try:
+                fresh_status = self._fresh_backend_status()
+            except Exception:
+                return False
+            if fresh_status.needs_setup:
+                with contextlib.suppress(Exception):
+                    self._backend_status = fresh_status
+                return False
             import time as _time
 
             from box_gui.core.app_info import get_embedded_tag
@@ -336,9 +388,7 @@ class BoxRpgApplication(Adw.Application):
                 return False
             if embedded is None:
                 return False
-            if self._backend_status.needs_setup:
-                return False
-            defaults_repository = self._defaults_repository
+            defaults_repository = getattr(self, "_defaults_repository", None)
             if defaults_repository is None:
                 return False
             try:
@@ -429,7 +479,13 @@ class BoxRpgApplication(Adw.Application):
                 return
             # Revalidate before pushing: the worker took time, so the gate,
             # the visible page, or the cadence may have changed since.
-            if self._backend_status.needs_setup:
+            try:
+                fresh_status = self._fresh_backend_status()
+            except Exception:
+                return
+            if fresh_status.needs_setup:
+                with _contextlib.suppress(Exception):
+                    self._backend_status = fresh_status
                 return
             try:
                 visible = navigation.get_visible_page()
@@ -450,7 +506,7 @@ class BoxRpgApplication(Adw.Application):
                 return
             if not should_offer_appimage_update(embedded, latest, fresh.skipped_appimage_version):
                 return
-            page = BackendSetupPage(self._backend_status, on_ready=self._restart_for_backend)
+            page = BackendSetupPage(fresh_status, on_ready=self._restart_for_backend)
 
             def _on_skip() -> None:
                 with _contextlib.suppress(Exception):
@@ -517,13 +573,19 @@ class BoxRpgApplication(Adw.Application):
             with contextlib.suppress(Exception):
                 if current is not None:
                     current.close()
-            if self._backend_status.needs_setup:
+            try:
+                fresh_status = self._fresh_backend_status()
+            except Exception:
+                return
+            if fresh_status.needs_setup:
+                with contextlib.suppress(Exception):
+                    self._backend_status = fresh_status
                 return
             navigation = self._navigation
             if navigation is None:
                 return
             try:
-                page = BackendSetupPage(self._backend_status, on_ready=self._restart_for_backend)
+                page = BackendSetupPage(fresh_status, on_ready=self._restart_for_backend)
             except Exception:
                 return
 

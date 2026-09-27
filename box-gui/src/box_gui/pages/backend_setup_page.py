@@ -582,9 +582,22 @@ class BackendSetupPage(Adw.NavigationPage):
         except UpdatesError as exc:
             self.show_error(str(exc) or exc.__class__.__name__)
             return
+        if self._latest_tag is not None:
+            import contextlib as _contextlib
+
+            with _contextlib.suppress(Exception):
+                from box_gui.core.appimage_update import mark_post_appimage_update
+
+                mark_post_appimage_update(self._latest_tag)
         try:
             restart_into(target)
         except Exception as exc:
+            import contextlib as _cleanup_context
+
+            with _cleanup_context.suppress(Exception):
+                from box_gui.core.appimage_update import consume_post_appimage_update
+
+                consume_post_appimage_update()
             self.show_error(str(exc) or exc.__class__.__name__, unexpected=True)
 
     def _on_appimage_error(self, error: BaseException) -> None:

@@ -22,13 +22,18 @@ from typing import NoReturn
 from box_gui.core.updates import UpdatesError, is_due, should_prompt
 
 __all__ = [
+    "POST_APPIMAGE_UPDATE_ENV_VAR",
+    "consume_post_appimage_update",
     "download_and_verify",
     "locate_self",
+    "mark_post_appimage_update",
     "replace_self",
     "restart_into",
     "should_offer_appimage_update",
     "update_check_due",
 ]
+
+POST_APPIMAGE_UPDATE_ENV_VAR = "BOX_RPG_MAKER_POST_APPIMAGE_UPDATE"
 
 _USER_AGENT = "box-rpg-maker"
 _CHUNK_SIZE = 65536
@@ -332,6 +337,46 @@ def restart_into(path: Path | str) -> NoReturn:
     """Re-execute the (fresh) AppImage, preserving CLI arguments."""
     target = str(path)
     os.execv(target, [target, *sys.argv[1:]])
+
+
+def mark_post_appimage_update(latest_tag: str) -> None:
+    """Remember an AppImage self-update across the restart.
+
+    The marker lives only in the process environment so the restarted
+    process routes through a fresh backend check instead of trusting the
+    pre-update gate. Empty tags are ignored; failures never raise.
+    """
+    try:
+        tag = latest_tag.strip() if isinstance(latest_tag, str) else ""
+    except Exception:
+        return
+    if not tag:
+        return
+    try:
+        os.environ[POST_APPIMAGE_UPDATE_ENV_VAR] = tag
+    except Exception:
+        return
+
+
+def consume_post_appimage_update() -> str | None:
+    """Return the pending post-update tag once, clearing it.
+
+    Returns None when no update marker exists or it holds no usable tag.
+    Never raises: an unreadable environment degrades to no marker.
+    """
+    try:
+        value = os.environ.pop(POST_APPIMAGE_UPDATE_ENV_VAR, None)
+    except Exception:
+        return None
+    if value is None:
+        return None
+    try:
+        tag = value.strip() if isinstance(value, str) else ""
+    except Exception:
+        return None
+    if not tag:
+        return None
+    return tag
 
 
 def update_check_due(
