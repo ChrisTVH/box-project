@@ -201,3 +201,66 @@ def test_present_debugging_without_paths_does_nothing() -> None:
     app = _debug_app(None)
     app.present_debugging(Gtk.Box())
     assert app._debugging_dialog is None
+
+
+def _stub_backend_status(state: Any, expected: str, installed: str | None) -> Any:
+    """Build a BackendStatus without touching the real backend install."""
+    from box_gui.core.backend_check import BackendStatus
+
+    return BackendStatus(
+        state=state,
+        expected_version=expected,
+        installed_version=installed,
+        message=f"{state} backend",
+    )
+
+
+def _bare_update_app(backend_status: Any) -> Any:
+    """Build a bare application with only the update-check state wired.
+
+    Uses ``__new__`` so no window, display, or backend import is needed;
+    the update check must return before touching GLib or worker threads.
+    """
+    app = app_module.BoxRpgApplication.__new__(app_module.BoxRpgApplication)
+    app._backend_status = backend_status
+    app._defaults_repository = None
+    app._navigation = None
+    app._just_updated_tag = None
+    return app
+
+
+def test_fresh_backend_status_refreshes_stale_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fresh mismatch replaces the stale compatible gate and skips updates.
+
+    The AppImage restart swaps the payload without reinstalling box-rpg,
+    so the check after restart must run fresh instead of trusting the
+    pre-update status; the skipped update check then avoids an update loop.
+    """
+    compatible = _stub_backend_status("compatible", "26.9.44", "26.9.44")
+    mismatch = _stub_backend_status("mismatch", "26.9.45", "26.9.44")
+    app = _bare_update_app(compatible)
+    monkeypatch.setattr(app_module, "check_backend", lambda *args: mismatch)
+
+    assert app._fresh_backend_status() == mismatch
+
+    assert app._maybe_check_updates() is False
+    assert app._backend_status == mismatch
+
+
+def test_maybe_check_updates_skips_once_after_appimage_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The post-update launch skips the update check once, then resumes."""
+    compatible = _stub_backend_status("compatible", "26.9.44", "26.9.44")
+    app = _bare_update_app(compatible)
+    app._just_updated_tag = "26.9.44"
+
+    def _must_not_run(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("fresh check must not run on the skipped launch")
+
+    monkeypatch.setattr(app_module, "check_backend", _must_not_run)
+
+    assert app._maybe_check_updates() is False
+    assert app._just_updated_tag is None

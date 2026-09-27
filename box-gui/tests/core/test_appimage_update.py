@@ -11,9 +11,12 @@ import pytest
 
 import box_gui.core.appimage_update as appimage_module
 from box_gui.core.appimage_update import (
+    POST_APPIMAGE_UPDATE_ENV_VAR,
     UpdatesError,
+    consume_post_appimage_update,
     download_and_verify,
     locate_self,
+    mark_post_appimage_update,
     replace_self,
     restart_into,
     should_offer_appimage_update,
@@ -489,3 +492,29 @@ def test_module_has_no_gtk_dependency() -> None:
     assert "from gi" not in source
     assert "import Gtk" not in source
     assert "import Adw" not in source
+
+
+def test_post_update_marker_roundtrip(monkeypatch: Any) -> None:
+    """Marking then consuming returns the tag once and clears it."""
+    monkeypatch.delenv(POST_APPIMAGE_UPDATE_ENV_VAR, raising=False)
+
+    mark_post_appimage_update("26.9.44")
+
+    assert consume_post_appimage_update() == "26.9.44"
+    assert POST_APPIMAGE_UPDATE_ENV_VAR not in appimage_module.os.environ
+    assert consume_post_appimage_update() is None
+
+
+def test_post_update_marker_ignores_empty(monkeypatch: Any) -> None:
+    """Empty or blank tags never set the marker; consume clears leftovers."""
+    monkeypatch.delenv(POST_APPIMAGE_UPDATE_ENV_VAR, raising=False)
+
+    mark_post_appimage_update("")
+    mark_post_appimage_update("   ")
+
+    assert POST_APPIMAGE_UPDATE_ENV_VAR not in appimage_module.os.environ
+    assert consume_post_appimage_update() is None
+
+    monkeypatch.setenv(POST_APPIMAGE_UPDATE_ENV_VAR, "   ")
+    assert consume_post_appimage_update() is None
+    assert POST_APPIMAGE_UPDATE_ENV_VAR not in appimage_module.os.environ
