@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import contextlib
-import os
 import sys
 import types
 from dataclasses import replace
@@ -16,6 +15,7 @@ from typing import Any
 import pytest
 
 from box_gui import gtk
+from conftest import _capture_alerts, _make_paths, _require_display
 
 try:
     import gi
@@ -57,45 +57,6 @@ except Exception:
     _navigation_available = False
 
 pytestmark = pytest.mark.skipif(not _navigation_available, reason="gi/Adw unavailable")
-
-# Display helpers mirror docs/box-rpg-next/tests/conftest.py so widget tests
-# only run where a display looks available while pure tests stay headless.
-
-
-def _has_display() -> bool:
-    """Return True when a Wayland or X11 display looks available."""
-    return bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"))
-
-
-def _require_display() -> None:
-    """Skip the test when no display is available for real widgets."""
-    if not _has_display():
-        pytest.skip("no display for library widgets")
-
-
-def _capture_alerts(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
-    """Record AlertDialog presents without showing real dialogs."""
-    presented: list[Any] = []
-
-    def _fake_present(self: Any, parent: Any | None = None) -> None:
-        presented.append(self)
-
-    monkeypatch.setattr(Adw.AlertDialog, "present", _fake_present)
-    return presented
-
-
-def _make_paths(tmp_path: Path) -> Any:
-    """Build isolated AppPaths under tmp_path."""
-    home = tmp_path / "home"
-    home.mkdir(exist_ok=True)
-    environ = {
-        "HOME": str(home),
-        "XDG_CONFIG_HOME": str(tmp_path / "config"),
-        "XDG_CACHE_HOME": str(tmp_path / "cache"),
-    }
-    paths = AppPaths.from_environment(environ)
-    paths.ensure()
-    return paths
 
 
 def _make_inspection(root: Path, title: str | None = "Demo", engine: Any = None) -> Any:
@@ -281,7 +242,7 @@ def test_pages_are_navigation_pages() -> None:
 
 def test_push_pop_keeps_list_intact(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Opening a row pushes its detail page; back keeps the list intact."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -331,7 +292,7 @@ def test_back_navigation_refreshes_renamed_entries(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Detail edits appear in the list after navigating back to it."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -357,7 +318,7 @@ def test_back_navigation_refreshes_renamed_entries(
 
 def test_inspect_and_add_pushes_detail(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A successful inspect adds the game and opens it straight away."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -378,7 +339,7 @@ def test_inspect_and_add_pushes_detail(monkeypatch: pytest.MonkeyPatch, tmp_path
 
 def test_folder_chosen_starts_add(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The folder picker callback resolves the path into inspect-and-add."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -404,7 +365,7 @@ def test_move_action_reorders_and_refreshes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Context menu moves reorder the repository and refresh the rows."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -428,7 +389,7 @@ def test_move_action_reorders_and_refreshes(
 
 def test_corrupt_library_shows_alert(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A corrupt library file surfaces as an alert instead of a crash."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -445,7 +406,7 @@ def test_corrupt_library_shows_alert(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
 def test_header_buttons_use_enlarged_style(tmp_path: Path) -> None:
     """The add and settings header buttons share the enlarged style."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -457,7 +418,7 @@ def test_header_buttons_use_enlarged_style(tmp_path: Path) -> None:
 
 def test_settings_button_uses_callback(tmp_path: Path) -> None:
     """The gear button presents Settings through its callback."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -471,7 +432,7 @@ def test_settings_button_uses_callback(tmp_path: Path) -> None:
 
 def test_duplicate_add_shows_library_alert(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Adding an already-listed game alerts without opening a page."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -493,7 +454,7 @@ def test_duplicate_add_shows_library_alert(monkeypatch: pytest.MonkeyPatch, tmp_
 
 def test_library_row_escapes_markup_chars(tmp_path: Path) -> None:
     """Rows with & in names render an escaped title without tooltip."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -511,7 +472,7 @@ def test_library_row_escapes_markup_chars(tmp_path: Path) -> None:
 
 def test_empty_library_shows_hint(tmp_path: Path) -> None:
     """An empty library keeps the empty-state hint visible."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -522,7 +483,7 @@ def test_empty_library_shows_hint(tmp_path: Path) -> None:
 
 def test_library_with_entries_hides_hint(tmp_path: Path) -> None:
     """A library with entries hides the empty-state hint."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -566,7 +527,7 @@ def _make_entry(tmp_path: Path, engine: str | None, preferred: str | None) -> An
 
 def test_library_row_pill_shows_engine_and_version(tmp_path: Path) -> None:
     """A known engine with a preferred runtime shows both in the pill."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -581,7 +542,7 @@ def test_library_row_pill_shows_engine_and_version(tmp_path: Path) -> None:
 
 def test_library_row_pill_shows_engine_without_preferred(tmp_path: Path) -> None:
     """A known engine without a preferred runtime shows only the engine."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -594,7 +555,7 @@ def test_library_row_pill_shows_engine_without_preferred(tmp_path: Path) -> None
 
 def test_library_row_pill_falls_back_without_engine(tmp_path: Path) -> None:
     """A legacy entry without an engine keeps its version or Latest."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -609,7 +570,7 @@ def test_library_row_pill_falls_back_without_engine(tmp_path: Path) -> None:
 
 def test_library_row_only_pill_has_runtime_pill_class(tmp_path: Path) -> None:
     """Only the runtime pill carries the pill background class."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -637,7 +598,7 @@ def test_library_row_only_pill_has_runtime_pill_class(tmp_path: Path) -> None:
 
 def test_library_row_has_centered_menu_button(tmp_path: Path) -> None:
     """Rows expose a centered menu button instead of a passive marker."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -669,7 +630,7 @@ def test_library_row_has_centered_menu_button(tmp_path: Path) -> None:
 
 def test_single_row_hides_reorder_menu(tmp_path: Path) -> None:
     """A lone row cannot be reordered, so its menu stays hidden."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -693,7 +654,7 @@ def test_single_row_hides_reorder_menu(tmp_path: Path) -> None:
 
 def test_bundled_tabler_icons_resolve(tmp_path: Path) -> None:
     """Vendored box-rpg-* icons resolve through the registered search path."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     from box_gui.app import _register_bundled_icons
@@ -722,7 +683,7 @@ def test_bundled_tabler_icons_resolve(tmp_path: Path) -> None:
 
 def test_add_button_sits_on_the_left(tmp_path: Path) -> None:
     """The + action packs at the header start, settings stays at the end."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -747,7 +708,7 @@ def test_add_button_sits_on_the_left(tmp_path: Path) -> None:
 
 def test_library_row_launch_button_layout(tmp_path: Path) -> None:
     """Rows expose a centered launch button instead of a passive chevron."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -780,7 +741,7 @@ def test_library_row_launch_button_layout(tmp_path: Path) -> None:
 
 def test_library_row_launch_button_needs_backend(tmp_path: Path) -> None:
     """The launch button stays insensitive without backend wiring."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -794,7 +755,7 @@ def test_library_row_launch_button_needs_backend(tmp_path: Path) -> None:
 
 def test_launch_button_uses_saved_options(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The launch button starts the game with the entry prefs, not the row."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -854,7 +815,7 @@ def test_launch_button_drops_sdk_and_files_for_easyrpg(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Quick-launch forces SDK/files off for EasyRPG like the detail page."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -910,7 +871,7 @@ def test_launch_button_uses_options_edited_in_detail(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Rows built before a detail edit still launch with the fresh options."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -952,7 +913,7 @@ def test_launch_button_inspect_error_alerts_without_launch(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A failed pre-launch inspection alerts without starting a launch."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -990,7 +951,7 @@ def test_launch_button_error_alerts_and_reenables(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A failed quick launch alerts and reactivates the button."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -1050,7 +1011,7 @@ def test_inspect_and_add_prefills_runtime_per_engine(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """New entries start from the global runtime matching their engine."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1093,7 +1054,7 @@ def test_inspect_and_add_keeps_none_without_globals(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Without globals, new entries keep the previous None behavior."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1123,7 +1084,7 @@ def test_inspect_and_add_tolerates_broken_globals(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Unreadable globals fall back to None instead of blocking the add."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1165,7 +1126,7 @@ def test_launch_button_falls_back_to_easyrpg_global(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Quick-launch uses the EasyRPG global when the entry has no runtime."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1199,7 +1160,7 @@ def test_launch_button_keeps_none_without_easyrpg_global(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Without an EasyRPG global, quick-launch keeps the None behavior."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1226,7 +1187,7 @@ def test_launch_button_keeps_none_without_easyrpg_global(
 
 def test_launch_button_keeps_none_for_nwjs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """NW.js quick-launch with None stays None instead of using the global."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1290,7 +1251,7 @@ def test_library_row_shows_extracted_icon(tmp_path: Path) -> None:
     """Rows with a cached icon_path lead with the file image."""
     from dataclasses import replace
 
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     game = tmp_path / "game"
@@ -1309,7 +1270,7 @@ def test_library_row_shows_extracted_icon(tmp_path: Path) -> None:
 
 def test_library_row_falls_back_per_engine(tmp_path: Path) -> None:
     """Rows without a cached icon lead with the engine Tabler icon."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -1330,7 +1291,7 @@ def test_library_row_falls_back_per_engine(tmp_path: Path) -> None:
 
 def test_exe_picker_resolve(tmp_path: Path) -> None:
     """The picker lists executables and maps responses to paths."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     from box_gui.widgets.exe_picker import build_exe_picker, resolve_exe_choice
@@ -1351,7 +1312,7 @@ def test_exe_picker_resolve(tmp_path: Path) -> None:
 
 def test_file_icon_bakes_rounded_corners(tmp_path: Path) -> None:
     """File icons keep their size but lose the opaque square corners."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     import gi
@@ -1384,7 +1345,7 @@ def test_launch_button_forwards_gamemode_flag(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Quick-launch passes the persisted GameMode and mount flags to run_launch."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1418,7 +1379,7 @@ def test_launch_button_forces_ci_mount_off_for_easyrpg(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Quick-launch never forwards the mount flag for EasyRPG games."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1475,7 +1436,7 @@ def test_refresh_keeps_missing_as_streak_without_deletion(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """refresh() keeps vanished folders as streaked rows without dialogs or deletions."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -1512,7 +1473,7 @@ def _make_wired_page(tmp_path: Path, repository: Any, **kwargs: Any) -> tuple[An
 
 def test_below_threshold_row_renders_normal_silent(tmp_path: Path) -> None:
     """A streak below the threshold renders exactly like a normal row."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -1531,7 +1492,7 @@ def test_below_threshold_row_renders_normal_silent(tmp_path: Path) -> None:
 
 def test_ghost_row_shows_badge_and_disables_launch(tmp_path: Path) -> None:
     """A streak at the threshold dims the row with a badge and no launch."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -1556,7 +1517,7 @@ def test_missing_accumulates_to_ghost_across_refreshes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Repeated refreshes streak a missing folder until it renders as a ghost."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -1583,7 +1544,7 @@ def test_reappearing_folder_resets_streak_and_unghosts(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A folder that comes back clears its streak and restores the row."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1607,7 +1568,7 @@ def test_reappearing_folder_resets_streak_and_unghosts(
 
 def test_row_menu_has_no_locate_folder(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The row menu stays reorder/remove only; the folder button owns locate."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1640,7 +1601,7 @@ def test_locate_valid_updates_path_and_clears_ghost(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A valid relocation points the entry at the new folder and un-ghosts it."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1696,7 +1657,7 @@ def test_locate_invalid_stays_ghost_with_error(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A failed relocation inspection alerts and keeps the ghost untouched."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -1733,7 +1694,7 @@ def test_locate_onto_taken_path_stays_ghost(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Relocating onto another entry alerts and keeps the ghost untouched."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -1763,7 +1724,7 @@ def test_locate_onto_taken_path_stays_ghost(
 
 def test_remove_works_on_ghost(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The existing Remove action still drops a ghost entry."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1785,7 +1746,7 @@ def test_removing_unregisters_exact_game_root(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Removing a game forgets its exact allowed root while keeping others."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1812,7 +1773,7 @@ def test_removing_unregisters_exact_game_root(
 
 def test_ghost_launch_guard_never_inspects(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Clicking launch on a ghost alerts without any inspection or launch."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -1837,7 +1798,7 @@ def test_ghost_row_shows_locate_button_only_for_ghosts(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Only ghost rows carry the folder shortcut to the locate flow."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1899,7 +1860,7 @@ def test_ghost_folder_button_shares_locate_picker(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The ghost folder shortcut opens the locate picker."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1942,7 +1903,7 @@ def test_running_badge_for_live_session_at_load(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A backend-reported live session badges the row and disables launch."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1986,7 +1947,7 @@ def test_launching_running_entry_resyncs_silently(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Clicking launch on a just-started session resyncs without any dialog."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -2030,7 +1991,7 @@ def test_launching_running_entry_resyncs_silently(
 
 def test_session_poll_tracks_visibility(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The poll timer runs while the probe exists and stops off-screen."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -2058,7 +2019,7 @@ def _make_detail_navigation_page(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, ghost: bool = False
 ) -> tuple[Any, Any, Any, dict[str, Any], list[Any]]:
     """Build a detail page on a navigation stack with stubbed workers."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -2248,7 +2209,7 @@ def test_paths_from_drop_value_ignores_unknown() -> None:
 
 def test_empty_hint_mentions_drag_drop(tmp_path: Path) -> None:
     """The empty state invites both the + button and folder drops."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -2269,7 +2230,7 @@ def _footer_widgets(page: Any) -> list[Any]:
 
 def test_footer_contains_version_and_credit(tmp_path: Path) -> None:
     """The footer centers the credit line and docks the version right."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -2316,7 +2277,7 @@ def test_version_button_opens_external_link(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The version button confirms through the external-link helper."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -2337,7 +2298,7 @@ def test_version_button_opens_external_link(
 
 def test_footer_debug_button_is_the_start_widget(tmp_path: Path) -> None:
     """The bug button docks left in the footer, keeping the credit centered."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -2362,7 +2323,7 @@ def test_footer_debug_button_is_the_start_widget(tmp_path: Path) -> None:
 
 def test_debug_button_uses_callback(tmp_path: Path) -> None:
     """The bug button presents the Debugging window through its callback."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -2376,7 +2337,7 @@ def test_debug_button_uses_callback(tmp_path: Path) -> None:
 
 def test_debug_button_without_callback_is_inert(tmp_path: Path) -> None:
     """A page with no debugging callback stays quiet instead of raising."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -2389,7 +2350,7 @@ def test_debug_button_without_callback_is_inert(tmp_path: Path) -> None:
 
 def test_drop_single_folder_calls_inspect(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Dropping one folder resolves its path into inspect-and-add."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -2410,7 +2371,7 @@ def test_drop_single_folder_calls_inspect(monkeypatch: pytest.MonkeyPatch, tmp_p
 
 def test_drop_unresolvable_path_alerts(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A drop without a local path alerts instead of inspecting."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -2434,7 +2395,7 @@ def test_drop_unresolvable_path_alerts(monkeypatch: pytest.MonkeyPatch, tmp_path
 
 def test_drop_multiple_folders_iterate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A multi-file drop inspects every dropped folder."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -2465,7 +2426,7 @@ def test_drop_multiple_folders_iterate(monkeypatch: pytest.MonkeyPatch, tmp_path
 
 def test_drop_target_attached_to_scrolled(tmp_path: Path) -> None:
     """The scrolled window carries a file drop controller."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -2486,7 +2447,7 @@ def test_drop_target_attached_to_scrolled(tmp_path: Path) -> None:
 
 def test_drop_hint_hidden_by_default(tmp_path: Path) -> None:
     """The drag-over veil starts hidden and never blocks drops."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -2501,7 +2462,7 @@ def test_drop_hint_hidden_by_default(tmp_path: Path) -> None:
 
 def test_drop_hint_shows_on_enter_and_hides_on_leave(tmp_path: Path) -> None:
     """Drag enter/motion shows the hint; leave hides it once all drags left."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -2536,7 +2497,7 @@ def test_drop_hint_shows_on_enter_and_hides_on_leave(tmp_path: Path) -> None:
 
 def test_drop_hint_content(tmp_path: Path) -> None:
     """The hint shows a 64px drop icon plus a single instruction message."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     from box_gui.gtk.icons import DROP_ICON_NAME
@@ -2569,7 +2530,7 @@ def test_drop_hint_content(tmp_path: Path) -> None:
 
 def test_drop_target_on_overlay(tmp_path: Path) -> None:
     """The overlay carries file drop controllers above the scrolled list."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -2590,7 +2551,7 @@ def test_single_drop_hides_hint_and_opens_once(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A single drop hides the hint and opens its detail page once."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -2616,7 +2577,7 @@ def test_multi_drop_inspects_all_without_stacking_detail(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A multi-file drop inspects every folder but opens no detail page."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -2654,7 +2615,7 @@ def test_inspect_without_detail_only_refreshes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Suppressed detail still adds the game and refreshes the list."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -2673,7 +2634,7 @@ def test_inspect_without_detail_only_refreshes(
 
 def test_rejected_drop_hides_hint_and_returns_false(tmp_path: Path) -> None:
     """Unknown drop values hide the hint and decline the drop."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -2691,7 +2652,7 @@ def test_mixed_drop_with_unresolvable_opens_no_detail(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A multi-item drop with one bad entry alerts once and opens nothing."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -2717,7 +2678,7 @@ def test_mixed_drop_with_unresolvable_opens_no_detail(
 
 def test_incompatible_drag_leaves_hint_hidden(tmp_path: Path) -> None:
     """Drags without file formats never light up the hint."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     repository = _make_repository(tmp_path)
@@ -2799,7 +2760,7 @@ def test_busy_veil_shows_while_inspecting_and_hides_after(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The veil covers the list during an inspection and clears once it lands."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -2836,7 +2797,7 @@ def test_inspection_error_clears_the_busy_state(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A failed inspection reports itself and re-enables the page."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -2867,7 +2828,7 @@ def test_multi_add_keeps_the_veil_until_the_last_inspection(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Two pending inspections keep the veil up until the second one settles."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -2917,7 +2878,7 @@ def test_header_and_footer_buttons_go_insensitive_while_busy(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The controls outside the overlay dim with the page and come back."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -2954,7 +2915,7 @@ def test_debug_button_goes_insensitive_while_busy(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The footer bug button dims with the page and comes back when settled."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -2986,7 +2947,7 @@ def test_inspect_dispatch_failure_settles_the_busy_state(
     callback ever runs: without an explicit settle the veil would stay up
     and the header buttons insensitive for the rest of the session.
     """
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -3017,7 +2978,7 @@ def test_end_inspect_clamps_at_zero(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     A clamp-free decrement would leave a negative count that keeps the veil
     up forever and advertises a negative pending number to the user.
     """
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -3045,7 +3006,7 @@ def test_busy_veil_label_never_names_zero_games(
     single-folder inspection starts with and the one left behind if a
     counter update ever runs while nothing is pending.
     """
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -3101,7 +3062,7 @@ def test_busy_veil_label_never_names_zero_games(
 
 def test_adding_registers_the_game_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A new game folder is stored as an allowed game root for later launches."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -3128,7 +3089,7 @@ def test_allowed_root_failure_keeps_the_game_and_alerts(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A rejected allowed root is reported without undoing the library add."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -3165,7 +3126,7 @@ def test_adding_without_a_repository_stores_the_game(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A page without a configuration repository adds games silently."""
-    _require_display()
+    _require_display("no display for library widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)

@@ -13,6 +13,8 @@ from typing import Any
 
 import pytest
 
+from conftest import _capture_alerts, _require_display
+
 try:
     import gi
 
@@ -47,28 +49,6 @@ except Exception:
     _setup_available = False
 
 pytestmark = pytest.mark.skipif(not _setup_available, reason="gi/Adw unavailable")
-
-
-def _has_display() -> bool:
-    """Return True when a Wayland or X11 display looks available."""
-    return bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"))
-
-
-def _require_display() -> None:
-    """Skip the test when no display is available for real widgets."""
-    if not _has_display():
-        pytest.skip("no display for setup widgets")
-
-
-def _capture_alerts(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
-    """Record AlertDialog presents without showing real dialogs."""
-    presented: list[Any] = []
-
-    def _fake_present(self: Any, parent: Any | None = None) -> None:
-        presented.append(self)
-
-    monkeypatch.setattr(Adw.AlertDialog, "present", _fake_present)
-    return presented
 
 
 def _missing_status() -> Any:
@@ -190,7 +170,7 @@ def test_restart_process_replaces_the_same_command(monkeypatch: pytest.MonkeyPat
 
 def test_page_is_a_tagged_navigation_page() -> None:
     """The setup page plugs into the NavigationView with its own tag."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
 
@@ -203,7 +183,7 @@ def test_page_is_a_tagged_navigation_page() -> None:
 
 def test_button_starts_disabled_until_detection() -> None:
     """Install stays disabled with its versioned label before detection."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
 
@@ -216,7 +196,7 @@ def test_button_starts_disabled_until_detection() -> None:
 
 def test_header_hides_library_actions() -> None:
     """The setup header keeps the raised style but offers no + or settings."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
 
@@ -239,7 +219,7 @@ def test_header_hides_library_actions() -> None:
 
 def test_logo_uses_the_box_icon() -> None:
     """The centered logo resolves through the vendored box icon."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
 
@@ -261,7 +241,7 @@ def test_logo_uses_the_box_icon() -> None:
 
 def test_detection_enables_install(monkeypatch: pytest.MonkeyPatch) -> None:
     """Completed detection renders four rows and enables Install."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -286,7 +266,7 @@ def test_detection_enables_install(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_detection_warns_about_missing_required(monkeypatch: pytest.MonkeyPatch) -> None:
     """A missing required dependency surfaces in the status line."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -316,7 +296,7 @@ def test_detection_warns_about_missing_required(monkeypatch: pytest.MonkeyPatch)
 
 def test_detection_error_alerts_and_retries(monkeypatch: pytest.MonkeyPatch) -> None:
     """A broken detection fails closed; Retry re-runs detection."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -353,7 +333,7 @@ def _output_text(page: Any) -> str:
 
 def test_successful_install_calls_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     """A verified install streams its lines, then hands control to on_ready."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -397,7 +377,7 @@ def test_failed_install_shows_retry_with_verbatim_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An install failure keeps its verbatim text and offers Retry."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -435,7 +415,7 @@ def test_failed_install_shows_retry_with_verbatim_error(
 
 def test_restart_failure_stays_on_setup(monkeypatch: pytest.MonkeyPatch) -> None:
     """A restart that cannot exec fails closed on the setup page."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -463,7 +443,7 @@ def test_restart_failure_stays_on_setup(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_output_hidden_during_checking_and_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     """The empty install log stays hidden so the action button keeps its place."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -488,7 +468,7 @@ def test_output_hidden_during_checking_and_ready(monkeypatch: pytest.MonkeyPatch
 
 def test_output_visible_once_install_starts(monkeypatch: pytest.MonkeyPatch) -> None:
     """Starting the install reveals the log so streamed lines stay at hand."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -515,7 +495,7 @@ def test_output_visible_once_install_starts(monkeypatch: pytest.MonkeyPatch) -> 
 
 def test_output_stays_visible_after_failed_install(monkeypatch: pytest.MonkeyPatch) -> None:
     """A failed install keeps the revealed log visible for diagnosis."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -558,7 +538,7 @@ def _update_status() -> Any:
 
 def test_update_mode_labels_and_skip_visible(monkeypatch: pytest.MonkeyPatch) -> None:
     """Update mode reuses the page with versioned copy plus a Skip button."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -581,7 +561,7 @@ def test_update_mode_labels_and_skip_visible(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_update_mode_infers_current_tag(monkeypatch: pytest.MonkeyPatch) -> None:
     """Without an explicit current tag the body still names both versions."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -596,7 +576,7 @@ def test_update_mode_infers_current_tag(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_update_skip_calls_callback(monkeypatch: pytest.MonkeyPatch) -> None:
     """Skip forwards to the caller, which records the skipped version."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -616,7 +596,7 @@ def test_update_skip_calls_callback(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_update_skip_without_callback_stays_put(monkeypatch: pytest.MonkeyPatch) -> None:
     """A missing skip callback is a no-op instead of a crash."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -631,7 +611,7 @@ def test_update_skip_without_callback_stays_put(monkeypatch: pytest.MonkeyPatch)
 
 def test_update_mode_skips_detection(monkeypatch: pytest.MonkeyPatch) -> None:
     """Detection stays off in update mode; the action downloads instead."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -650,7 +630,7 @@ def test_update_download_replace_restart_chain(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
     """The action downloads, replaces, and restarts with stubbed helpers."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -713,7 +693,7 @@ def test_update_progress_bar_reflects_download(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
     """Progress callbacks land on the bar through the main loop."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -754,7 +734,7 @@ def test_update_progress_bar_reflects_download(
 
 def test_update_download_error_offers_retry(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
     """A failed download fails closed with an Update Failed alert."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -790,7 +770,7 @@ def test_update_download_error_offers_retry(monkeypatch: pytest.MonkeyPatch, tmp
 
 def test_detection_done_ignored_in_update_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     """Late detection results never clobber an active AppImage update prompt."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -809,7 +789,7 @@ def test_detection_done_ignored_in_update_mode(monkeypatch: pytest.MonkeyPatch) 
 
 def test_detection_error_ignored_in_update_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     """Late detection errors never fail an active AppImage update prompt."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -826,7 +806,7 @@ def test_detection_error_ignored_in_update_mode(monkeypatch: pytest.MonkeyPatch)
 
 def test_install_passes_resolved_pin(monkeypatch: pytest.MonkeyPatch) -> None:
     """The GUI resolves the tag commit and passes it as expected_commit."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -860,7 +840,7 @@ def test_install_passes_resolved_pin(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_install_degrades_without_pin(monkeypatch: pytest.MonkeyPatch) -> None:
     """A failed commit resolve still installs, without a pin."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -899,7 +879,7 @@ def test_update_gitlab_source_still_downloads_from_github(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
     """GitLab discovery still downloads the GitHub release asset."""
-    _require_display()
+    _require_display("no display for setup widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)

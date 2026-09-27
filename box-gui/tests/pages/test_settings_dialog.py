@@ -13,6 +13,8 @@ from typing import Any
 
 import pytest
 
+from conftest import _make_paths, _require_display
+
 try:
     import gi
 
@@ -20,7 +22,7 @@ try:
     gi.require_version("Adw", "1")
 
     import box.api.runtime as runtime_module
-    from box.api import AppPaths, ConfigRepository
+    from box.api import ConfigRepository
     from box.api.cleanup import CATEGORIES, CleanupItem
     from box.api.runtime import AvailableEasyRPGVersions, AvailableVersions
     from box.errors import RuntimeError as BoxRuntimeError
@@ -43,7 +45,6 @@ try:
     _settings_available = True
 except Exception:
     runtime_module: Any = None
-    AppPaths: Any = None
     ConfigRepository: Any = None
     CATEGORIES: Any = ()  # pyright: ignore[reportConstantRedefinition]
     CleanupItem: Any = None
@@ -68,17 +69,6 @@ except Exception:
     _settings_available = False
 
 pytestmark = pytest.mark.skipif(not _settings_available, reason="gi/Adw unavailable")
-
-
-def _has_display() -> bool:
-    """Return True when a Wayland or X11 display looks available."""
-    return bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"))
-
-
-def _require_display() -> None:
-    """Skip the test when no display is available for real widgets."""
-    if not _has_display():
-        pytest.skip("no display for settings dialog widgets")
 
 
 def _pump(ms: int = 300) -> None:
@@ -109,20 +99,6 @@ def _install_auto_answer(
     monkeypatch.setattr(Adw.AlertDialog, "present", _fake_present)
 
 
-def _make_paths(tmp_path: Path) -> Any:
-    """Build isolated AppPaths under tmp_path."""
-    home = tmp_path / "home"
-    home.mkdir(exist_ok=True)
-    environ = {
-        "HOME": str(home),
-        "XDG_CONFIG_HOME": str(tmp_path / "config"),
-        "XDG_CACHE_HOME": str(tmp_path / "cache"),
-    }
-    paths = AppPaths.from_environment(environ)
-    paths.ensure()
-    return paths
-
-
 def _stub_runtime_api(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stub default_architecture deterministically, allowing old box-rpg."""
     monkeypatch.setattr(runtime_module, "default_architecture", lambda: "x64", raising=False)
@@ -139,7 +115,7 @@ def _make_runtime(
     install_hook: Any | None = None,
 ) -> tuple[Any, Any, dict[str, Any]]:
     """Create NW.js/EasyRPG pages with a stubbed runtime API and drained loads."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
@@ -217,7 +193,7 @@ def _make_general(
     on_language_changed: Any | None = None,
 ) -> tuple[Any, Any, Any]:
     """Create a GeneralPage with real repositories and stubbed installed lists."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     installed = tuple(
@@ -248,7 +224,7 @@ def _make_debugging(
     tmp_path: Path,
 ) -> tuple[Any, Any]:
     """Create a DebuggingPage with a real defaults repository and a clean env."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     # The ci-mount trace switch mutates the process environment, so every
@@ -267,7 +243,7 @@ def _make_cleanup(
     remove_error: BaseException | None = None,
 ) -> tuple[Any, Any, Any, dict[str, Any], dict[str, Any]]:
     """Create a CleanupPage with a stubbed catalog and drained initial loads."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     seen: dict[str, Any] = {"list": [], "remove": []}
@@ -466,7 +442,7 @@ def test_general_set_preferred_runtime(tmp_path: Path, monkeypatch: Any) -> None
 
 def test_general_stale_preferred_runtime_stays_selectable(tmp_path: Path, monkeypatch: Any) -> None:
     """A stored NW.js version with no install left still renders selected."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     monkeypatch.setattr(runtime_module, "list_nwjs", lambda catalog: ())
@@ -504,7 +480,7 @@ def test_general_stale_easyrpg_preferred_runtime_stays_selectable(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
     """A stored EasyRPG version with no install left still renders selected."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     monkeypatch.setattr(runtime_module, "list_nwjs", lambda catalog: ())
@@ -1008,7 +984,7 @@ def test_settings_dialog_forwards_update_callback(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
     """SettingsDialog wires the update callback into the General page."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
@@ -1099,7 +1075,7 @@ def test_nwjs_pager_next_previous_and_clamp(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Next advances, previous retreats, and page clamps at one."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
@@ -1148,7 +1124,7 @@ def test_easyrpg_pager_next_previous_and_clamp(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """EasyRPG pager mirrors the NW.js next/previous/clamp behavior."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
@@ -1259,7 +1235,7 @@ def test_nwjs_confirm_accept_passes_version_arch_sdk_and_progress(
 
 def test_install_button_spins_until_done(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The clicked Install button shows a spinner and restores its label after."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     gate = threading.Event()
@@ -1343,7 +1319,7 @@ def test_progress_reporter_lands_on_main_loop(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """ProgressReporter defers the callback via idle_add instead of calling inline."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     delivered: list[tuple[int, int | None]] = []
@@ -1363,7 +1339,7 @@ def test_progress_reporter_lands_on_main_loop(
 
 def test_nwjs_remove_refreshes_installed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Removing an NW.js runtime calls remove then refreshes the installed list."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
@@ -1468,7 +1444,7 @@ def test_default_architecture_error_keeps_fallback(
     def _boom() -> str:
         raise BoxRuntimeError("unsupported CPU")
 
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     monkeypatch.setattr(runtime_module, "default_architecture", _boom, raising=False)
@@ -1495,7 +1471,7 @@ def test_missing_default_architecture_keeps_fallback_without_dialog(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """An old backend without default_architecture keeps x64 and shows no dialog."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     monkeypatch.delattr(runtime_module, "default_architecture", raising=False)
@@ -1795,7 +1771,7 @@ def test_dialog_hosts_four_pages_without_search(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The dialog is a PreferencesDialog holding the four pages with search off."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
@@ -2062,7 +2038,7 @@ def test_cleanup_danger_group_visible_with_tag(
 
 def test_cleanup_on_full_wipe_plumbing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """CleanupPage stores the callback and SettingsDialog forwards it."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_embedded_tag(monkeypatch, "26.9.1")
@@ -2186,7 +2162,7 @@ def _make_nwjs_browser(
     installed: tuple[Any, ...] = (),
 ) -> tuple[Any, dict[str, Any]]:
     """Create one NW.js page with stubbed lists, versions, and sizes."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
@@ -2224,7 +2200,7 @@ def _make_easyrpg_browser(
     installed: tuple[Any, ...] = (),
 ) -> tuple[Any, dict[str, Any]]:
     """Create one EasyRPG page with stubbed lists, versions, and sizes."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
@@ -2487,7 +2463,7 @@ def test_fetch_without_paths_param_still_works(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Old backends without a paths parameter are called without it."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
@@ -2516,7 +2492,7 @@ def test_fetch_without_paths_param_still_works(
 
 def test_virtual_backfill_disjoint_pages(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Disjoint backend pages backfill virtual pages without duplication."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
@@ -2570,7 +2546,7 @@ def test_virtual_backfill_disjoint_pages(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
 def _make_dialog_for_cross_refresh(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Any:
     """Create a SettingsDialog with empty stubbed backends and drained loads."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
@@ -2743,7 +2719,7 @@ def test_loading_status_delayed_until_slow_load(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The loading status only appears when a page load turns slow."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)
@@ -2811,7 +2787,7 @@ def test_initial_browser_load_waits_for_installed(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The first browser fetch runs chained after the installed list lands."""
-    _require_display()
+    _require_display("no display for settings dialog widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _stub_runtime_api(monkeypatch)

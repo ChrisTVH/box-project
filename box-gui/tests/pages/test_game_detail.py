@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import contextlib
-import os
 import sys
 import types
 from dataclasses import replace
@@ -16,6 +15,7 @@ from typing import Any
 import pytest
 
 from box_gui import gtk
+from conftest import _capture_alerts, _make_paths, _require_display
 
 try:
     import gi
@@ -62,42 +62,6 @@ except Exception:
     _detail_available = False
 
 pytestmark = pytest.mark.skipif(not _detail_available, reason="gi/Adw unavailable")
-
-
-def _has_display() -> bool:
-    """Return True when a Wayland or X11 display looks available."""
-    return bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"))
-
-
-def _require_display() -> None:
-    """Skip the test when no display is available for real widgets."""
-    if not _has_display():
-        pytest.skip("no display for game detail widgets")
-
-
-def _capture_alerts(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
-    """Record AlertDialog presents without showing real dialogs."""
-    presented: list[Any] = []
-
-    def _fake_present(self: Any, parent: Any | None = None) -> None:
-        presented.append(self)
-
-    monkeypatch.setattr(Adw.AlertDialog, "present", _fake_present)
-    return presented
-
-
-def _make_paths(tmp_path: Path) -> Any:
-    """Build isolated AppPaths under tmp_path."""
-    home = tmp_path / "home"
-    home.mkdir(exist_ok=True)
-    environ = {
-        "HOME": str(home),
-        "XDG_CONFIG_HOME": str(tmp_path / "config"),
-        "XDG_CACHE_HOME": str(tmp_path / "cache"),
-    }
-    paths = AppPaths.from_environment(environ)
-    paths.ensure()
-    return paths
 
 
 def _make_inspection(root: Path, engine: Any = None, title: str | None = "Demo") -> Any:
@@ -162,7 +126,7 @@ def _make_page(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, factory: Any | None = None
 ) -> tuple[Any, Any, Any]:
     """Build an inspected detail page with isolated paths and repositories."""
-    _require_display()
+    _require_display("no display for game detail widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     _capture_alerts(monkeypatch)
@@ -1576,7 +1540,7 @@ def _make_ghost_page(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, streak: int = 3
 ) -> tuple[Any, Any, Any, dict[str, Any], list[Any]]:
     """Build a ghost detail page with a stored streak, recording workers and alerts."""
-    _require_display()
+    _require_display("no display for game detail widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     presented = _capture_alerts(monkeypatch)
@@ -2064,7 +2028,7 @@ def test_idle_hides_header_folder_button(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
 def test_detail_poll_tracks_visibility(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The detail poll timer runs while the probe exists and stops off-screen."""
-    _require_display()
+    _require_display("no display for game detail widgets")
     page, _library, _entry = _make_page(monkeypatch, tmp_path)
     try:
         # Pages without backend paths never poll.

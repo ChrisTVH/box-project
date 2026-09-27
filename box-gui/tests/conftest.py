@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import threading
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -32,9 +33,11 @@ except Exception:
     _gi_available = False
 
 __all__ = [
+    "_capture_alerts",
     "_gi_available",
     "_has_display",
     "_install_auto_answer",
+    "_make_paths",
     "_require_display",
     "_run_from_worker",
 ]
@@ -45,10 +48,37 @@ def _has_display() -> bool:
     return bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"))
 
 
-def _require_display() -> None:
+def _require_display(reason: str = "no display for GtkInteraction threads") -> None:
     """Skip the test when no display is available for real dialogs."""
     if not _has_display():
-        pytest.skip("no display for GtkInteraction threads")
+        pytest.skip(reason)
+
+
+def _capture_alerts(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Record AlertDialog presents without showing real dialogs."""
+    presented: list[Any] = []
+
+    def _fake_present(self: Any, parent: Any | None = None) -> None:
+        presented.append(self)
+
+    monkeypatch.setattr(Adw.AlertDialog, "present", _fake_present)
+    return presented
+
+
+def _make_paths(tmp_path: Path) -> Any:
+    """Build isolated AppPaths under tmp_path."""
+    from box.api import AppPaths
+
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+    environ = {
+        "HOME": str(home),
+        "XDG_CONFIG_HOME": str(tmp_path / "config"),
+        "XDG_CACHE_HOME": str(tmp_path / "cache"),
+    }
+    paths = AppPaths.from_environment(environ)
+    paths.ensure()
+    return paths
 
 
 def _install_auto_answer(

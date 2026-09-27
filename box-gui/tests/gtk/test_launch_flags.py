@@ -1,4 +1,4 @@
-"""Direct unit tests for launch flag forwarding with old backends."""
+"""Direct unit tests for launch flags forwarding with old backends."""
 
 # pyright: reportMissingImports=false
 # pyright: reportPrivateUsage=false

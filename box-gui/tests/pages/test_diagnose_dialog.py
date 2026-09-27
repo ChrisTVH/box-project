@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import contextlib
-import os
 import sys
 import types
 from pathlib import Path
@@ -15,6 +14,7 @@ from typing import Any
 import pytest
 
 from box_gui import gtk
+from conftest import _capture_alerts, _make_paths, _require_display
 
 try:
     import gi
@@ -22,7 +22,7 @@ try:
     gi.require_version("Gtk", "4.0")
     gi.require_version("Adw", "1")
 
-    from box.api import AppPaths, ConfigRepository
+    from box.api import ConfigRepository
     from box.api.diagnose import DiagnoseResult
     from box.errors import BoxError
     from gi.repository import Adw
@@ -49,7 +49,6 @@ try:
 
     _diagnose_available = True
 except Exception:
-    AppPaths: Any = None
     ConfigRepository: Any = None
     DiagnoseResult: Any = None
     BoxError: Any = Exception
@@ -61,45 +60,9 @@ except Exception:
 pytestmark = pytest.mark.skipif(not _diagnose_available, reason="gi/Adw unavailable")
 
 
-def _has_display() -> bool:
-    """Return True when a Wayland or X11 display looks available."""
-    return bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"))
-
-
-def _require_display() -> None:
-    """Skip the test when no display is available for real widgets."""
-    if not _has_display():
-        pytest.skip("no display for diagnose widgets")
-
-
-def _capture_alerts(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
-    """Record AlertDialog presents without showing real dialogs."""
-    presented: list[Any] = []
-
-    def _fake_present(self: Any, parent: Any | None = None) -> None:
-        presented.append(self)
-
-    monkeypatch.setattr(Adw.AlertDialog, "present", _fake_present)
-    return presented
-
-
-def _make_paths(tmp_path: Path) -> Any:
-    """Build isolated AppPaths under tmp_path."""
-    home = tmp_path / "home"
-    home.mkdir(exist_ok=True)
-    environ = {
-        "HOME": str(home),
-        "XDG_CONFIG_HOME": str(tmp_path / "config"),
-        "XDG_CACHE_HOME": str(tmp_path / "cache"),
-    }
-    paths = AppPaths.from_environment(environ)
-    paths.ensure()
-    return paths
-
-
 def _make_dialog(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_diagnose: Any) -> Any:
     """Create a DiagnoseDialog with a synchronous stubbed diagnose worker."""
-    _require_display()
+    _require_display("no display for diagnose widgets")
     with contextlib.suppress(Exception):
         Adw.init()
     module = types.ModuleType("box_gui.gtk.workers")
