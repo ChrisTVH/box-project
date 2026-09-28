@@ -15,6 +15,8 @@ def render_report(environment: Environment, versions: VersionReport) -> str:
         "engine_version": versions.engine_version,
         "nwjs": versions.nwjs,
     }
+    if versions.game_nwjs is not None:
+        versions_payload["game_nwjs"] = versions.game_nwjs
     if versions.easyrpg_player is not None:
         versions_payload["easyrpg_player"] = versions.easyrpg_player
     payload = {
