@@ -119,6 +119,7 @@ class DiagnoseDialog(Adw.Dialog):
         self._engine_row.set_subtitle(GLib.markup_escape_text(result.versions.engine, -1))
         self._add_optional_row(_("Engine Version"), result.versions.engine_version)
         self._add_optional_row(_("NW.js"), result.versions.nwjs)
+        self._add_optional_row(_("Game NW.js"), getattr(result.versions, "game_nwjs", None))
         self._add_optional_row(_("EasyRPG Player"), result.versions.easyrpg_player)
 
     def _on_diagnose_error(self, error: BaseException) -> None:
