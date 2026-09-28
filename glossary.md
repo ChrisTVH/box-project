@@ -169,3 +169,4 @@ Terms taken from the `box-rpg-maker` catalog; if a msgid contains a backend term
 | log file | archivo de log | Fila de Ajustes «ci-mount log file» → «Archivo de log de ci-mount». |
 | trace (log) | traza | En «Record the ci-mount trace…» → «la traza de ci-mount» y «Trace file: {path}» → «Archivo de traza: {path}»; `{path}` queda literal. |
 | adding a game | añadiendo un juego | En el velo de progreso de la biblioteca: «Añadiendo un juego a la biblioteca…» / «Añadiendo {count} juegos a la biblioteca…»; mantener la elipsis `…`. |
+| Game NW.js | NW.js del juego | Fila del diálogo de diagnóstico; `NW.js` no se traduce. |

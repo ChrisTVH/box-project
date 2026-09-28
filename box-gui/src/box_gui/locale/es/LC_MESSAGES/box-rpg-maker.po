@@ -464,10 +464,14 @@ msgid "NW.js"
 msgstr "NW.js"
 
 #: box-gui/src/box_gui/pages/diagnose_dialog.py:122
+msgid "Game NW.js"
+msgstr "NW.js del juego"
+
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:123
 msgid "EasyRPG Player"
 msgstr "EasyRPG Player"
 
-#: box-gui/src/box_gui/pages/diagnose_dialog.py:127
+#: box-gui/src/box_gui/pages/diagnose_dialog.py:128
 msgid "Diagnose failed."
 msgstr "Diagnóstico fallido."
 
