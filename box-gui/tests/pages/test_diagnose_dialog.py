@@ -38,12 +38,14 @@ try:
         engine_version: str | None,
         nwjs: str | None,
         easyrpg_player: str | None = None,
+        game_nwjs: str | None = None,
     ) -> Any:
         row = types.SimpleNamespace(
             engine=engine,
             engine_version=engine_version,
             nwjs=nwjs,
             easyrpg_player=easyrpg_player,
+            game_nwjs=game_nwjs,
         )
         return row
 
@@ -126,7 +128,7 @@ def test_diagnose_all_fields_rendered(monkeypatch: pytest.MonkeyPatch, tmp_path:
     def _fake(paths: Any, repository: Any, game_path: Any) -> Any:
         return DiagnoseResult(
             Environment("Linux", "6.8", "x86_64"),
-            VersionReport("rpg-maker-mv", "1.6.2", "v0.70.0", "0.8.1"),
+            VersionReport("rpg-maker-mv", "1.6.2", "v0.70.0", "0.8.1", "v0.89.0"),
         )
 
     presented = _capture_alerts(monkeypatch)
@@ -140,6 +142,7 @@ def test_diagnose_all_fields_rendered(monkeypatch: pytest.MonkeyPatch, tmp_path:
             "Engine",
             "Engine Version",
             "NW.js",
+            "Game NW.js",
             "EasyRPG Player",
         ]
         assert "None" not in _version_subtitles(dialog)
@@ -147,7 +150,7 @@ def test_diagnose_all_fields_rendered(monkeypatch: pytest.MonkeyPatch, tmp_path:
         assert dialog._status.get_text() == ""
         assert dialog._status_box.get_visible() is False
         assert _is_descendant(dialog._engine_row, dialog._versions_group)
-        for title in ("Engine Version", "NW.js", "EasyRPG Player"):
+        for title in ("Engine Version", "NW.js", "Game NW.js", "EasyRPG Player"):
             row = _row_by_title(dialog, title)
             assert row is not None
             assert not row.has_css_class("card")
@@ -205,6 +208,51 @@ def test_diagnose_easyrpg_none_omitted(monkeypatch: pytest.MonkeyPatch, tmp_path
         engine_version_row = _row_by_title(dialog, "Engine Version")
         assert engine_version_row is not None
         assert _is_descendant(engine_version_row, dialog._versions_group)
+    finally:
+        with contextlib.suppress(Exception):
+            dialog.close()
+
+
+def test_diagnose_game_nwjs_none_omitted(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A missing bundled game version omits its row without rendering None."""
+
+    def _fake(paths: Any, repository: Any, game_path: Any) -> Any:
+        return DiagnoseResult(
+            Environment("Linux", "6.8", "x86_64"),
+            VersionReport("rpg-maker-mz", "1.9.0", "v0.116.0", None, None),
+        )
+
+    _capture_alerts(monkeypatch)
+    dialog = _make_dialog(monkeypatch, tmp_path, _fake)
+    try:
+        assert "Game NW.js" not in _version_titles(dialog)
+        assert "NW.js" in _version_titles(dialog)
+        assert "None" not in _version_subtitles(dialog)
+    finally:
+        with contextlib.suppress(Exception):
+            dialog.close()
+
+
+def test_diagnose_predates_bundled_version_field(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A backend without game_nwjs still renders instead of failing."""
+
+    def _fake(paths: Any, repository: Any, game_path: Any) -> Any:
+        versions = types.SimpleNamespace(
+            engine="rpg-maker-mz",
+            engine_version="1.9.0",
+            nwjs="v0.116.0",
+            easyrpg_player=None,
+        )
+        return DiagnoseResult(Environment("Linux", "6.8", "x86_64"), versions)
+
+    _capture_alerts(monkeypatch)
+    dialog = _make_dialog(monkeypatch, tmp_path, _fake)
+    try:
+        assert "Game NW.js" not in _version_titles(dialog)
+        assert "NW.js" in _version_titles(dialog)
+        assert "None" not in _version_subtitles(dialog)
     finally:
         with contextlib.suppress(Exception):
             dialog.close()

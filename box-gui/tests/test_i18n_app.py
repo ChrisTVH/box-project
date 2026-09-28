@@ -70,6 +70,7 @@ def test_i18n_translates_core_chrome() -> None:
     assert _("Allowed game roots") == "Raíces de juego permitidas"
     assert _("Preferred runtime") == "Entorno de ejecución preferido"
     assert _("Preferred NW.js runtime") == "Entorno NW.js preferido"
+    assert _("Game NW.js") == "NW.js del juego"
     assert _("Preferred EasyRPG runtime") == "Entorno EasyRPG preferido"
     assert _("Undefined") == "No definido"
     assert _("Default") == "Por defecto"
