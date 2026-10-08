@@ -64,6 +64,7 @@ addopts = "-q"
 line-length = 100
 target-version = "py314"
 src = ["src", "tests"]
+exclude = [".venv", "typings"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "FURB"]
@@ -81,6 +82,8 @@ include = ["src", "tests"]
 # box-gui/ or the monorepo root (same dual trick as box-rpg/pyproject.toml).
 extraPaths = ["../box-rpg/src", "box-rpg/src", "../box-gui/src", "box-gui/src"]
 reportMissingTypeStubs = false
+# gi/cairo resolve to local typings stubs without source.
+reportMissingModuleSource = false
 reportUnusedImport = true
 reportUnusedVariable = true
 reportUntypedFunctionDecorator = false
