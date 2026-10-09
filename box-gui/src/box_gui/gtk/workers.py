@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect as stdlib_inspect
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -173,20 +174,34 @@ def run_stop(
 
 
 class ProgressReporter:
-    """Forward install progress to the GTK main loop.
+    """Forward install progress to the GTK main loop without flooding it.
 
-    The call signature matches the stable box-rpg progress callback
-    ``(completed, total)`` so a future install flow can pass this object
-    directly as its progress reporter.
+    The backend reports every 64 KiB chunk (~1500 calls for a runtime),
+    so reports arriving within 150 ms of the last emission are dropped;
+    completion (completed >= total with a known total) always emits.
+    A stalled stream with total=None simply emits nothing further until
+    it resumes. The call signature matches the stable box-rpg progress
+    callback ``(completed, total)`` so a future install flow can pass
+    this object directly as its progress reporter.
     """
 
     def __init__(self, on_progress: Callable[[int, int | None], None]) -> None:
         self._on_progress = on_progress
 
     def __call__(self, completed: int, total: int | None) -> None:
-        """Schedule a progress update on the main loop."""
+        """Forward a progress update, dropping floods between frames."""
+        finished = total is not None and completed >= total
+        now = time.monotonic()
+        with self._lock:
+            if not finished and now - self._last_emit < self._MIN_INTERVAL_SECONDS:
+                return
+            self._last_emit = now
         GLib.idle_add(self._on_progress, completed, total)
 
     def report(self, completed: int, total: int | None) -> None:
+    _MIN_INTERVAL_SECONDS = 0.15
+
         """Alias for calling this reporter directly."""
         self(completed, total)
+        self._lock = threading.Lock()
+        self._last_emit = 0.0

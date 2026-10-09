@@ -185,6 +185,60 @@ def _run_in_thread[T](
     return thread
 
 
+def _version_sort_key(version: str) -> tuple[tuple[int, ...], str]:
+    """Return a numeric-first sort key for dotted versions, degrading to text.
+
+    A leading ``v`` is ignored so ``v0.116.0`` sorts after ``v0.82.0``;
+    versions with unparsable components keep plain string order behind
+    every numeric version.
+    """
+    text = version.strip()
+    if text[:1] in ("v", "V"):
+        text = text[1:]
+    numbers: list[int] = []
+    for part in text.split("."):
+        try:
+            numbers.append(int(part))
+        except ValueError:
+            return ((), version)
+    return (tuple(numbers), version)
+
+
+def _installed_sort_key(runtime: Any) -> tuple[tuple[int, ...], str]:
+    """Return the numeric-first sort key for one installed runtime."""
+    spec = getattr(runtime, "spec", None)
+    version = getattr(spec, "version", None)
+    if version is None:
+        version = getattr(runtime, "version", "")
+    return _version_sort_key(str(version))
+
+
+def _watch_lifetime(page: Any) -> None:
+    """Call ``page._mark_destroyed`` on post-attach root loss.
+
+    GTK 4 exposes no destroy/unroot signal for widgets, so detachment is
+    observed through ``notify::root``; pages never attached (unit tests)
+    never fire the marker. The connection degrades gracefully when the
+    signal is missing.
+    """
+    mark = getattr(page, "_mark_destroyed", None)
+    if not callable(mark):
+        return
+
+    def _on_root(*_args: Any) -> None:
+        try:
+            root = page.get_root()
+        except Exception:
+            return
+        if root is not None:
+            page._ever_rooted = True
+        elif getattr(page, "_ever_rooted", False):
+            mark()
+
+    with contextlib.suppress(Exception):
+        page.connect("notify::root", _on_root)
+
+
 _ProgressReporter = ProgressReporter
 
 
@@ -224,6 +278,8 @@ class GeneralPage(Adw.PreferencesPage):
         self._loading_language = False
         self._loading_update_interval = False
         self._checking_updates = False
+        self._destroyed = False
+        self._ever_rooted = False
         self._folder_dialog: Gtk.FileDialog | None = None
         self._root_rows: list[Adw.ActionRow] = []
         self._roots_group = Adw.PreferencesGroup(title=_("Allowed game roots"))
@@ -279,6 +335,21 @@ class GeneralPage(Adw.PreferencesPage):
         self.refresh_runtime()
         self.refresh_language()
         self.refresh_update_interval()
+        _watch_lifetime(self)
+
+    def _mark_destroyed(self) -> None:
+        """Flag the page as gone so late worker outcomes stay silent."""
+        self._destroyed = True
+
+    def _is_dead(self) -> bool:
+        """Return True after destroy or post-attach detachment."""
+        if getattr(self, "_destroyed", False):
+            return True
+        try:
+            root = self.get_root()
+        except Exception:
+            return False
+        return bool(getattr(self, "_ever_rooted", False)) and root is None
 
     def refresh_roots(self) -> None:
         """Prune missing roots, then render the surviving configured roots."""
@@ -296,57 +367,101 @@ class GeneralPage(Adw.PreferencesPage):
 
     def refresh_nwjs_runtime(self) -> None:
         """Rebuild the preferred NW.js picker from installed NW.js versions."""
-        try:
-            installed = runtime_api.list_nwjs(self._catalog)
-        except Exception as exc:
-            _show_error(self, _("Load Runtimes"), exc)
-            return
-        try:
-            preferred = self._repository.load().preferred_runtime
-        except Exception as exc:
-            _show_error(self, _("Load Settings"), exc)
-            return
-        versions: list[str] = []
-        for runtime in installed:
-            if runtime.spec.version not in versions:
-                versions.append(runtime.spec.version)
-        entries = [_("Undefined"), *versions]
-        if preferred is not None and preferred not in versions:
-            entries.append(preferred)
-        selected = 0 if preferred is None else entries.index(preferred)
-        self._loading_nwjs_runtime = True
-        try:
-            self._nwjs_runtime_row.set_model(Gtk.StringList.new(entries))
-            self._nwjs_runtime_row.set_selected(selected)
-        finally:
-            self._loading_nwjs_runtime = False
+        catalog = self._catalog
+        repository = self._repository
+        failed_step = ["runtimes"]
+
+        def _task() -> tuple[list[str], int]:
+            try:
+                installed = runtime_api.list_nwjs(catalog)
+            except Exception:
+                failed_step[0] = "runtimes"
+                raise
+            try:
+                preferred = repository.load().preferred_runtime
+            except Exception:
+                failed_step[0] = "settings"
+                raise
+            versions: list[str] = []
+            for runtime in installed:
+                if runtime.spec.version not in versions:
+                    versions.append(runtime.spec.version)
+            versions.sort(key=_version_sort_key, reverse=True)
+            entries = [_("Undefined"), *versions]
+            if preferred is not None and preferred not in versions:
+                entries.append(preferred)
+            selected = 0 if preferred is None else entries.index(preferred)
+            return (entries, selected)
+
+        def _done(result: tuple[list[str], int]) -> None:
+            if self._is_dead():
+                return
+            entries, selected = result
+            self._loading_nwjs_runtime = True
+            try:
+                self._nwjs_runtime_row.set_model(Gtk.StringList.new(entries))
+                self._nwjs_runtime_row.set_selected(selected)
+            finally:
+                self._loading_nwjs_runtime = False
+
+        def _fail(error: BaseException) -> None:
+            if self._is_dead():
+                return
+            if failed_step[0] == "settings":
+                _show_error(self, _("Load Settings"), error)
+            else:
+                _show_error(self, _("Load Runtimes"), error)
+
+        _run_in_thread(_task, _done, _fail)
 
     def refresh_easyrpg_runtime(self) -> None:
         """Rebuild the preferred EasyRPG picker from installed versions."""
-        try:
-            installed = runtime_api.list_easyrpg(self._easyrpg_catalog)
-        except Exception as exc:
-            _show_error(self, _("Load Runtimes"), exc)
-            return
-        try:
-            preferred = self._defaults.load().preferred_easyrpg_runtime
-        except Exception as exc:
-            _show_error(self, _("Load Settings"), exc)
-            return
-        versions: list[str] = []
-        for runtime in installed:
-            if runtime.version not in versions:
-                versions.append(runtime.version)
-        entries = [_("Undefined"), *versions]
-        if preferred is not None and preferred not in versions:
-            entries.append(preferred)
-        selected = 0 if preferred is None else entries.index(preferred)
-        self._loading_easyrpg_runtime = True
-        try:
-            self._easyrpg_runtime_row.set_model(Gtk.StringList.new(entries))
-            self._easyrpg_runtime_row.set_selected(selected)
-        finally:
-            self._loading_easyrpg_runtime = False
+        catalog = self._easyrpg_catalog
+        defaults = self._defaults
+        failed_step = ["runtimes"]
+
+        def _task() -> tuple[list[str], int]:
+            try:
+                installed = runtime_api.list_easyrpg(catalog)
+            except Exception:
+                failed_step[0] = "runtimes"
+                raise
+            try:
+                preferred = defaults.load().preferred_easyrpg_runtime
+            except Exception:
+                failed_step[0] = "settings"
+                raise
+            versions: list[str] = []
+            for runtime in installed:
+                if runtime.version not in versions:
+                    versions.append(runtime.version)
+            versions.sort(key=_version_sort_key, reverse=True)
+            entries = [_("Undefined"), *versions]
+            if preferred is not None and preferred not in versions:
+                entries.append(preferred)
+            selected = 0 if preferred is None else entries.index(preferred)
+            return (entries, selected)
+
+        def _done(result: tuple[list[str], int]) -> None:
+            if self._is_dead():
+                return
+            entries, selected = result
+            self._loading_easyrpg_runtime = True
+            try:
+                self._easyrpg_runtime_row.set_model(Gtk.StringList.new(entries))
+                self._easyrpg_runtime_row.set_selected(selected)
+            finally:
+                self._loading_easyrpg_runtime = False
+
+        def _fail(error: BaseException) -> None:
+            if self._is_dead():
+                return
+            if failed_step[0] == "settings":
+                _show_error(self, _("Load Settings"), error)
+            else:
+                _show_error(self, _("Load Runtimes"), error)
+
+        _run_in_thread(_task, _done, _fail)
 
     def refresh_language(self) -> None:
         """Rebuild the language picker from the stored preference."""
@@ -587,6 +702,8 @@ class GeneralPage(Adw.PreferencesPage):
         A missing host callback drops a found update by design: production
         always wires ``on_update_available`` through SettingsDialog.
         """
+        if self._is_dead():
+            return
         self._checking_updates = False
         self._check_updates_button.set_sensitive(True)
         with contextlib.suppress(Exception):
@@ -605,6 +722,8 @@ class GeneralPage(Adw.PreferencesPage):
 
     def _on_check_error(self, error: BaseException) -> None:
         """Show discovery failures with an alert dialog."""
+        if self._is_dead():
+            return
         self._checking_updates = False
         self._check_updates_button.set_sensitive(True)
         _show_error(self, _("Check for Updates"), error)
@@ -620,6 +739,8 @@ class GeneralPage(Adw.PreferencesPage):
     def _on_folder_chosen(self, source: Gtk.FileDialog, result: Gio.AsyncResult) -> None:
         """Store the folder chosen in the async picker callback."""
         self._folder_dialog = None
+        if self._is_dead():
+            return
         try:
             folder = source.select_folder_finish(result)
         except GLib.Error as exc:
@@ -658,7 +779,11 @@ class _RuntimePage(Adw.PreferencesPage):
         self._initial_load_pending = True
         self._scroll_token = 0
         self._status_timeout = 0
+        self._install_status: str | None = None
+        self._destroyed = False
+        self._ever_rooted = False
         self.on_changed: Callable[[], None] | None = None
+        self.on_busy_changed: Callable[[], None] | None = None
         self._installed_rows: list[Adw.ActionRow] = []
         self._browser_rows: list[Adw.ActionRow] = []
         self._installed_group = Adw.PreferencesGroup(title=self._installed_title())
@@ -695,6 +820,7 @@ class _RuntimePage(Adw.PreferencesPage):
         self.add(self._pager_group)
         self._prev_button.connect("clicked", self._on_prev_clicked)
         self._next_button.connect("clicked", self._on_next_clicked)
+        _watch_lifetime(self)
 
     def _installed_title(self) -> str:
         """Return the installed-group title for this engine."""
@@ -750,6 +876,30 @@ class _RuntimePage(Adw.PreferencesPage):
 
     def _set_options_sensitive(self, sensitive: bool) -> None:
         """Toggle engine-specific option widgets (NW.js overrides this)."""
+
+    def _mark_destroyed(self) -> None:
+        """Flag the page as gone and invalidate pending worker outcomes."""
+        self._destroyed = True
+        if self._status_timeout:
+            with contextlib.suppress(Exception):
+                GLib.source_remove(self._status_timeout)
+            self._status_timeout = 0
+        self._request_id += 1
+        self._scroll_token += 1
+        callback = self.on_busy_changed
+        if callback is not None:
+            with contextlib.suppress(Exception):
+                callback()
+
+    def _is_dead(self) -> bool:
+        """Return True after destroy or post-attach detachment."""
+        if getattr(self, "_destroyed", False):
+            return True
+        try:
+            root = self.get_root()
+        except Exception:
+            return False
+        return bool(getattr(self, "_ever_rooted", False)) and root is None
 
     def refresh_installed(self) -> None:
         """Reload installed runtimes on a worker thread."""
@@ -826,7 +976,9 @@ class _RuntimePage(Adw.PreferencesPage):
 
         def _delayed_status() -> bool:
             self._status_timeout = 0
-            if token != self._request_id:
+            if token != self._request_id or self._is_dead():
+                return False
+            if self._busy:
                 return False
             self._pager_group.set_visible(False)
             self._set_status(_("Loading runtimes."))
@@ -845,6 +997,10 @@ class _RuntimePage(Adw.PreferencesPage):
 
     def _on_installed_done(self, runtimes: tuple[RuntimeInfo | EasyRPGRuntime, ...]) -> None:
         """Render installed runtimes on the main loop."""
+        if self._is_dead():
+            return
+        if self._busy:
+            return
         self._spinner.stop()
         initial, self._initial_load_pending = self._initial_load_pending, False
         old_keys = self._installed_keys
@@ -852,7 +1008,7 @@ class _RuntimePage(Adw.PreferencesPage):
         self._installed_keys = new_keys
         scroll = self._captured_scroll()
         self._clear_rows(self._installed_group, self._installed_rows)
-        for runtime in runtimes:
+        for runtime in sorted(runtimes, key=_installed_sort_key, reverse=True):
             row = self._make_installed_row(runtime)
             self._installed_group.add(row)
             self._installed_rows.append(row)
@@ -869,6 +1025,10 @@ class _RuntimePage(Adw.PreferencesPage):
 
     def _on_installed_error(self, error: BaseException) -> None:
         """Show installed-list failures with an alert dialog."""
+        if self._is_dead():
+            return
+        if self._busy:
+            return
         self._spinner.stop()
         self._set_status(_("Loading installed runtimes failed."))
         self._show_error(_("Load Runtimes"), error)
@@ -878,6 +1038,10 @@ class _RuntimePage(Adw.PreferencesPage):
 
     def _on_page_done(self, available: Any) -> None:
         """Render one page of versions on the main loop."""
+        if self._is_dead():
+            return
+        if self._busy:
+            return
         if self._status_timeout:
             GLib.source_remove(self._status_timeout)
             self._status_timeout = 0
@@ -902,11 +1066,13 @@ class _RuntimePage(Adw.PreferencesPage):
         """Restore a captured scroll position on the next main-loop turn."""
         if value is None:
             return
+        if self._is_dead():
+            return
         self._scroll_token += 1
         token = self._scroll_token
 
         def _apply() -> bool:
-            if token != self._scroll_token:
+            if token != self._scroll_token or self._is_dead():
                 return False
             ancestor = self.get_ancestor(Gtk.ScrolledWindow)
             if ancestor is not None:
@@ -918,6 +1084,8 @@ class _RuntimePage(Adw.PreferencesPage):
 
     def _render_browser(self, available: Any) -> None:
         """Filter installed versions and render browser rows with size suffixes."""
+        if self._is_dead():
+            return
         versions: tuple[str, ...] = tuple(available.versions)
         raw_sizes: dict[str, int | None] = dict(getattr(available, "sizes", {}) or {})
         filtered = tuple(
@@ -959,6 +1127,10 @@ class _RuntimePage(Adw.PreferencesPage):
 
     def _on_page_error(self, error: BaseException) -> None:
         """Show version-list failures with an alert dialog."""
+        if self._is_dead():
+            return
+        if self._busy:
+            return
         if self._status_timeout:
             GLib.source_remove(self._status_timeout)
             self._status_timeout = 0
@@ -981,13 +1153,27 @@ class _RuntimePage(Adw.PreferencesPage):
         """Run a no-confirm removal on a worker thread, then refresh the list."""
         if self._busy:
             return
+        self._request_id += 1
+        self._scroll_token += 1
+        if self._status_timeout:
+            with contextlib.suppress(Exception):
+                GLib.source_remove(self._status_timeout)
+            self._status_timeout = 0
         button.set_sensitive(False)
         self._set_busy(True)
         self._set_status(status)
-        _run_in_thread(task, self._on_remove_done, self._on_remove_error)
+        try:
+            _run_in_thread(task, self._on_remove_done, self._on_remove_error)
+        except Exception as exc:
+            button.set_sensitive(True)
+            self._set_busy(False)
+            self._set_status(_("Removal failed."))
+            self._show_error(_("Remove Runtime"), exc)
 
     def _on_remove_done(self, _result: None) -> None:
         """Refresh the installed list after a removal."""
+        if self._is_dead():
+            return
         self._set_busy(False)
         self.refresh_installed()
         if self.on_changed is not None:
@@ -995,6 +1181,8 @@ class _RuntimePage(Adw.PreferencesPage):
 
     def _on_remove_error(self, error: BaseException) -> None:
         """Show removal failures with an alert dialog, then refresh."""
+        if self._is_dead():
+            return
         self._set_busy(False)
         self._set_status(_("Removal failed."))
         self._show_error(_("Remove Runtime"), error)
@@ -1007,27 +1195,56 @@ class _RuntimePage(Adw.PreferencesPage):
         button: Gtk.Button | None = None,
     ) -> None:
         """Install one runtime on a worker thread, spinning inside its button."""
+        if self._busy:
+            return
+        self._request_id += 1
+        self._scroll_token += 1
+        if self._status_timeout:
+            with contextlib.suppress(Exception):
+                GLib.source_remove(self._status_timeout)
+            self._status_timeout = 0
         self._set_status(status)
+        self._install_status = status
         self._set_busy(True)
         if button is not None:
             spinner = Gtk.Spinner()
             spinner.start()
             self._installing = (button, button.get_child())
             button.set_child(spinner)
-            button.set_sensitive(False)
         reporter = _ProgressReporter(self._on_progress)
 
         def _task() -> object:
             return task(reporter)
 
-        _run_in_thread(_task, self._on_install_done, self._on_install_error)
+        try:
+            _run_in_thread(_task, self._on_install_done, self._on_install_error)
+        except Exception as exc:
+            self._restore_install_button()
+            self._install_status = None
+            self._set_busy(False)
+            self._set_status(_("Install failed."))
+            self._show_error(_("Install Runtime"), exc)
 
     def _on_progress(self, completed: int, total: int | None) -> None:
-        """Swallow progress reports; the installing button shows a spinner.
+        """Reflect byte progress in the status label next to the spinners.
 
-        A real reporter must still reach install_* so the backend never
-        falls back to terminal progress output.
+        Text feedback keeps installs legible even where spinner animation
+        never advances. A real reporter must still reach install_* so the
+        backend never falls back to terminal progress output. Late reports
+        landing after completion are ignored via the busy check.
         """
+        if self._is_dead() or not self._busy:
+            return
+        base = self._install_status
+        if base is None:
+            return
+        if total is not None and total > 0:
+            shown = min(completed, total)
+            text = f"{base} ({shown * 100 // total}%)"
+        else:
+            formatted = _format_size_decimal(completed)
+            text = f"{base} ({formatted})" if formatted is not None else base
+        self._set_status(text)
 
     def _restore_install_button(self) -> None:
         """Swap the spinner back out of the installing button, if any."""
@@ -1038,11 +1255,13 @@ class _RuntimePage(Adw.PreferencesPage):
         button, old_child = installing
         if old_child is not None:
             button.set_child(old_child)
-        button.set_sensitive(True)
 
     def _on_install_done(self, _runtime: object) -> None:
         """Refresh the installed list after an install."""
+        if self._is_dead():
+            return
         self._restore_install_button()
+        self._install_status = None
         self._set_busy(False)
         self._set_status(_("Install complete."))
         self.refresh_installed()
@@ -1051,7 +1270,10 @@ class _RuntimePage(Adw.PreferencesPage):
 
     def _on_install_error(self, error: BaseException) -> None:
         """Show install failures with an alert dialog."""
+        if self._is_dead():
+            return
         self._restore_install_button()
+        self._install_status = None
         self._set_busy(False)
         self._set_status(_("Install failed."))
         self._show_error(_("Install Runtime"), error)
@@ -1063,12 +1285,13 @@ class _RuntimePage(Adw.PreferencesPage):
         self._set_options_sensitive(sensitive)
         self._prev_button.set_sensitive(sensitive and self._page > 1)
         self._next_button.set_sensitive(sensitive)
-        self._browser_group.set_sensitive(sensitive)
-        self._installed_group.set_sensitive(sensitive)
         if busy:
             self._spinner.start()
         else:
             self._spinner.stop()
+        callback = self.on_busy_changed
+        if callback is not None:
+            callback()
 
     def _set_status(self, text: str) -> None:
         """Replace the shared status label text (kept out of dialog search)."""
@@ -1252,6 +1475,8 @@ class NwjsPage(_RuntimePage):
         sdk: bool | None = None,
     ) -> None:
         """Confirm an NW.js install with a separate alert dialog."""
+        if self._busy:
+            return
         resolved_arch = self._arch if arch is None else arch
         resolved_sdk = self._sdk if sdk is None else sdk
         dialog = Adw.AlertDialog(
@@ -1394,6 +1619,8 @@ class EasyrpgPage(_RuntimePage):
 
     def request_install(self, version: str, button: Gtk.Button | None = None) -> None:
         """Confirm an EasyRPG install with a separate alert dialog."""
+        if self._busy:
+            return
         dialog = Adw.AlertDialog(
             heading=_("Install Runtime"),
             body=_("Install EasyRPG Player {version} for x64?").format(version=version),
@@ -1616,6 +1843,23 @@ def _cleanup_sizes(
     return sizes
 
 
+def _library_profile_names(library: LibraryRepository | None) -> dict[str, str]:
+    """Map profile IDs to library display names, skipping unknown roots."""
+    if library is None:
+        return {}
+    try:
+        entries = library.load()
+    except LibraryError, OSError:
+        return {}
+    names: dict[str, str] = {}
+    for entry in entries:
+        try:
+            names[game_id(entry.path)] = entry.display_name
+        except OSError:
+            continue
+    return names
+
+
 def _is_full_wipe_available() -> bool:
     """Return True only for AppImage builds carrying an embedded tag."""
     try:
@@ -1678,7 +1922,10 @@ class CleanupPage(Adw.PreferencesPage):
         self._library = library
         self._on_full_wipe = on_full_wipe
         self._busy = False
+        self._destroyed = False
+        self._ever_rooted = False
         self.on_category_changed: Callable[[str], None] | None = None
+        self.on_busy_changed: Callable[[], None] | None = None
         self._groups: dict[str, Adw.PreferencesGroup] = {}
         self._expanders: dict[str, Adw.ExpanderRow] = {}
         self._rows: dict[str, list[Adw.ActionRow]] = {}
@@ -1716,6 +1963,25 @@ class CleanupPage(Adw.PreferencesPage):
         self.add(self._danger_group)
         self._danger_group.set_visible(_is_full_wipe_available())
         self.refresh_all()
+        _watch_lifetime(self)
+
+    def _mark_destroyed(self) -> None:
+        """Flag the page as gone so late worker outcomes stay silent."""
+        self._destroyed = True
+        callback = self.on_busy_changed
+        if callback is not None:
+            with contextlib.suppress(Exception):
+                callback()
+
+    def _is_dead(self) -> bool:
+        """Return True after destroy or post-attach detachment."""
+        if getattr(self, "_destroyed", False):
+            return True
+        try:
+            root = self.get_root()
+        except Exception:
+            return False
+        return bool(getattr(self, "_ever_rooted", False)) and root is None
 
     def refresh_all(self) -> None:
         """Reload every shown category on worker threads."""
@@ -1726,10 +1992,13 @@ class CleanupPage(Adw.PreferencesPage):
         """Reload one category on a worker thread."""
         self._expanders[category].set_title(_("Loading cleanup items …"))
         catalog = self._catalog
+        library = self._library
 
-        def _task() -> tuple[tuple[CleanupItem, ...], dict[str, int | None]]:
+        def _task() -> tuple[tuple[CleanupItem, ...], dict[str, int | None], dict[str, str]]:
             items = catalog.list(category)
-            return items, _cleanup_sizes(items)
+            sizes = _cleanup_sizes(items)
+            names = _library_profile_names(library) if category == "profiles" else {}
+            return items, sizes, names
 
         _run_in_thread(
             _task,
@@ -1755,12 +2024,14 @@ class CleanupPage(Adw.PreferencesPage):
 
     def _make_list_done_handler(
         self, category: str
-    ) -> Callable[[tuple[tuple[CleanupItem, ...], dict[str, int | None]]], None]:
+    ) -> Callable[[tuple[tuple[CleanupItem, ...], dict[str, int | None], dict[str, str]]], None]:
         """Build the list callback capturing its category."""
 
-        def _handler(result: tuple[tuple[CleanupItem, ...], dict[str, int | None]]) -> None:
-            items, sizes = result
-            self._on_list_done(category, items, sizes)
+        def _handler(
+            result: tuple[tuple[CleanupItem, ...], dict[str, int | None], dict[str, str]],
+        ) -> None:
+            items, sizes, game_names = result
+            self._on_list_done(category, items, sizes, game_names)
 
         return _handler
 
@@ -1769,6 +2040,8 @@ class CleanupPage(Adw.PreferencesPage):
         page = self
 
         def _handler(error: BaseException) -> None:
+            if page._is_dead():
+                return
             page._expanders[category].set_title(_("Loading cleanup items failed."))
             page._show_error(_("Load Items"), error)
 
@@ -1776,33 +2049,23 @@ class CleanupPage(Adw.PreferencesPage):
 
     def _profile_game_names(self) -> dict[str, str]:
         """Map profile IDs to library display names, skipping unknown roots."""
-        library = self._library
-        if library is None:
-            return {}
-        try:
-            entries = library.load()
-        except LibraryError, OSError:
-            return {}
-        names: dict[str, str] = {}
-        for entry in entries:
-            try:
-                names[game_id(entry.path)] = entry.display_name
-            except OSError:
-                continue
-        return names
+        return _library_profile_names(self._library)
 
     def _on_list_done(
         self,
         category: str,
         items: tuple[CleanupItem, ...],
         sizes: dict[str, int | None] | None = None,
+        game_names: dict[str, str] | None = None,
     ) -> None:
         """Render one category on the main loop."""
+        if self._is_dead():
+            return
         expander = self._expanders[category]
         rows = self._rows[category]
         self._clear_rows(expander, rows)
         sizes = sizes or {}
-        game_names = self._profile_game_names() if category == "profiles" else {}
+        names = game_names if game_names is not None else {}
         for item in items:
             # Path-valued items (game roots) reuse the General page display:
             # abbreviated path up front, full path in the tooltip. Other
@@ -1810,7 +2073,7 @@ class CleanupPage(Adw.PreferencesPage):
             # escaping, and the empty row title keeps these data rows out
             # of PreferencesDialog search.
             if category == "profiles":
-                shown = game_names.get(item.label, _("Unknown game"))
+                shown = names.get(item.label, _("Unknown game"))
             elif isinstance(item.value, Path) and item.label == str(item.value):
                 shown = abbreviate_display_path(item.value)
             else:
@@ -1882,6 +2145,8 @@ class CleanupPage(Adw.PreferencesPage):
         """Build the removal callback refreshing the item category."""
 
         def _handler(_result: None) -> None:
+            if self._is_dead():
+                return
             self._set_busy(False)
             self.refresh_category(item.category)
             if self.on_category_changed is not None:
@@ -1893,6 +2158,8 @@ class CleanupPage(Adw.PreferencesPage):
         """Build the removal-error callback showing the error then refreshing."""
 
         def _handler(error: BaseException) -> None:
+            if self._is_dead():
+                return
             self._set_busy(False)
             self._expanders[item.category].set_title(_("Removal failed."))
             self._show_error(_("Remove Item"), error)
@@ -2010,6 +2277,8 @@ class CleanupPage(Adw.PreferencesPage):
 
     def _on_full_wipe_done(self, _result: None) -> None:
         """Restore controls and notify the host after a successful wipe."""
+        if self._is_dead():
+            return
         self._set_busy(False)
         with contextlib.suppress(Exception):
             self._danger_button.set_sensitive(True)
@@ -2019,6 +2288,8 @@ class CleanupPage(Adw.PreferencesPage):
 
     def _on_full_wipe_error(self, error: BaseException) -> None:
         """Restore controls and show wipe failures."""
+        if self._is_dead():
+            return
         self._set_busy(False)
         with contextlib.suppress(Exception):
             self._danger_button.set_sensitive(True)
@@ -2032,6 +2303,9 @@ class CleanupPage(Adw.PreferencesPage):
             group.set_sensitive(sensitive)
         self._danger_group.set_sensitive(sensitive)
         self._danger_button.set_sensitive(sensitive)
+        callback = self.on_busy_changed
+        if callback is not None:
+            callback()
 
     def _show_error(self, operation: str, error: BaseException) -> None:
         """Show a single-close error dialog splitting BoxError from unexpected bugs."""
@@ -2043,6 +2317,17 @@ class CleanupPage(Adw.PreferencesPage):
         for row in rows:
             expander.remove(row)
         rows.clear()
+
+
+def _page_is_dead(page: Any) -> bool:
+    """Return True when a page reports itself destroyed, tolerating old pages."""
+    is_dead = getattr(page, "_is_dead", None)
+    if not callable(is_dead):
+        return False
+    try:
+        return bool(is_dead())
+    except Exception:
+        return False
 
 
 class SettingsDialog(Adw.PreferencesDialog):
@@ -2097,10 +2382,19 @@ class SettingsDialog(Adw.PreferencesDialog):
         self._nwjs_page.on_changed = _on_engine_changed
         self._easyrpg_page.on_changed = _on_engine_changed
         self._cleanup_page.on_category_changed = _on_cleanup_category_changed
+        self._nwjs_page.on_busy_changed = self._refresh_can_close
+        self._easyrpg_page.on_busy_changed = self._refresh_can_close
+        self._cleanup_page.on_busy_changed = self._refresh_can_close
+        self._page_lock_guard = False
         self.add(self._general_page)
         self.add(self._nwjs_page)
         self.add(self._easyrpg_page)
         self.add(self._cleanup_page)
+        with contextlib.suppress(Exception):
+            self.connect("close-attempt", self._on_close_attempt)
+        with contextlib.suppress(Exception):
+            self.connect("notify::visible-page", self._on_visible_page_changed)
+        self._refresh_can_close()
 
     @property
     def pages(self) -> tuple[Adw.PreferencesPage, ...]:
@@ -2111,6 +2405,76 @@ class SettingsDialog(Adw.PreferencesDialog):
             self._easyrpg_page,
             self._cleanup_page,
         )
+
+    def _refresh_can_close(self) -> None:
+        """Block dialog close while any live page runs a background task.
+
+        libadwaita vetoes close through ``can-close`` (``close-attempt``
+        only notifies), so busy pages drive the property here instead of
+        each page reaching into the dialog. Dead pages are skipped for
+        the same reason as in :meth:`_busy_engine_page`.
+        """
+        try:
+            busy = any(
+                bool(getattr(page, "_busy", False)) and not _page_is_dead(page)
+                for page in self.pages
+            )
+        except Exception:
+            return
+        setter = getattr(self, "set_can_close", None)
+        if callable(setter):
+            with contextlib.suppress(Exception):
+                setter(not busy)
+
+    def _on_close_attempt(self, _dialog: Adw.Dialog) -> None:
+        """Re-sync the close veto when a close is attempted while blocked."""
+        self._refresh_can_close()
+
+    def _busy_engine_page(self) -> Adw.PreferencesPage | None:
+        """Return the first live busy engine page, if any, in dialog order.
+
+        Dead pages keep their internal busy flag by design (their late
+        completions must not touch destroyed widgets), so the dialog
+        layer filters them out instead: navigation and close veto must
+        never pin onto a detached page.
+        """
+        for page in (self._nwjs_page, self._easyrpg_page):
+            try:
+                if not bool(getattr(page, "_busy", False)):
+                    continue
+                if _page_is_dead(page):
+                    continue
+                return page
+            except Exception:
+                continue
+        return None
+
+    def _on_visible_page_changed(self, _dialog: object, _pspec: object) -> None:
+        """Keep the user on a busy engine page until its task finishes.
+
+        Switching to General/Data mid-install would hide the only live
+        progress feedback, so the dialog pulls navigation back to the busy
+        engine page. The guard flag absorbs the re-entrant notification
+        from the corrective switch itself.
+        """
+        if self._page_lock_guard:
+            return
+        busy_page = self._busy_engine_page()
+        if busy_page is None:
+            return
+        try:
+            current = self.get_visible_page()
+        except Exception:
+            return
+        if current is None or current is busy_page:
+            return
+        self._page_lock_guard = True
+        try:
+            self.set_visible_page(busy_page)
+        except Exception:
+            pass
+        finally:
+            self._page_lock_guard = False
 
 
 def _category_title(category: str) -> str:
