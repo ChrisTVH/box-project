@@ -216,6 +216,8 @@ def _make_general(
         root.mkdir(parents=True, exist_ok=True)
         repository.add_allowed_root(root)
     page: Any = GeneralPage(paths, repository, interaction, on_language_changed=on_language_changed)
+    _pump()
+    _pump()
     return page, paths, repository
 
 
@@ -451,6 +453,8 @@ def test_general_stale_preferred_runtime_stays_selectable(tmp_path: Path, monkey
     repository = ConfigRepository(paths)
     repository.set_preferred_runtime("9.9.9")
     page: Any = GeneralPage(paths, repository, None)
+    _pump()
+    _pump()
 
     assert _combo_entries(page._nwjs_runtime_row) == ["Undefined", "9.9.9"]
     assert page._nwjs_runtime_row.get_selected() == 1
@@ -488,8 +492,12 @@ def test_general_stale_easyrpg_preferred_runtime_stays_selectable(
     paths = _make_paths(tmp_path)
     repository = ConfigRepository(paths)
     page: Any = GeneralPage(paths, repository, None)
+    _pump()
+    _pump()
     page._defaults.set_preferred_easyrpg_runtime("0.7.7")
     page.refresh_easyrpg_runtime()
+    _pump()
+    _pump()
 
     assert _combo_entries(page._easyrpg_runtime_row) == ["Undefined", "0.7.7"]
     assert page._easyrpg_runtime_row.get_selected() == 1
@@ -1051,7 +1059,8 @@ def test_cleanup_profiles_show_matching_game_names(
     page._library = library
     gid = game_id(root)
     item = CleanupItem("profiles", gid, gid, tmp_path / gid)
-    page._on_list_done("profiles", (item,))
+    game_names = page._profile_game_names()
+    page._on_list_done("profiles", (item,), {}, game_names)
 
     assert len(page._rows["profiles"]) == 1
     assert _row_texts(page._rows["profiles"][0]) == ["Sample Game", gid]
@@ -1272,7 +1281,7 @@ def test_install_button_spins_until_done(monkeypatch: pytest.MonkeyPatch, tmp_pa
     assert button.get_child().get_label() == "Install"
     nwjs_page._install("9.9.9", "x64", False, button)
     assert isinstance(button.get_child(), Gtk.Spinner)
-    assert button.get_sensitive() is False
+    assert button.get_sensitive() is True
     gate.set()
     _pump()
     _pump()
@@ -1389,7 +1398,7 @@ def test_nwjs_remove_refreshes_installed(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
 
 def test_runtime_busy_guard(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """A busy page ignores remove clicks and disables its controls."""
+    """A busy page ignores remove clicks, keeping lists alive while paging locks."""
     nwjs_page, _easyrpg_page, seen = _make_runtime(monkeypatch, tmp_path)
     presented: list[Any] = []
     monkeypatch.setattr(
@@ -1401,8 +1410,10 @@ def test_runtime_busy_guard(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
         assert nwjs_page._busy is True
         assert nwjs_page._prev_button.get_sensitive() is False
         assert nwjs_page._next_button.get_sensitive() is False
-        assert nwjs_page._installed_group.get_sensitive() is False
-        assert nwjs_page._browser_group.get_sensitive() is False
+        assert nwjs_page._installed_group.get_sensitive() is True
+        assert nwjs_page._browser_group.get_sensitive() is True
+        assert nwjs_page._arch_selector.get_sensitive() is False
+        assert nwjs_page._sdk_toggle.get_sensitive() is False
         nwjs_page._make_remove_handler("1.0.0", "x64", False)(Gtk.Button(label="x"))
         _pump(200)
     finally:
@@ -1411,6 +1422,27 @@ def test_runtime_busy_guard(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     assert presented == []
     assert seen["remove_nwjs"] == []
     assert nwjs_page._next_button.get_sensitive() is True
+
+
+def test_busy_page_ignores_install_requests(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A busy page opens no confirm dialog, so installs cannot stack."""
+    nwjs_page, easyrpg_page, _seen = _make_runtime(monkeypatch, tmp_path)
+    presented: list[Any] = []
+    monkeypatch.setattr(
+        Adw.AlertDialog, "present", lambda dialog, parent=None: presented.append(dialog)
+    )
+
+    nwjs_page._set_busy(True)
+    easyrpg_page._set_busy(True)
+    try:
+        nwjs_page.request_install("v0.115.0", Gtk.Button(label="x"))
+        easyrpg_page.request_install("0.8", Gtk.Button(label="x"))
+        _pump(200)
+    finally:
+        nwjs_page._set_busy(False)
+        easyrpg_page._set_busy(False)
+
+    assert presented == []
 
 
 def test_runtime_error_heading_split(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -2693,6 +2725,110 @@ def test_begin_install_surfaces_status(monkeypatch: pytest.MonkeyPatch, tmp_path
     _pump()
 
 
+def test_install_progress_updates_status_text(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Byte progress appends a percent without touching the spinner wiring."""
+    page, _state = _make_nwjs_browser(monkeypatch, tmp_path, available=("1.0.0",))
+    status = "Installing NW.js 1.0.0 …"
+
+    page._begin_install(status, lambda reporter: object())
+    page._on_progress(95_000_000, 190_000_000)
+
+    assert page._status_label.get_text() == f"{status} (50%)"
+    page._on_progress(1_000_000, None)
+    assert page._status_label.get_text().startswith(f"{status} (")
+
+
+def test_late_progress_after_done_keeps_complete_text(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A trailing progress report never clobbers the completion status."""
+    page, _state = _make_nwjs_browser(monkeypatch, tmp_path, available=("1.0.0",))
+    page._begin_install("Installing NW.js 1.0.0 …", lambda reporter: object())
+    page._on_install_done(object())
+
+    landed = page._status_label.get_text()
+    page._on_progress(190_000_000, 190_000_000)
+
+    assert page._status_label.get_text() == landed
+
+
+def test_second_begin_install_while_busy_is_ignored(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A second install start while busy leaves the first button spinner alone."""
+    page, _state = _make_nwjs_browser(monkeypatch, tmp_path, available=("1.0.0", "0.9.0"))
+    first_button = _suffix_widgets(page._browser_rows[0], Gtk.Button)[0]
+    second_button = _suffix_widgets(page._browser_rows[1], Gtk.Button)[0]
+    first_status = "Installing NW.js 1.0.0 …"
+
+    page._begin_install(first_status, lambda reporter: object(), first_button)
+    installing_before = page._installing
+
+    assert page._busy is True
+    assert installing_before is not None
+    assert installing_before[0] is first_button
+
+    page._begin_install("Installing NW.js 0.9.0 …", lambda reporter: object(), second_button)
+
+    assert page._installing is installing_before
+    assert page._status_label.get_text() == first_status
+    _pump()
+    _pump()
+
+
+def test_stale_page_done_while_busy_keeps_spinner_and_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A stale list completion mid-install never stops the spinner or status."""
+    page, _state = _make_nwjs_browser(monkeypatch, tmp_path, available=("1.0.0",))
+    status = "Installing NW.js 1.0.0 …"
+    rows_before = list(page._browser_rows)
+    versions_before = page._versions
+
+    page._begin_install(status, lambda reporter: object())
+
+    assert page._busy is True
+    page._on_page_done(_available_nwjs_for_test(1, ("9.9.9",), None))
+
+    assert page._busy is True
+    assert page._status_label.get_text() == status
+    assert list(page._browser_rows) == rows_before
+    assert page._versions == versions_before
+    spinner = page._spinner
+    getter = getattr(spinner, "get_spinning", None)
+    if callable(getter):
+        assert getter() is True
+    _pump()
+    _pump()
+
+
+def test_general_runtime_refresh_lands_picker_entries(tmp_path: Path, monkeypatch: Any) -> None:
+    """Async GeneralPage refresh still lands NW.js and EasyRPG picker entries."""
+    page, _paths, _repository = _make_general(
+        monkeypatch,
+        tmp_path,
+        installed_versions=("1.0.0",),
+        easyrpg_versions=("0.8.0",),
+    )
+
+    assert _combo_entries(page._nwjs_runtime_row) == ["Undefined", "1.0.0"]
+    assert _combo_entries(page._easyrpg_runtime_row) == ["Undefined", "0.8.0"]
+
+    updated = (
+        RuntimeInfo(
+            RuntimeSpec(version="2.0.0", architecture="x64", sdk=False),
+            tmp_path / "rt-2.0.0",
+            tmp_path / "rt-2.0.0" / "nw",
+        ),
+    )
+    monkeypatch.setattr(runtime_module, "list_nwjs", lambda catalog: updated)
+    page.refresh_nwjs_runtime()
+    _pump()
+    _pump()
+
+    assert _combo_entries(page._nwjs_runtime_row) == ["Undefined", "2.0.0"]
+
+
 def test_pager_click_blocks_buttons_without_hiding_pager(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -2903,3 +3039,244 @@ def test_installed_group_shown_with_runtimes(
 
     assert len(page._installed_rows) == 1
     assert page._installed_group.get_visible() is True
+
+
+def test_general_nwjs_picker_sorts_numerically_newest_first(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The NW.js picker orders numerically so v0.116.0 beats v0.82.0."""
+    page, _paths, _repository = _make_general(
+        monkeypatch, tmp_path, installed_versions=("v0.82.0", "v0.117.0", "v0.116.0")
+    )
+
+    assert _combo_entries(page._nwjs_runtime_row) == [
+        "Undefined",
+        "v0.117.0",
+        "v0.116.0",
+        "v0.82.0",
+    ]
+
+
+def test_general_easyrpg_picker_sorts_numerically_newest_first(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The EasyRPG picker orders numerically so 0.8.10 beats 0.8.9."""
+    page, _paths, _repository = _make_general(
+        monkeypatch, tmp_path, easyrpg_versions=("0.8.0", "0.8.10", "0.8.9")
+    )
+
+    assert _combo_entries(page._easyrpg_runtime_row) == [
+        "Undefined",
+        "0.8.10",
+        "0.8.9",
+        "0.8.0",
+    ]
+
+
+def test_nwjs_installed_rows_render_newest_first(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Installed NW.js rows render numeric newest-first, not backend order."""
+    installed = tuple(
+        RuntimeInfo(
+            RuntimeSpec(version=version, architecture="x64", sdk=False),
+            tmp_path / f"rt-{version}",
+            tmp_path / f"rt-{version}" / "nw",
+        )
+        for version in ("v0.82.0", "v0.117.0", "v0.116.0")
+    )
+    page, _state = _make_nwjs_browser(monkeypatch, tmp_path, available=(), installed=installed)
+
+    assert [_row_texts(row)[0] for row in page._installed_rows] == [
+        "v0.117.0",
+        "v0.116.0",
+        "v0.82.0",
+    ]
+
+
+def test_easyrpg_installed_rows_render_newest_first(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Installed EasyRPG rows render numeric newest-first, not backend order."""
+    installed = tuple(
+        EasyRPGRuntime(version, tmp_path / f"easy-{version}")
+        for version in ("0.8.0", "0.8.10", "0.8.9")
+    )
+    page, _state = _make_easyrpg_browser(monkeypatch, tmp_path, available=(), installed=installed)
+
+    assert [_row_texts(row)[0] for row in page._installed_rows] == [
+        "0.8.10",
+        "0.8.9",
+        "0.8.0",
+    ]
+
+
+def test_destroyed_page_ignores_late_completions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Worker outcomes landing after destroy touch no widgets and show nothing."""
+    page, _state = _make_nwjs_browser(monkeypatch, tmp_path, available=("1.0.0",))
+    shown = _capture_alert_dialogs(monkeypatch)
+    rows_before = list(page._browser_rows)
+    request_before = page._request_id
+    page._busy = True
+    page._mark_destroyed()
+
+    assert page._is_dead() is True
+    assert page._status_timeout == 0
+    assert page._request_id == request_before + 1
+    page._on_install_done(object())
+    page._on_install_error(ValueError("late"))
+    page._on_installed_done(())
+    page._on_installed_error(ValueError("late"))
+    page._on_page_done(_available_nwjs_for_test(1, ("9.9.9",), None))
+    page._on_page_error(ValueError("late"))
+    page._on_remove_done(None)
+    page._on_remove_error(ValueError("late"))
+    _pump()
+
+    assert shown == []
+    assert list(page._browser_rows) == rows_before
+    assert page._busy is True
+
+
+def test_destroyed_page_skips_scroll_restore(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A dead page schedules no scroll restore against detached widgets."""
+    page, _state = _make_nwjs_browser(monkeypatch, tmp_path, available=("1.0.0",))
+    calls: list[bool] = []
+    monkeypatch.setattr(page, "get_ancestor", lambda _ancestor_type: calls.append(True))
+    page._mark_destroyed()
+
+    page._restore_scroll(10.0)
+    _pump()
+
+    assert calls == []
+
+
+def test_dialog_blocks_close_while_page_busy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The dialog refuses close while any page works, then allows it again."""
+    dialog: Any = _make_dialog_for_cross_refresh(monkeypatch, tmp_path)
+
+    assert dialog.get_can_close() is True
+    dialog._nwjs_page._set_busy(True)
+    assert dialog.get_can_close() is False
+    dialog._easyrpg_page._set_busy(True)
+    dialog._nwjs_page._set_busy(False)
+    assert dialog.get_can_close() is False
+    dialog._easyrpg_page._set_busy(False)
+    assert dialog.get_can_close() is True
+    dialog._cleanup_page._set_busy(True)
+    assert dialog.get_can_close() is False
+    dialog._cleanup_page._set_busy(False)
+    assert dialog.get_can_close() is True
+
+
+def test_dialog_keeps_busy_engine_page_visible(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Navigation pulls back to a busy engine page until its task finishes."""
+    dialog: Any = _make_dialog_for_cross_refresh(monkeypatch, tmp_path)
+
+    dialog.set_visible_page(dialog._general_page)
+    _pump()
+    assert dialog.get_visible_page() is dialog._general_page
+
+    dialog._nwjs_page._set_busy(True)
+    dialog.set_visible_page(dialog._nwjs_page)
+    _pump()
+    assert dialog.get_visible_page() is dialog._nwjs_page
+    dialog.set_visible_page(dialog._general_page)
+    _pump()
+    assert dialog.get_visible_page() is dialog._nwjs_page
+    dialog._nwjs_page._set_busy(False)
+    dialog.set_visible_page(dialog._general_page)
+    _pump()
+    assert dialog.get_visible_page() is dialog._general_page
+
+
+def test_dialog_prefers_first_busy_engine_page(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Two busy engine pages lock navigation onto the first one in order."""
+    dialog: Any = _make_dialog_for_cross_refresh(monkeypatch, tmp_path)
+
+    dialog._nwjs_page._set_busy(True)
+    dialog._easyrpg_page._set_busy(True)
+    dialog.set_visible_page(dialog._easyrpg_page)
+    _pump()
+    assert dialog.get_visible_page() is dialog._nwjs_page
+    dialog._nwjs_page._set_busy(False)
+    dialog.set_visible_page(dialog._easyrpg_page)
+    _pump()
+    assert dialog.get_visible_page() is dialog._easyrpg_page
+    dialog._easyrpg_page._set_busy(False)
+
+
+def test_dead_busy_engine_page_releases_lock_and_veto(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A destroyed busy page no longer pins navigation or close."""
+    dialog: Any = _make_dialog_for_cross_refresh(monkeypatch, tmp_path)
+
+    dialog._nwjs_page._set_busy(True)
+    assert dialog.get_can_close() is False
+    dialog._nwjs_page._mark_destroyed()
+
+    assert dialog._busy_engine_page() is None
+    assert dialog.get_can_close() is True
+    dialog.set_visible_page(dialog._general_page)
+    _pump()
+    assert dialog.get_visible_page() is dialog._general_page
+
+
+def test_begin_install_spawn_failure_restores_button(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A worker spawn failure unbusies and swaps the spinner back out."""
+    nwjs_page, _easyrpg_page, _seen = _make_runtime(monkeypatch, tmp_path)
+    presented: list[Any] = []
+    monkeypatch.setattr(
+        Adw.AlertDialog, "present", lambda dialog, parent=None: presented.append(dialog)
+    )
+
+    def _boom(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("no threads")
+
+    monkeypatch.setattr(settings_module, "_run_in_thread", _boom)
+    button = Gtk.Button(label="Install")
+
+    nwjs_page._begin_install("Installing NW.js 1.0.0 …", lambda reporter: object(), button)
+
+    assert nwjs_page._busy is False
+    assert nwjs_page._installing is None
+    assert nwjs_page._install_status is None
+    child = button.get_child()
+    assert child is not None and not isinstance(child, Gtk.Spinner)
+    assert presented != []
+
+
+def test_begin_remove_spawn_failure_resensitizes_button(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A worker spawn failure unbusies and re-enables the remove button."""
+    nwjs_page, _easyrpg_page, _seen = _make_runtime(monkeypatch, tmp_path)
+    presented: list[Any] = []
+    monkeypatch.setattr(
+        Adw.AlertDialog, "present", lambda dialog, parent=None: presented.append(dialog)
+    )
+
+    def _boom(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("no threads")
+
+    monkeypatch.setattr(settings_module, "_run_in_thread", _boom)
+    button = Gtk.Button(label="Remove")
+
+    nwjs_page._begin_remove(button, "Removing …", lambda: None)
+
+    assert nwjs_page._busy is False
+    assert button.get_sensitive() is True
+    assert presented != []
