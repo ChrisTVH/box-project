@@ -1,6 +1,7 @@
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from http.client import BadStatusLine, HTTPException
 from io import StringIO
 from pathlib import Path
 from urllib.request import Request
@@ -365,3 +366,51 @@ def test_partial_descriptor_owner_is_checked_before_truncation(
     with pytest.raises(RuntimeError, match="unsafe download"):
         download_archive("https://dl.nwjs.io/archive", tmp_path / "runtime.tar.gz")
     assert partial.read_bytes() == b"preserved"
+
+
+def test_download_retries_http_exception_then_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "runtime.tar.gz"
+    calls = 0
+
+    def open_request(_: Request, timeout: float, allowed_hosts: frozenset[str]) -> FakeResponse:
+        nonlocal calls
+        calls += 1
+        if calls <= 2:
+            raise BadStatusLine("bad status line")
+        return FakeResponse(200, {"Content-Length": "4"}, [b"NEW!"])
+
+    def no_sleep(_: int) -> None:
+        return None
+
+    monkeypatch.setattr("box.runtime.downloader.open_official", open_request)
+    monkeypatch.setattr("box.runtime.downloader.time.sleep", no_sleep)
+
+    download_archive("https://dl.nwjs.io/v0.90.0/runtime.tar.gz", destination)
+
+    assert destination.read_bytes() == b"NEW!"
+    assert calls == 3
+
+
+def test_http_exception_exhaustion_reports_four_attempts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "runtime.tar.gz"
+    calls = 0
+
+    def failing_request(_: Request, timeout: float, allowed_hosts: frozenset[str]) -> FakeResponse:
+        nonlocal calls
+        calls += 1
+        raise HTTPException("connection lost")
+
+    def no_sleep(_: int) -> None:
+        return None
+
+    monkeypatch.setattr("box.runtime.downloader.open_official", failing_request)
+    monkeypatch.setattr("box.runtime.downloader.time.sleep", no_sleep)
+
+    with pytest.raises(RuntimeError, match="after 4 attempts"):
+        download_archive("https://dl.nwjs.io/v0.90.0/runtime.tar.gz", destination)
+
+    assert calls == 4
