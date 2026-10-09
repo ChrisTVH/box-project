@@ -131,6 +131,7 @@ def _install_fake_launch_workers(
         x11: bool = False,
         gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
     ) -> None:
         launch_calls.append(
             {
@@ -146,6 +147,7 @@ def _install_fake_launch_workers(
                 "x11": x11,
                 "gamemode": gamemode,
                 "ci_mount": ci_mount,
+                "devtools": devtools,
             }
         )
         if launch_error is not None:

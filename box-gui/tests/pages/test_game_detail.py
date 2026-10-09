@@ -456,6 +456,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
         x11: bool = False,
         gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
         interaction: Any = None,
     ) -> int:
         calls.update(
@@ -468,6 +469,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
                 "x11": x11,
                 "gamemode": gamemode,
                 "ci_mount": ci_mount,
+                "devtools": devtools,
                 "interaction": interaction,
             }
         )
@@ -489,6 +491,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
         x11: bool = False,
         gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
     ) -> Any:
         try:
             code = _fake_launch(
@@ -503,6 +506,7 @@ def test_launch_uses_persisted_permissions(monkeypatch: pytest.MonkeyPatch, tmp_
                 x11=x11,
                 gamemode=gamemode,
                 ci_mount=ci_mount,
+                devtools=devtools,
                 interaction=interaction,
             )
         except BaseException as exc:
@@ -657,6 +661,7 @@ def _capture_launch_version(monkeypatch: pytest.MonkeyPatch, page: Any) -> dict[
         x11: bool = False,
         gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
     ) -> Any:
         calls.update(
             {
@@ -665,6 +670,7 @@ def _capture_launch_version(monkeypatch: pytest.MonkeyPatch, page: Any) -> dict[
                 "copy_root_files": copy_root_files,
                 "gamemode": gamemode,
                 "ci_mount": ci_mount,
+                "devtools": devtools,
             }
         )
         on_done(0)
@@ -2268,3 +2274,175 @@ def test_detail_refresh_tolerates_library_failure(
     page.refresh()
 
     assert inspects != []
+
+
+def test_devtools_toggle_persists_and_reaches_launch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The DevTools switch stores the entry flag and forwards it on launch."""
+    page, library, _entry = _make_page(monkeypatch, tmp_path)
+
+    assert page._devtools_row.get_title() == "DevTools"
+    assert (
+        page._devtools_row.get_subtitle()
+        == "Open developer tools in a separate window when available."
+    )
+    assert page._devtools_row.get_visible() is True
+    assert page._devtools_row.get_active() is False
+
+    page._devtools_row.set_active(True)
+
+    assert library.load()[0].use_devtools is True
+    assert page._entry.use_devtools is True
+
+    calls = _capture_launch_version(monkeypatch, page)
+    page._on_launch_clicked(page._launch_button)
+
+    assert calls["devtools"] is True
+
+
+def test_devtools_init_from_entry(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Reopening the page reflects the persisted DevTools choice."""
+    from box_gui.pages.game_detail_page import GameDetailPage
+
+    page, library, entry = _make_page(monkeypatch, tmp_path)
+    stored = library.update(replace(entry, use_devtools=True))
+    reopened = GameDetailPage(
+        entry=stored,
+        paths=page._paths,
+        repository=page._repository,
+        library=library,
+    )
+
+    assert reopened._devtools_row.get_active() is True
+
+
+def test_devtools_easyrpg_hidden_and_forces_false(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """EasyRPG games hide DevTools and never forward the flag."""
+    page, library, entry = _make_page(
+        monkeypatch,
+        tmp_path,
+        lambda path: _make_inspection(path, EngineName.RPG_MAKER_2000_2003),
+    )
+
+    assert page._devtools_row.get_visible() is False
+
+    page._entry = library.update(replace(entry, use_devtools=True))
+    calls = _capture_launch_version(monkeypatch, page)
+    page._on_launch_clicked(page._launch_button)
+
+    assert calls["devtools"] is False
+
+
+def test_nwjs_runtime_versions_sort_newest_first(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """NW.js versions order numerically, so 0.117 beats 0.82."""
+    page, _library, _entry = _make_page(monkeypatch, tmp_path)
+
+    def _fake_list(self: Any) -> Any:
+        return tuple(
+            RuntimeInfo(RuntimeSpec(version, "x64"), tmp_path, tmp_path / "nw")
+            for version in ("0.82.0", "bogus", "0.117.0", "0.116.0", "0.117.0")
+        )
+
+    monkeypatch.setattr(RuntimeCatalog, "list", _fake_list)
+
+    versions = page._runtime_versions(EngineName.RPG_MAKER_MV)
+
+    assert versions == ("0.117.0", "0.116.0", "0.82.0", "bogus")
+
+
+def test_workers_devtools_old_backend_rejects_requested(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A requested DevTools fails closed on backends without the keyword."""
+    from box.errors import LaunchError
+
+    from box_gui.gtk import workers as real_workers
+
+    def _old_launch(
+        paths: Any,
+        repository: Any,
+        game_path: Any,
+        *,
+        version: Any = None,
+        sdk: Any = False,
+        copy_root_files: Any = (),
+        allow_network: Any = False,
+        allow_game_writes: Any = False,
+        x11: Any = False,
+        interaction: Any = None,
+    ) -> Any:
+        raise AssertionError("must not launch without the requested flag")
+
+    monkeypatch.setattr(real_workers, "launch", _old_launch)
+
+    with pytest.raises(LaunchError):
+        real_workers._launch_with_gamemode(
+            None,
+            None,
+            Path("/game"),
+            None,
+            version=None,
+            sdk=False,
+            copy_root_files=(),
+            allow_network=False,
+            allow_game_writes=False,
+            x11=False,
+            gamemode=False,
+            ci_mount=False,
+            devtools=True,
+        )
+
+
+def test_workers_devtools_new_backend_forwards_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Backends with the devtools keyword receive the requested value."""
+    from box_gui.gtk import workers as real_workers
+
+    seen: dict[str, Any] = {}
+
+    def _new_launch(
+        paths: Any,
+        repository: Any,
+        game_path: Any,
+        *,
+        version: Any = None,
+        sdk: Any = False,
+        copy_root_files: Any = (),
+        allow_network: Any = False,
+        allow_game_writes: Any = False,
+        x11: Any = False,
+        use_gamemode: Any = False,
+        ci_mount: Any = False,
+        devtools: Any = False,
+        interaction: Any = None,
+    ) -> Any:
+        seen["devtools"] = devtools
+        return 0
+
+    monkeypatch.setattr(real_workers, "launch", _new_launch)
+
+    assert (
+        real_workers._launch_with_gamemode(
+            None,
+            None,
+            Path("/game"),
+            None,
+            version=None,
+            sdk=False,
+            copy_root_files=(),
+            allow_network=False,
+            allow_game_writes=False,
+            x11=False,
+            gamemode=False,
+            ci_mount=False,
+            devtools=True,
+        )
+        == 0
+    )
+    assert seen == {"devtools": True}

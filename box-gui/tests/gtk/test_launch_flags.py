@@ -20,6 +20,7 @@ def _call(
     *,
     gamemode: bool = False,
     ci_mount: bool = False,
+    devtools: bool = False,
 ) -> Any:
     """Invoke the helper with a stubbed backend launch."""
     monkeypatch.setattr(workers, "launch", fake_launch)
@@ -36,11 +37,12 @@ def _call(
         x11=False,
         gamemode=gamemode,
         ci_mount=ci_mount,
+        devtools=devtools,
     )
 
 
 def test_old_backend_without_flags_launches_plainly(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Backends predating both flags launch without extra keywords."""
+    """Backends predating all flags launch without extra keywords."""
     seen: dict[str, Any] = {}
 
     def _old_launch(*args: Any, **kwargs: Any) -> Any:
@@ -50,6 +52,7 @@ def test_old_backend_without_flags_launches_plainly(monkeypatch: pytest.MonkeyPa
     assert _call(monkeypatch, _old_launch) == 0
     assert "use_gamemode" not in seen
     assert "ci_mount" not in seen
+    assert "devtools" not in seen
 
 
 def test_old_backend_rejects_requested_ci_mount(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -96,8 +99,30 @@ def test_old_backend_rejects_requested_gamemode(monkeypatch: pytest.MonkeyPatch)
         _call(monkeypatch, _old_launch, gamemode=True)
 
 
-def test_new_backend_forwards_both_flags(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Backends with both keywords receive both requested values."""
+def test_old_backend_rejects_requested_devtools(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Requested DevTools fail closed instead of launching without them."""
+
+    def _old_launch(
+        paths: Any,
+        repository: Any,
+        game_path: Any,
+        *,
+        version: Any = None,
+        sdk: Any = False,
+        copy_root_files: Any = (),
+        allow_network: Any = False,
+        allow_game_writes: Any = False,
+        x11: Any = False,
+        interaction: Any = None,
+    ) -> Any:
+        raise AssertionError("must not launch without the requested flag")
+
+    with pytest.raises(LaunchError):
+        _call(monkeypatch, _old_launch, devtools=True)
+
+
+def test_new_backend_forwards_all_flags(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Backends with all keywords receive every requested value."""
     seen: dict[str, Any] = {}
 
     def _new_launch(
@@ -113,11 +138,13 @@ def test_new_backend_forwards_both_flags(monkeypatch: pytest.MonkeyPatch) -> Non
         x11: Any = False,
         use_gamemode: Any = False,
         ci_mount: Any = False,
+        devtools: Any = False,
         interaction: Any = None,
     ) -> Any:
         seen["use_gamemode"] = use_gamemode
         seen["ci_mount"] = ci_mount
+        seen["devtools"] = devtools
         return 0
 
-    assert _call(monkeypatch, _new_launch, gamemode=True, ci_mount=True) == 0
-    assert seen == {"use_gamemode": True, "ci_mount": True}
+    assert _call(monkeypatch, _new_launch, gamemode=True, ci_mount=True, devtools=True) == 0
+    assert seen == {"use_gamemode": True, "ci_mount": True, "devtools": True}
