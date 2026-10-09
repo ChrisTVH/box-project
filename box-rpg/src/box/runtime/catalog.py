@@ -37,7 +37,7 @@ class RuntimeCatalog:
         self._paths = paths
 
     def list(self) -> tuple[RuntimeInfo, ...]:
-        """Return valid local runtimes ordered by platform and version directory."""
+        """Return valid local runtimes grouped by platform, newest versions first."""
         runtimes: list[RuntimeInfo] = []
         for runtime in self.list_managed():
             try:
@@ -60,6 +60,7 @@ class RuntimeCatalog:
             architecture = _platform_architecture(platform_directory)
             if architecture is None:
                 continue
+            platform_runtimes: list[ManagedRuntime] = []
             for runtime_directory in sorted(
                 path
                 for path in platform_directory.iterdir()
@@ -72,7 +73,11 @@ class RuntimeCatalog:
                     root = self._validate_managed_runtime(runtime)
                 except ConfigurationError:
                     continue
-                runtimes.append(ManagedRuntime(runtime.spec, root))
+                platform_runtimes.append(ManagedRuntime(runtime.spec, root))
+            platform_runtimes.sort(
+                key=lambda runtime: _version_key(runtime.spec.version), reverse=True
+            )
+            runtimes.extend(platform_runtimes)
         return tuple(runtimes)
 
     def get(self, version: str, architecture: str, sdk: bool = False) -> RuntimeInfo:
@@ -161,6 +166,12 @@ def _managed_runtime(directory: Path, architecture: str) -> ManagedRuntime | Non
         return ManagedRuntime(spec, directory)
     except RuntimeError:
         return None
+
+
+def _version_key(version: str) -> tuple[int, int, int]:
+    """Return the numeric core used for newest-first version ordering."""
+    numbers = version.removeprefix("v").split("-", maxsplit=1)[0].split(".")
+    return int(numbers[0]), int(numbers[1]), int(numbers[2])
 
 
 def _open_runtime_platform(paths: AppPaths, architecture: str) -> int:
