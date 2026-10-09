@@ -54,7 +54,7 @@ The `+` button on the library opens a `Gtk.FileDialog` folder picker, runs `run_
 Extra frontend data lives under `~/.config/box-rpg/` without touching the CLI. `AppPaths.config_root` is public through `box.api`, so `box_gui` manages its own file there.
 
 - File: `paths.config_root / "library.json"`. JSON, not TOML: this file is app-managed, not hand-edited like `config.toml`, and `json` needs no new dependency.
-- Schema version 6 with entries holding `path`, `display_name`, `order`, `preferred_runtime`, `preferred_sdk`, `copy_root_files`, `engine`, `allow_network`, `allow_game_writes`, `allow_x11`, `use_gamemode`, `use_ci_mount`, `icon_path`, and `missing_streak`. `order` is an explicit integer, not array position. `load()` returns entries sorted by `order`. A missing file yields an empty tuple. A corrupt file raises `LibraryError`, shown as a normal `Adw.AlertDialog` error, never a crash. Older versions migrate forward with safe defaults.
+- Schema version 7 with entries holding `path`, `display_name`, `order`, `preferred_runtime`, `preferred_sdk`, `copy_root_files`, `engine`, `allow_network`, `allow_game_writes`, `allow_x11`, `use_gamemode`, `use_ci_mount`, `use_devtools`, `icon_path`, and `missing_streak`. `order` is an explicit integer, not array position. `load()` returns entries sorted by `order`. A missing file yields an empty tuple. A corrupt file raises `LibraryError`, shown as a normal `Adw.AlertDialog` error, never a crash. Older versions migrate forward with safe defaults.
 - Writes are atomic: write to a temporary file in the same directory, `fsync`, `chmod 0o600`, then `os.replace`. The config root is created with `mkdir(parents=True, exist_ok=True, mode=0o700)` before the first write.
 - `LibraryRepository` imports nothing from `box` except `AppPaths`.
 
@@ -66,7 +66,7 @@ Each page shows installed runtimes as rows with a remove button, plus a paged av
 
 The install flow mirrors the CLI: pick a version, confirm in a separate `AlertDialog` with suggested Install, then install on a worker. Confirmation is never folded into the picker, and `GtkInteraction.choose_runtime` is never reused for browsing. Confirm before install, never before remove, except cleanup removals which always confirm per item.
 
-A page-level `_busy` flag blocks option, pager, and concurrent remove changes while an install or remove runs. The default architecture is resolved before the view is built so the initial selector value cannot trigger a duplicate fetch.
+A page-level `_busy` flag guards option, pager, remove, and install-confirm changes while an install or remove runs (lists stay sensitive so spinners keep animating). While any page is busy the dialog vetoes close (`can-close`); while an engine page is busy it additionally pulls tab navigation back to the first busy engine page (NW.js before EasyRPG), so progress text stays visible until the task finishes. Dead pages never drive either veto. The default architecture is resolved before the view is built so the initial selector value cannot trigger a duplicate fetch.
 
 Every blocking operation shows a spinner plus status label during work and a single-close `Adw.AlertDialog` on error: `"<Op> Failed"` for `BoxError`, `"Unexpected Error"` otherwise. One exception: a launch failure carrying `box.errors.RuntimeError` adds a suggested `Open Runtimes` response that opens Settings. Matching on the error type keeps this working under translated locales.
 
