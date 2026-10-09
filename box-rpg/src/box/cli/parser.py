@@ -188,6 +188,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     launch.add_argument("--sdk", action="store_true", help=_("use the NW.js SDK build"))
     launch.add_argument(
+        "--devtools",
+        action="store_true",
+        help=_("open DevTools in a separate window for this launch only (NW.js only)"),
+    )
+    launch.add_argument(
         "--allow-network",
         action="store_true",
         help=_("allow host network access for this launch only (including local services)"),

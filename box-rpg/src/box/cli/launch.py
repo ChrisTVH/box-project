@@ -46,6 +46,7 @@ def execute(
     x11: bool = False,
     gamemode: bool = False,
     ci_mount: bool = False,
+    devtools: bool = False,
 ) -> int:
     """Launch detached, then block in the foreground until the game exits."""
     if ci_mount:
@@ -83,6 +84,7 @@ def execute(
         x11=x11,
         use_gamemode=gamemode,
         ci_mount=ci_mount,
+        devtools=devtools,
         interaction=interaction,
     )
     try:

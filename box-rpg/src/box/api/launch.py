@@ -137,6 +137,7 @@ def launch(
     x11: bool = False,
     use_gamemode: bool = False,
     ci_mount: bool = False,
+    devtools: bool = False,
     interaction: Interaction | None = None,
 ) -> LaunchedSession:
     """Launch an allowed game through a detached supervisor without terminal I/O.
@@ -154,6 +155,10 @@ def launch(
     liveness, and stop_session to terminate. One session per game entry is
     firm: a live session under the same game identifier raises LaunchError
     with "game already running".
+
+    ``devtools`` is NW.js only and is forwarded to the session manifest as
+    the fixed launcher ``chromium-args`` flag; standard runtimes are
+    accepted.
     """
     if use_gamemode:
         _gamemode.require_gamemode()
@@ -163,10 +168,14 @@ def launch(
         validate_game_descriptor(game, game_descriptor)
         config = repository.load()
         if game.engine is EngineName.RPG_MAKER_2000_2003:
-            if sdk or copy_root_files:
+            if sdk or copy_root_files or devtools:
                 raise GameValidationError(
-                    _("{sdk} and {copy_root_file} are only available for NW.js games").format(
-                        sdk="--sdk", copy_root_file="--copy-root-file"
+                    _(
+                        "{sdk}, {copy_root_file}, and {devtools} are only available for NW.js games"
+                    ).format(
+                        sdk="--sdk",
+                        copy_root_file="--copy-root-file",
+                        devtools="--devtools",
                     )
                 )
             if ci_mount:
@@ -324,6 +333,7 @@ def launch(
                 copy_root_files,
                 game_descriptor=game_view_fd,
                 game_root=consent_source,
+                devtools=devtools,
             ) as session:
                 validate_game_descriptor(game, game_descriptor)
                 with Sandbox(

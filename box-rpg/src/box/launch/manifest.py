@@ -13,6 +13,7 @@ from box.models import GameInfo
 from box.utils.i18n import _
 
 _MANIFEST_LIMIT = 1024 * 1024
+_DEVTOOLS_CHROMIUM_ARGS = "--auto-open-devtools-for-tabs"
 _WINDOW_BOOLEANS = frozenset({"fullscreen", "resizable", "frame", "show", "kiosk"})
 _WINDOW_DIMENSIONS = frozenset(
     {"width", "height", "min_width", "min_height", "max_width", "max_height"}
@@ -99,8 +100,16 @@ def write_manifest(
     *,
     session_descriptor: int | None = None,
     game_descriptor: int | None = None,
+    devtools: bool = False,
 ) -> Path:
-    """Create a wrapper manifest while preserving safe display settings."""
+    """Create a wrapper manifest while preserving safe display settings.
+
+    ``devtools`` is an NW.js-only per-game request handled by the launcher:
+    when true, write the fixed ``chromium-args`` constant below so DevTools
+    opens for this launch only. The value is hardcoded, never derived from
+    game files; game-provided Chromium/V8 switches, toolbar flags, or
+    injected scripts are never forwarded.
+    """
     if game.manifest is None or game.entrypoint is None:
         raise LaunchError(_("a NW.js launch session requires a web game manifest and entrypoint"))
     owns_session_descriptor = session_descriptor is None
@@ -120,7 +129,10 @@ def write_manifest(
         # nothing else about its window is trusted.
         payload["window"] = window
         # Game-controlled Chromium/V8 switches can disable security or load code.
-        # No switches are forwarded; presentation settings have a typed allowlist.
+        # No switches are forwarded; only the fixed launcher constant below is
+        # ever written, and only when the caller requests devtools.
+        if devtools:
+            payload["chromium-args"] = _DEVTOOLS_CHROMIUM_ARGS
         try:
             descriptor = os.open(
                 "package.json",

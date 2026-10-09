@@ -104,8 +104,14 @@ def create_session(
     *,
     game_descriptor: int | None = None,
     game_root: Path | None = None,
+    devtools: bool = False,
 ) -> LaunchSession:
-    """Create an isolated manifest and game link under the XDG cache."""
+    """Create an isolated manifest and game link under the XDG cache.
+
+    ``devtools`` writes a fixed launcher-controlled ``chromium-args`` flag
+    to the session manifest (NW.js only); game-provided switches stay
+    discarded.
+    """
     paths.ensure()
     owns_game_descriptor = game_descriptor is None
     if game_descriptor is None:
@@ -181,6 +187,7 @@ def create_session(
             game,
             session_descriptor=session_descriptor,
             game_descriptor=game_descriptor,
+            devtools=devtools,
         )
     except Exception:
         try:
