@@ -20,6 +20,10 @@ Based on the `commit-standard`, `version-standard` and `documentation-writer` sk
 - box-gui/AGENTS.md
 - box-rpg/AGENTS.md
 
+## Translation tracking
+
+Keep `task.md` as the empty template. Translation and review subagents must not append per-language entries to it; record translation work in commit messages instead.
+
 ## Test AppImage builds
 
 Build a test artifact from a dirty tree without touching the repo:
