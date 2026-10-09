@@ -85,6 +85,27 @@ def launch_error_heading(error: BaseException) -> str:
     return _("Unexpected Error")
 
 
+def _nwjs_version_key(version: str) -> tuple[int, ...]:
+    """Return the numeric core used for newest-first runtime ordering.
+
+    Unparseable versions fall back to the empty tuple so they sort after
+    every well-formed version instead of crashing the dropdown.
+    """
+    text = version.strip()
+    if text[:1] in ("v", "V"):
+        text = text[1:]
+    core = text.split("-", maxsplit=1)[0]
+    parts: list[int] = []
+    for chunk in core.split("."):
+        try:
+            parts.append(int(chunk))
+        except ValueError:
+            return ()
+    if not parts:
+        return ()
+    return tuple(parts)
+
+
 class GameDetailPage(Adw.NavigationPage):
     """Detail page re-inspecting one library entry with launch actions."""
 
@@ -167,6 +188,11 @@ class GameDetailPage(Adw.NavigationPage):
         self._runtime_row.connect("notify::selected", self._on_runtime_changed)
         self._sdk_row = Adw.SwitchRow(title=_("SDK"))
         self._sdk_row.connect("notify::active", self._on_sdk_toggled)
+        self._devtools_row = Adw.SwitchRow(
+            title=_("DevTools"),
+            subtitle=_("Open developer tools in a separate window when available."),
+        )
+        self._devtools_row.connect("notify::active", self._on_devtools_toggled)
         self._ci_mount_row = Adw.SwitchRow(
             title=_("Case-insensitive mount"),
             subtitle=_("Use a case-insensitive view for this game when available."),
@@ -203,6 +229,7 @@ class GameDetailPage(Adw.NavigationPage):
         self.set_child(self._build_view())
         self._sync_runtime_selection()
         self._sdk_row.set_active(entry.preferred_sdk)
+        self._devtools_row.set_active(bool(getattr(entry, "use_devtools", False)))
         self._network_switch.set_active(entry.allow_network)
         self._writes_switch.set_active(entry.allow_game_writes)
         self._x11_switch.set_active(entry.allow_x11)
@@ -297,6 +324,7 @@ class GameDetailPage(Adw.NavigationPage):
         )
         runtime_group.add(self._runtime_row)
         runtime_group.add(self._sdk_row)
+        runtime_group.add(self._devtools_row)
         runtime_group.add(self._ci_mount_row)
         runtime_group.add(self._gamemode_row)
         content.append(runtime_group)
@@ -447,6 +475,7 @@ class GameDetailPage(Adw.NavigationPage):
             self._plugins_row.set_subtitle(str(inspection.plugin_count))
             easyrpg = game.engine is EngineName.RPG_MAKER_2000_2003
             self._sdk_row.set_visible(not easyrpg)
+            self._devtools_row.set_visible(not easyrpg)
             self._files_group.set_visible(not easyrpg)
             self._entrypoint_row.set_visible(not easyrpg)
             self._plugins_row.set_visible(not easyrpg)
@@ -479,6 +508,7 @@ class GameDetailPage(Adw.NavigationPage):
         if engine is EngineName.RPG_MAKER_2000_2003:
             return tuple(runtime.version for runtime in EasyRPGCatalog(self._paths).list())
         versions = [runtime.spec.version for runtime in RuntimeCatalog(self._paths).list()]
+        versions.sort(key=_nwjs_version_key, reverse=True)
         return tuple(dict.fromkeys(versions))
 
     def _root_file_options(self, game: GameInfo) -> tuple[str, ...]:
@@ -552,6 +582,15 @@ class GameDetailPage(Adw.NavigationPage):
         if active == self._entry.preferred_sdk:
             return
         self._persist(replace(self._entry, preferred_sdk=active))
+
+    def _on_devtools_toggled(self, row: Adw.SwitchRow, _pspec: object) -> None:
+        """Persist DevTools picks without touching other fields."""
+        if self._loading:
+            return
+        active = row.get_active()
+        if active == bool(getattr(self._entry, "use_devtools", False)):
+            return
+        self._persist(replace(self._entry, use_devtools=active))
 
     @staticmethod
     def _is_gamemode_available() -> bool:
@@ -1097,10 +1136,12 @@ class GameDetailPage(Adw.NavigationPage):
         sdk = self._entry.preferred_sdk
         copy_root_files = self._entry.copy_root_files
         ci_mount = bool(getattr(self._entry, "use_ci_mount", False))
+        devtools = bool(getattr(self._entry, "use_devtools", False))
         if self._inspection.game.engine is EngineName.RPG_MAKER_2000_2003:
             sdk = False
             copy_root_files = ()
             ci_mount = False
+            devtools = False
             if version is None:
                 version = self._global_easyrpg_runtime()
         allow_network = self._network_switch.get_active()
@@ -1127,6 +1168,7 @@ class GameDetailPage(Adw.NavigationPage):
             x11=use_x11,
             gamemode=self._entry.use_gamemode,
             ci_mount=ci_mount,
+            devtools=devtools,
         )
 
     def _on_diagnose_clicked(self, _button: Gtk.Button) -> None:

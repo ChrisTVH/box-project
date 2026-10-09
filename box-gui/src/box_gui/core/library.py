@@ -30,7 +30,7 @@ the presentation layers dim the row and offer relocation instead of
 deleting anything.
 """
 
-_LIBRARY_VERSION = 6
+_LIBRARY_VERSION = 7
 
 ReorderDirection = Literal["up", "down", "top", "bottom"]
 
@@ -55,6 +55,7 @@ class LibraryEntry:
     allow_x11: bool = False
     use_gamemode: bool = False
     use_ci_mount: bool = False
+    use_devtools: bool = False
     icon_path: Path | None = None
     missing_streak: int = 0
 
@@ -139,6 +140,7 @@ class LibraryRepository:
             allow_x11=False,
             use_gamemode=False,
             use_ci_mount=False,
+            use_devtools=False,
             missing_streak=0,
         )
         entries.append(created)
@@ -188,6 +190,7 @@ class LibraryRepository:
                 allow_x11=stored.allow_x11,
                 use_gamemode=stored.use_gamemode,
                 use_ci_mount=stored.use_ci_mount,
+                use_devtools=stored.use_devtools,
                 icon_path=stored.icon_path,
                 missing_streak=stored.missing_streak,
             )
@@ -237,6 +240,7 @@ class LibraryRepository:
             allow_x11=entry.allow_x11,
             use_gamemode=entry.use_gamemode,
             use_ci_mount=entry.use_ci_mount,
+            use_devtools=entry.use_devtools,
             icon_path=entry.icon_path,
             missing_streak=entry.missing_streak,
         )
@@ -332,7 +336,7 @@ def _decode_library(payload: object, source: Path) -> tuple[LibraryEntry, ...]:
     if not isinstance(payload, dict):
         raise LibraryError(f"invalid library file {source}: top-level value must be an object")
     version = payload.get("version")
-    if version not in (1, 2, 3, 4, 5, 6):
+    if version not in (1, 2, 3, 4, 5, 6, 7):
         raise LibraryError(f"unsupported library version in {source}: {version!r}")
     raw_entries = payload.get("entries")
     if not isinstance(raw_entries, list):
@@ -358,6 +362,7 @@ def _decode_entry(raw: object, source: Path, number: int) -> LibraryEntry:
     x11_value = raw.get("allow_x11", False)
     gamemode_value = raw.get("use_gamemode", False)
     ci_mount_value = raw.get("use_ci_mount", False)
+    devtools_value = raw.get("use_devtools", False)
     streak_value = raw.get("missing_streak", 0)
     icon_value = raw.get("icon_path")
     if not isinstance(path_value, str) or not path_value:
@@ -386,6 +391,7 @@ def _decode_entry(raw: object, source: Path, number: int) -> LibraryEntry:
         ("allow_x11", x11_value),
         ("use_gamemode", gamemode_value),
         ("use_ci_mount", ci_mount_value),
+        ("use_devtools", devtools_value),
     ):
         if not isinstance(value, bool):
             raise LibraryError(f"invalid library entry #{number} in {source}: bad {label}")
@@ -404,6 +410,7 @@ def _decode_entry(raw: object, source: Path, number: int) -> LibraryEntry:
         allow_x11=x11_value,
         use_gamemode=gamemode_value,
         use_ci_mount=ci_mount_value,
+        use_devtools=devtools_value,
         icon_path=Path(icon_value) if icon_value is not None else None,
         missing_streak=streak_value,
     )
@@ -424,6 +431,7 @@ def _encode_entry(entry: LibraryEntry) -> dict[str, object]:
         "allow_x11": entry.allow_x11,
         "use_gamemode": entry.use_gamemode,
         "use_ci_mount": entry.use_ci_mount,
+        "use_devtools": entry.use_devtools,
         "icon_path": str(entry.icon_path) if entry.icon_path is not None else None,
         "missing_streak": entry.missing_streak,
     }

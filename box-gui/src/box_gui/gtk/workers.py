@@ -76,6 +76,7 @@ def run_launch(
     x11: bool = False,
     gamemode: bool = False,
     ci_mount: bool = False,
+    devtools: bool = False,
 ) -> threading.Thread:
     """Launch a game off the main loop, passing the launch flags through.
 
@@ -98,6 +99,7 @@ def run_launch(
             x11=x11,
             gamemode=gamemode,
             ci_mount=ci_mount,
+            devtools=devtools,
         ),
         on_done,
         on_error,
@@ -118,13 +120,14 @@ def _launch_with_gamemode(
     x11: bool,
     gamemode: bool,
     ci_mount: bool = False,
+    devtools: bool = False,
 ) -> Any:
-    """Invoke launch with GameMode and case-insensitive mount detection.
+    """Invoke launch with GameMode, case-insensitive mount, and DevTools detection.
 
-    Old box-rpg releases lack the use_gamemode and ci_mount keywords:
-    proceed without them when neither was requested, but fail closed with
-    LaunchError when either was, instead of silently launching without the
-    requested flag. Current backends additionally reject ci_mount for
+    Old box-rpg releases lack the use_gamemode, ci_mount, and devtools
+    keywords: proceed without them when none was requested, but fail closed
+    with LaunchError when any was, instead of silently launching without
+    the requested flag. Current backends additionally reject ci_mount for
     2000/2003 games; the pages force it off for EasyRPG before calling here.
     New backends return a LaunchedSession handle (detached); old ones
     return an int exit code. Both flow through run_in_thread into on_done.
@@ -136,15 +139,20 @@ def _launch_with_gamemode(
         launch_parameters = {}
     supports_gamemode = "use_gamemode" in launch_parameters
     supports_ci_mount = "ci_mount" in launch_parameters
+    supports_devtools = "devtools" in launch_parameters
     if ci_mount and not supports_ci_mount:
         raise LaunchError(_("Case-insensitive mount is not supported by the installed backend."))
     if gamemode and not supports_gamemode:
         raise LaunchError(_("GameMode is not supported by the installed backend."))
+    if devtools and not supports_devtools:
+        raise LaunchError(_("DevTools is not supported by the installed backend."))
     extra_flags: dict[str, Any] = {}
     if supports_gamemode:
         extra_flags["use_gamemode"] = gamemode
     if supports_ci_mount:
         extra_flags["ci_mount"] = ci_mount
+    if supports_devtools:
+        extra_flags["devtools"] = devtools
     return launch(
         paths,
         repository,
@@ -185,8 +193,12 @@ class ProgressReporter:
     this object directly as its progress reporter.
     """
 
+    _MIN_INTERVAL_SECONDS = 0.15
+
     def __init__(self, on_progress: Callable[[int, int | None], None]) -> None:
         self._on_progress = on_progress
+        self._lock = threading.Lock()
+        self._last_emit = 0.0
 
     def __call__(self, completed: int, total: int | None) -> None:
         """Forward a progress update, dropping floods between frames."""
@@ -199,9 +211,5 @@ class ProgressReporter:
         GLib.idle_add(self._on_progress, completed, total)
 
     def report(self, completed: int, total: int | None) -> None:
-    _MIN_INTERVAL_SECONDS = 0.15
-
         """Alias for calling this reporter directly."""
         self(completed, total)
-        self._lock = threading.Lock()
-        self._last_emit = 0.0
