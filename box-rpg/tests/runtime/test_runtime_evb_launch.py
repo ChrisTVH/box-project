@@ -246,8 +246,9 @@ def _patch_session(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[Path
         *,
         game_descriptor: int | None = None,
         game_root: Path | None = None,
+        devtools: bool = False,
     ) -> FakeSession:
-        del paths, copy_root_files, game_descriptor
+        del paths, copy_root_files, game_descriptor, devtools
         seen.append(game_root)
         descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
         return FakeSession(game, descriptor, tmp_path / "session", game_root)

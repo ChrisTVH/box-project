@@ -334,6 +334,7 @@ def _patch_session(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         *,
         game_descriptor: int | None = None,
         game_root: Path | None = None,
+        devtools: bool = False,
     ) -> FakeSession:
         descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
         return FakeSession(descriptor)
@@ -501,6 +502,7 @@ def test_cli_execute_forwards_gamemode(tmp_path: Path, monkeypatch: pytest.Monke
         x11: bool = False,
         use_gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
         interaction: object = None,
     ) -> object:
         seen["use_gamemode"] = use_gamemode

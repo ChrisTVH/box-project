@@ -298,3 +298,43 @@ def test_binary_probe_limits_and_environment(
     monkeypatch.setenv("NODE_OPTIONS", "--require=evil")
     monkeypatch.setattr(versions, "_VERSION_TIMEOUT", 0.5)
     assert versions._binary_version(binary, "fallback") == expected
+
+
+def test_manifest_devtools_writes_fixed_chromium_args(tmp_path: Path) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    flagged = tmp_path / "flagged"
+    flagged.mkdir()
+    (game_root / "package.json").write_text(
+        json.dumps(
+            {
+                "name": "Devtools Game",
+                "chromium-args": "--no-sandbox",
+                "window": {"width": 640},
+            }
+        )
+    )
+    game = GameInfo(
+        EngineName.RPG_MAKER_MV, game_root, game_root / "index.html", game_root / "package.json"
+    )
+    baseline = cast(dict[str, object], json.loads(manifest.write_manifest(plain, game).read_text()))
+    with_devtools = cast(
+        dict[str, object],
+        json.loads(manifest.write_manifest(flagged, game, devtools=True).read_text()),
+    )
+    assert "chromium-args" not in baseline
+    assert baseline == {
+        "name": "Devtools Game",
+        "main": "game/index.html",
+        "window": {"width": 640},
+    }
+    assert with_devtools["chromium-args"] == "--auto-open-devtools-for-tabs"
+    assert with_devtools["chromium-args"] == manifest._DEVTOOLS_CHROMIUM_ARGS
+    assert with_devtools == {
+        "name": "Devtools Game",
+        "main": "game/index.html",
+        "window": {"width": 640},
+        "chromium-args": "--auto-open-devtools-for-tabs",
+    }

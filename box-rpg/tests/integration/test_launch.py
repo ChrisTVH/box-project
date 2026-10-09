@@ -481,6 +481,65 @@ def test_execute_rejects_nwjs_options_for_rpg_rt_projects(
         execute(paths, repository, game_root, None, False, copy_root_files=("messages.csv",))
 
 
+def test_execute_rejects_devtools_for_rpg_rt_projects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    game = GameInfo(EngineName.RPG_MAKER_2000_2003, game_root)
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+
+    def detect_game(_: Path, __: EngineRegistry) -> GameInfo:
+        return game
+
+    monkeypatch.setattr("box.api.launch.detect_game", detect_game)
+
+    with pytest.raises(GameValidationError, match="--devtools"):
+        execute(paths, repository, game_root, None, False, devtools=True)
+
+
+def test_execute_forwards_devtools_to_api_launch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    (game_root / "index.html").write_text("fixture", encoding="utf-8")
+    (game_root / "package.json").write_text('{"name": "fixture"}', encoding="utf-8")
+    paths = AppPaths(config_root=tmp_path / "config", cache_root=tmp_path / "cache")
+    repository = ConfigRepository(paths)
+    seen: dict[str, object] = {}
+
+    def fake_api(
+        paths_arg: AppPaths,
+        repository_arg: ConfigRepository,
+        game_path: Path,
+        version: str | None,
+        sdk: bool,
+        copy_root_files: tuple[str, ...] = (),
+        *,
+        allow_network: bool = False,
+        allow_game_writes: bool = False,
+        x11: bool = False,
+        use_gamemode: bool = False,
+        ci_mount: bool = False,
+        devtools: bool = False,
+        interaction: object = None,
+    ) -> object:
+        seen["devtools"] = devtools
+        return LaunchedSession("testid", "testname", tmp_path / "session")
+
+    def fake_poll(paths_arg: AppPaths, identifier: str, name: str) -> int | None:
+        return 0
+
+    monkeypatch.setattr("box.cli.launch.api_launch", fake_api)
+    monkeypatch.setattr("box.cli.launch.api_poll_status", fake_poll)
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+
+    assert execute(paths, repository, game_root, None, False, devtools=True) == 0
+    assert seen == {"devtools": True}
+
+
 def test_execute_rejects_relocation_during_authorization(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -33,12 +33,14 @@ def test_main_launches_the_current_directory_without_arguments(
         x11: bool = False,
         gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
     ) -> int:
         assert not allow_network
         assert not allow_game_writes
         assert not x11
         assert not gamemode
         assert not ci_mount
+        assert not devtools
         calls.append((game_path, version, sdk, copy_root_files))
         return 0
 
@@ -196,6 +198,7 @@ def test_network_permission_is_forwarded_for_one_launch(
         x11: bool = False,
         gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
     ) -> int:
         permissions.append(allow_network)
         return 0
@@ -219,6 +222,7 @@ def test_game_writes_permission_is_forwarded_for_one_launch(
         x11: bool = False,
         gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
     ) -> int:
         permissions.append(allow_game_writes)
         return 0
@@ -242,6 +246,7 @@ def test_x11_display_is_forwarded_for_one_launch(
         x11: bool = False,
         gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
     ) -> int:
         permissions.append(x11)
         return 0
@@ -273,6 +278,39 @@ def test_launch_command_accepts_direct_game_root_file_copies() -> None:
     )
 
     assert arguments.copy_root_file == ["game_messages.csv", "mod.ini"]
+
+
+def test_launch_command_accepts_devtools_flag() -> None:
+    enabled = build_parser().parse_args(["launch", "--devtools"])
+
+    assert enabled.devtools is True
+    disabled = build_parser().parse_args(["launch"])
+
+    assert disabled.devtools is False
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_devtools_flag_parametrized_forwarding(
+    monkeypatch: pytest.MonkeyPatch, enabled: bool
+) -> None:
+    permissions: list[bool] = []
+
+    def launch(
+        *args: object,
+        allow_network: bool = False,
+        allow_game_writes: bool = False,
+        x11: bool = False,
+        gamemode: bool = False,
+        ci_mount: bool = False,
+        devtools: bool = False,
+    ) -> int:
+        permissions.append(devtools)
+        return 0
+
+    monkeypatch.setattr("box.cli.main.launch_command.execute", launch)
+    assert main(["launch", *(["--devtools"] if enabled else [])]) == 0
+    assert main(["launch"]) == 0
+    assert permissions == [enabled, False]
 
 
 def test_cleanup_command_is_available() -> None:

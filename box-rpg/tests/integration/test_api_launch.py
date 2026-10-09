@@ -237,6 +237,7 @@ def _patch_session(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[Fake
         *,
         game_descriptor: int | None = None,
         game_root: Path | None = None,
+        devtools: bool = False,
     ) -> FakeSession:
         descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
         session = FakeSession(descriptor, tmp_path / "session")
@@ -391,6 +392,98 @@ def test_easyrpg_rejects_sdk_option(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
     with pytest.raises(GameValidationError, match=r"only available for NW\.js"):
         launch(paths, repository, game.root, None, True, interaction=FakeInteraction())
+
+
+def test_easyrpg_rejects_devtools_option(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    game = _easyrpg_game(tmp_path)
+    paths = _paths(tmp_path)
+    repository = ConfigRepository(paths)
+
+    def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
+        return game
+
+    _patch_spawn_forbidden(monkeypatch, "rejected launch must not run")
+    monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
+
+    with pytest.raises(GameValidationError, match=r"--devtools"):
+        launch(paths, repository, game.root, None, False, devtools=True)
+
+
+def test_devtools_uses_standard_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    game = _nwjs_game(tmp_path)
+    paths = _paths(tmp_path)
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(game.root)
+    standard_binary = _install_nwjs(tmp_path, "v0.90.0")
+    seen: dict[str, bool] = {}
+    real_select = None
+
+    import box.api.launch as api_launch_module
+
+    real_select = api_launch_module._select_launch_runtime
+
+    def spy_select(
+        catalog: object,
+        architecture: str,
+        version: str | None,
+        sdk: bool,
+        preferred: str | None,
+        interaction: object,
+    ) -> object:
+        seen["sdk"] = sdk
+        return real_select(catalog, architecture, version, sdk, preferred, interaction)
+
+    monkeypatch.setattr("box.api.launch._select_launch_runtime", spy_select)
+    sandboxes = _patch_sandbox(monkeypatch, probe="wayland")
+    _patch_session(monkeypatch, tmp_path)
+
+    def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
+        return game
+
+    _patch_spawn(monkeypatch)
+    monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
+    monkeypatch.delenv("DISPLAY", raising=False)
+
+    handle = launch(paths, repository, game.root, "v0.90.0", False, devtools=True)
+    assert handle.identifier
+    assert seen == {"sdk": False}
+    assert sandboxes[0].runtime_paths == [standard_binary]
+
+
+def test_devtools_forwarded_to_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    game = _nwjs_game(tmp_path)
+    paths = _paths(tmp_path)
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(game.root)
+    _install_nwjs(tmp_path, "v0.90.0")
+    seen: dict[str, bool] = {}
+
+    def factory(
+        paths_arg: AppPaths,
+        game_arg: GameInfo,
+        copy_root_files: tuple[str, ...] = (),
+        *,
+        game_descriptor: int | None = None,
+        game_root: Path | None = None,
+        devtools: bool = False,
+    ) -> FakeSession:
+        seen["devtools"] = devtools
+        descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+        session = FakeSession(descriptor, tmp_path / "session")
+        return session
+
+    monkeypatch.setattr("box.api.launch.create_session", factory)
+    _patch_sandbox(monkeypatch, probe="wayland")
+
+    def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
+        return game
+
+    _patch_spawn(monkeypatch)
+    monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
+    monkeypatch.delenv("DISPLAY", raising=False)
+
+    assert launch(paths, repository, game.root, "v0.90.0", False, devtools=True).identifier
+    assert seen == {"devtools": True}
 
 
 def test_x11_denial_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

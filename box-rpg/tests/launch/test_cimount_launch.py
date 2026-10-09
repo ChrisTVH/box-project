@@ -225,6 +225,7 @@ def _patch_session(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, record: list
         *,
         game_descriptor: int | None = None,
         game_root: Path | None = None,
+        devtools: bool = False,
     ) -> FakeSession:
         if game_descriptor is not None:
             record.append(game_descriptor)
@@ -273,6 +274,7 @@ def test_cli_execute_forwards_ci_mount(tmp_path: Path, monkeypatch: pytest.Monke
         x11: bool = False,
         use_gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
         interaction: object = None,
     ) -> object:
         seen["ci_mount"] = ci_mount
@@ -302,6 +304,7 @@ def test_cli_main_forwards_ci_mount(monkeypatch: pytest.MonkeyPatch) -> None:
         x11: bool = False,
         gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
     ) -> int:
         seen["ci_mount"] = ci_mount
         return 0
@@ -681,6 +684,7 @@ def test_cli_execute_ci_mount_missing_library_warns_then_errors(
         x11: bool = False,
         use_gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
         interaction: object = None,
     ) -> object:
         nonlocal launched
@@ -729,6 +733,7 @@ def test_cli_execute_ci_mount_missing_device_warns_then_errors(
         x11: bool = False,
         use_gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
         interaction: object = None,
     ) -> object:
         nonlocal launched
@@ -777,6 +782,7 @@ def test_cli_execute_ci_mount_available_proceeds(
         x11: bool = False,
         use_gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
         interaction: object = None,
     ) -> object:
         seen["ci_mount"] = ci_mount
@@ -816,6 +822,7 @@ def test_cli_execute_without_ci_mount_skips_availability_check(
         x11: bool = False,
         use_gamemode: bool = False,
         ci_mount: bool = False,
+        devtools: bool = False,
         interaction: object = None,
     ) -> object:
         seen["ci_mount"] = ci_mount

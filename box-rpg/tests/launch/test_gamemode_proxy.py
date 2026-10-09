@@ -615,6 +615,7 @@ def test_no_proxy_bind_or_env_when_gamemode_disabled(
         *,
         game_descriptor: int | None = None,
         game_root: Path | None = None,
+        devtools: bool = False,
     ) -> Any:
         descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
 
