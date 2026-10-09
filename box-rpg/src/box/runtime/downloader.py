@@ -10,7 +10,7 @@ import tempfile
 import time
 from collections.abc import Callable, Mapping
 from contextlib import ExitStack, suppress
-from http.client import IncompleteRead
+from http.client import HTTPException, IncompleteRead
 from pathlib import Path
 from typing import BinaryIO, Protocol, Self, cast
 from urllib.error import HTTPError, URLError
@@ -205,7 +205,7 @@ def _download_archive_locked(
                         ).format(url=url, attempt=attempt, error=exc)
                     ) from exc
                 time.sleep(min(delay, budget.check()))
-            except (IncompleteRead, OSError, URLError) as exc:
+            except (IncompleteRead, HTTPException, OSError, URLError) as exc:
                 if delay is None:
                     raise RuntimeError(
                         _(
