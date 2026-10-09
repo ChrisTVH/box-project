@@ -94,6 +94,7 @@ Shared source of truth for both projects. The first section covers the backend (
 | filesystem root | raíz del sistema de archivos | En «refusing full wipe of filesystem root». |
 | HOME | HOME | Variable de entorno; no traducir. En «directorio HOME» y «fuera de HOME». |
 | listing | listado | Etiqueta del caché de listados en `paths.py`; masculino «el listado». |
+| DevTools | DevTools | Herramientas de desarrollo de NW.js; no traducir. Mantener la opción `--devtools` sin cambios. |
 
 ## Frontend (`box-gui`)
 
@@ -170,3 +171,7 @@ Terms taken from the `box-rpg-maker` catalog; if a msgid contains a backend term
 | trace (log) | traza | En «Record the ci-mount trace…» → «la traza de ci-mount» y «Trace file: {path}» → «Archivo de traza: {path}»; `{path}` queda literal. |
 | adding a game | añadiendo un juego | En el velo de progreso de la biblioteca: «Añadiendo un juego a la biblioteca…» / «Añadiendo {count} juegos a la biblioteca…»; mantener la elipsis `…`. |
 | Game NW.js | NW.js del juego | Fila del diálogo de diagnóstico; `NW.js` no se traduce. |
+| DevTools | DevTools | Nombre de producto; no traducir. Título e interruptor de la página de detalle. |
+| developer tools | herramientas para desarrolladores | En «Abre las herramientas para desarrolladores en una ventana separada cuando estén disponibles.»; el título `DevTools` queda literal. |
+| commit hash | hash de commit | En «hash de commit no válido»; `{tag}` queda literal. |
+| SDK build | compilación SDK | En «usa la compilación SDK de NW.js»; `SDK` y `NW.js` quedan literales. |
