@@ -343,7 +343,10 @@ def test_nwjs_launch_returns_handle_and_forwards_flags(
     assert len(commands) == 1
     assert commands[0][0] == "fake-bwrap"
     assert "--ozone-platform=wayland" in sandboxes[0].last_arguments
-    assert sandboxes[0].last_cwd == "/session/game"
+    # Persistent game writes run from the writable /game tree itself.
+    assert sandboxes[0].last_cwd == "/game"
+    assert sandboxes[0].last_arguments[-1] == "/game"
+    assert ("/game/package.json", False) in sandboxes[0].binds
 
 
 def test_easyrpg_launch_uses_fullscreen_command(
