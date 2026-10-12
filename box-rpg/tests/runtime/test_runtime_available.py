@@ -361,18 +361,19 @@ def test_probe_returns_none_for_200_with_only_content_range(
     assert (exists, total) == (True, None)
 
 
-def test_probe_returns_missing_on_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Redirect validation failures surface as a missing archive, not an abort."""
+def test_probe_raises_on_validation_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Redirect validation failures abort fail-closed, not as a missing archive."""
 
     def _bad_redirect(request: object) -> _ProbeResponse:
         raise RuntimeError("redirect to untrusted host")
 
     monkeypatch.setattr(available, "_open_official", _bad_redirect)
     available.runtime_archive_available.cache_clear()
-    assert available.runtime_archive_available(RuntimeSpec("v0.90.9", "x64", False)) == (
-        False,
-        None,
-    )
+    try:
+        with pytest.raises(RuntimeError, match="untrusted host"):
+            available.runtime_archive_available(RuntimeSpec("v0.90.9", "x64", False))
+    finally:
+        available.runtime_archive_available.cache_clear()
 
 
 def test_probe_returns_none_when_size_headers_absent(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -426,10 +427,10 @@ def test_fetch_includes_per_page_sizes_without_network_cache(
     assert result.sizes == {"v0.90.0": 111, "v0.89.0": None}
 
 
-def test_fetch_skips_bad_version_without_aborting_page(
+def test_fetch_aborts_page_on_validation_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """One RuntimeError probe is treated as missing instead of failing the page."""
+    """One validation failure aborts the page fail-closed instead of skipping."""
     html = '<a href="v0.90.0/">v0.90.0/</a><a href="v0.89.0/">v0.89.0/</a>'
     payload = html.encode("utf-8")
     available.runtime_archive_available.cache_clear()
@@ -444,11 +445,10 @@ def test_fetch_skips_bad_version_without_aborting_page(
 
     monkeypatch.setattr(available, "_open_official", _fake_open)
     try:
-        result = available.fetch_available_versions(1, "x64", False)
+        with pytest.raises(RuntimeError, match="untrusted host"):
+            available.fetch_available_versions(1, "x64", False)
     finally:
         available.runtime_archive_available.cache_clear()
-    assert result.versions == ("v0.89.0",)
-    assert result.sizes == {"v0.89.0": 42}
 
 
 def test_is_fresh_rejects_far_future_timestamp() -> None:

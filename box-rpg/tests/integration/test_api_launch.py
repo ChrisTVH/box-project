@@ -16,6 +16,7 @@ from box.errors import GameValidationError
 from box.launch.supervisor import LaunchedSession
 from box.models import EngineName, GameInfo, RuntimeInfo, RuntimeSpec
 from box.paths import AppPaths
+from box.runtime.catalog import RuntimeCatalog
 from box.runtime.easyrpg import EasyRPGRuntime
 from box.runtime.platform import current_architecture
 
@@ -419,20 +420,19 @@ def test_devtools_uses_standard_runtime(tmp_path: Path, monkeypatch: pytest.Monk
     repository.add_allowed_root(game.root)
     standard_binary = _install_nwjs(tmp_path, "v0.90.0")
     seen: dict[str, bool] = {}
-    real_select = None
 
     import box.api.launch as api_launch_module
 
-    real_select = api_launch_module._select_launch_runtime
+    real_select = api_launch_module._select_launch_runtime  # pyright: ignore[reportPrivateUsage]
 
     def spy_select(
-        catalog: object,
+        catalog: RuntimeCatalog,
         architecture: str,
         version: str | None,
         sdk: bool,
         preferred: str | None,
-        interaction: object,
-    ) -> object:
+        interaction: Interaction | None,
+    ) -> RuntimeInfo:
         seen["sdk"] = sdk
         return real_select(catalog, architecture, version, sdk, preferred, interaction)
 

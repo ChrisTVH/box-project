@@ -421,7 +421,7 @@ def test_nwjs_virtual_page_backfills_from_next_backend_page(
         page: int, architecture: str, sdk: bool, *, paths: AppPaths | None = None
     ) -> AvailableVersions:
         versions = backend.get(page, ())
-        sizes = {second[0]: 1500} if page == 2 else {}
+        sizes: dict[str, int | None] = {second[0]: 1500} if page == 2 else {}
         return AvailableVersions(page=page, versions=versions, sizes=sizes)
 
     monkeypatch.setattr(runtime_cli, "fetch_available_versions", fake_fetch)
@@ -464,7 +464,7 @@ def test_easyrpg_virtual_page_backfills_from_next_backend_page(
 
     def fake_fetch(page: int, *, paths: AppPaths | None = None) -> AvailableEasyRPGVersions:
         versions = backend.get(page, ())
-        sizes = {second[0]: 2500000} if page == 2 else {}
+        sizes: dict[str, int | None] = {second[0]: 2500000} if page == 2 else {}
         return AvailableEasyRPGVersions(page=page, versions=versions, sizes=sizes)
 
     monkeypatch.setattr(runtime_cli, "fetch_easyrpg_versions", fake_fetch)

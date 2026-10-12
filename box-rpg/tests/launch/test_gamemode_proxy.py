@@ -712,7 +712,7 @@ class _ParallelHangingProc:
 
     def wait(self, timeout: float | None = None) -> int:
         self.wait_timeouts.append(timeout)
-        raise subprocess.TimeoutExpired(cmd=["bwrap"], timeout=timeout)
+        raise subprocess.TimeoutExpired(cmd=["bwrap"], timeout=cast(float, timeout))
 
 
 class _ParallelQuickProc:
@@ -810,7 +810,13 @@ def test_gamemode_teardown_wait_timeout_reaches_pipe_and_cleanup(
         return proxy if str(args[0]).endswith("xdg-dbus-proxy") else bwrap
 
     monkeypatch.setattr(supervisor_module.subprocess, "Popen", fake_popen)
-    monkeypatch.setattr(supervisor_module, "_wait_for_proxy_socket", lambda path, proc: True)
+
+    def _socket_always_ready(
+        path: Path, proc: subprocess.Popen[bytes], timeout: float = 2.0
+    ) -> bool:
+        return True
+
+    monkeypatch.setattr(supervisor_module, "_wait_for_proxy_socket", _socket_always_ready)
     terminated_proxies: list[Any] = []
 
     def _record_terminate_proxy(proc: Any) -> None:

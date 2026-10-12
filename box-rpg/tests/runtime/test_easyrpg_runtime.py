@@ -492,23 +492,27 @@ def test_easyrpg_probe_returns_none_for_200_with_only_content_range(
     assert easyrpg.easyrpg_archive_available("0.8.1.4") == (True, None)
 
 
-def test_easyrpg_probe_returns_missing_on_runtime_error(
+def test_easyrpg_probe_raises_on_validation_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Redirect validation failures surface as a missing archive, not an abort."""
+    """Redirect validation failures abort fail-closed, not as a missing archive."""
 
     def _bad_redirect(request: object, timeout: float, allowed_hosts: object) -> object:
         raise RuntimeError("redirect to untrusted host")
 
     monkeypatch.setattr(easyrpg, "open_official", _bad_redirect)
     easyrpg.easyrpg_archive_available.cache_clear()
-    assert easyrpg.easyrpg_archive_available("0.8.2") == (False, None)
+    try:
+        with pytest.raises(RuntimeError, match="untrusted host"):
+            easyrpg.easyrpg_archive_available("0.8.2")
+    finally:
+        easyrpg.easyrpg_archive_available.cache_clear()
 
 
-def test_easyrpg_fetch_skips_bad_version_without_aborting_page(
+def test_easyrpg_fetch_aborts_page_on_validation_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """One RuntimeError probe reports unknown size instead of failing the page."""
+    """One validation failure aborts the page fail-closed instead of skipping."""
     html = '<a href="0.8.1/">0.8.1</a><a href="0.8/">0.8</a>'
     payload = html.encode("utf-8")
     easyrpg.easyrpg_archive_available.cache_clear()
@@ -523,11 +527,10 @@ def test_easyrpg_fetch_skips_bad_version_without_aborting_page(
 
     monkeypatch.setattr(easyrpg, "open_official", fake_open)
     try:
-        result = easyrpg.fetch_available_versions(1)
+        with pytest.raises(RuntimeError, match="untrusted host"):
+            easyrpg.fetch_available_versions(1)
     finally:
         easyrpg.easyrpg_archive_available.cache_clear()
-    assert result.versions == ("0.8.1", "0.8")
-    assert result.sizes == {"0.8.1": None, "0.8": 42}
 
 
 def test_easyrpg_probe_returns_none_without_size_headers(

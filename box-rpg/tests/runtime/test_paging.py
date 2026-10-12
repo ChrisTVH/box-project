@@ -26,7 +26,7 @@ def test_backfills_excluded_versions_from_next_page() -> None:
     """One excluded version on page one pulls the first item from page two."""
     first = tuple(f"v0.{20 - index}.0" for index in range(10))
     second = tuple(f"v0.{10 - index}.0" for index in range(10))
-    sizes = {version: 100 for version in (*first, *second)}
+    sizes: dict[str, int | None] = {version: 100 for version in (*first, *second)}
     seen: list[int] = []
     fetch_page = _stub_fetch({1: (first, sizes), 2: (second, sizes)}, seen)
 
@@ -47,7 +47,7 @@ def test_second_virtual_page_skips_borrowed_without_duplication() -> None:
     """Virtual page two starts after the item borrowed by virtual page one."""
     first = tuple(f"v0.{20 - index}.0" for index in range(10))
     second = tuple(f"v0.{10 - index}.0" for index in range(10))
-    sizes = {version: 100 for version in (*first, *second)}
+    sizes: dict[str, int | None] = {version: 100 for version in (*first, *second)}
     fetch_page = _stub_fetch({1: (first, sizes), 2: (second, sizes)})
 
     def is_excluded(version: str) -> bool:
@@ -81,7 +81,7 @@ def test_empty_backend_returns_empty_window() -> None:
 def test_all_excluded_returns_empty_window() -> None:
     """A backend with only installed versions yields an empty virtual page."""
     first = tuple(f"v0.{20 - index}.0" for index in range(10))
-    sizes = {version: 10 for version in first}
+    sizes: dict[str, int | None] = {version: 10 for version in first}
     seen: list[int] = []
     fetch_page = _stub_fetch({1: (first, sizes)}, seen)
 
@@ -98,7 +98,7 @@ def test_all_excluded_returns_empty_window() -> None:
 def test_repeated_stub_terminates_without_duplicates() -> None:
     """Identical backend pages stop on no progress and never duplicate."""
     repeated = tuple(f"v0.{10 - index}.0" for index in range(10))
-    sizes = {version: 7 for version in repeated}
+    sizes: dict[str, int | None] = {version: 7 for version in repeated}
     seen: list[int] = []
 
     def fetch_page(backend_page: int) -> tuple[tuple[str, ...], dict[str, int | None]]:
