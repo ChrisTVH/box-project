@@ -13,7 +13,7 @@ from box.paths import open_directory_without_symlinks
 from box.utils.i18n import _
 
 _RESERVED_ROOT_NAMES = frozenset(
-    {"", ".", "..", "game", "package.json", "session.lock", "status.json"}
+    {"", ".", "..", "game", "package.json", "game-package.json", "session.lock", "status.json"}
 )
 
 

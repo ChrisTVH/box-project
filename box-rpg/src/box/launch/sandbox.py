@@ -553,11 +553,13 @@ class Sandbox:
             os.close(current)
 
     def game_writable(self, descriptor: int) -> None:
-        """Bind the pinned game tree writable at /game for the EasyRPG branch.
+        """Bind the pinned game tree writable at /game.
 
-        Takes ownership of the descriptor so the mount source reaches Bubblewrap
-        through pass_fds; the caller keeps the save overlay (game_saves bind
-        at /game/save). Validation is identical to the read-only path.
+        Used by the EasyRPG branch and by the NW.js persistent game-writes
+        branch. Takes ownership of the descriptor so the mount source reaches
+        Bubblewrap through pass_fds; the caller keeps the save overlay
+        (game_saves bind at /game/save or whole-tree coverage). Validation
+        is identical to the read-only path.
         """
         validate_tree(descriptor)
         if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
@@ -570,8 +572,11 @@ class Sandbox:
 
         Only the entrypoint ancestor chain is reconstructed. Other entries are
         pinned read-only mounts or validated links; game_saves creates only save/.
-        With allow_game_writes, the validated tree is mounted writable and the
-        per-level --remount-ro is skipped; save aliasing is unchanged.
+        Direct Sandbox use with allow_game_writes mounts the validated tree
+        writable and skips the per-level --remount-ro; the NW.js launch path
+        instead uses game_writable for its persistent game-writes mode, so
+        this method now serves the read-only game view. Save aliasing is
+        unchanged.
         """
         if game.entrypoint is None:
             raise LaunchError("NW.js requires an entrypoint")

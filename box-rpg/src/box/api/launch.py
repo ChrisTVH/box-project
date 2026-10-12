@@ -23,6 +23,7 @@ from box.launch.command import build_command
 from box.launch.links import list_root_executables as _list_root_executables
 from box.launch.links import list_root_files as _list_root_files
 from box.launch.links import open_game_root
+from box.launch.manifest import write_manifest
 from box.launch.sandbox import Sandbox, validate_tree
 from box.launch.session import create_session
 from box.launch.supervisor import (
@@ -224,7 +225,13 @@ def launch(
                         _ensure_save_mountpoint(game_descriptor)
                         validate_tree(game_descriptor)
                         if allow_game_writes:
-                            sandbox.game_writable(os.dup(game_descriptor))
+                            writable_fd = os.dup(game_descriptor)
+                            try:
+                                sandbox.game_writable(writable_fd)
+                            except BaseException:
+                                with suppress(OSError):
+                                    os.close(writable_fd)
+                                raise
                         else:
                             sandbox.bind(sandbox.keep(os.dup(game_descriptor)), "/game")
                         sandbox.bind(saves, "/game/save", writable=True)
@@ -278,6 +285,13 @@ def launch(
                 if session_descriptor >= 0:
                     with suppress(OSError):
                         os.close(session_descriptor)
+        if ci_mount and allow_game_writes:
+            raise GameValidationError(
+                _(
+                    "{ci_mount} cannot be combined with {allow_game_writes}; "
+                    "the case-insensitive view is read-only so writes would fail"
+                ).format(ci_mount="--ci-mount", allow_game_writes="--allow-game-writes")
+            )
         runtime_nw = _select_launch_runtime(
             RuntimeCatalog(paths),
             current_architecture(),
@@ -347,18 +361,70 @@ def launch(
                         sandbox.gamemode(session.root / _gamemode.GAMEMODE_PROXY_SOCKET_NAME)
                     sandbox.persistence(paths, game, consent_source)
                     saves = sandbox.game_saves(game, game_descriptor)
-                    sandbox.nw_game(game, game_view_fd, saves)
+                    if allow_game_writes:
+                        # Persistent whole-tree writable bind: unlike the
+                        # tmpfs game view below, new entries (such as a
+                        # screenshot folder) land on the host game root
+                        # instead of an ephemeral tmpfs. ci-mount is
+                        # rejected above, so the raw descriptor is the view.
+                        # Trusted opt-in only: the writable tree shares its
+                        # filesystem with the read-only session bind, same as
+                        # the existing EasyRPG writable branch.
+                        writable_fd = os.dup(game_descriptor)
+                        try:
+                            sandbox.game_writable(writable_fd)
+                        except BaseException:
+                            with suppress(OSError):
+                                os.close(writable_fd)
+                            raise
+                    else:
+                        sandbox.nw_game(game, game_view_fd, saves)
                     sandbox.bind(sandbox.keep(os.dup(session.session_descriptor)), "/session")
                     sandbox.bind(saves, "/session/save", writable=True)
-                    command = build_command(runtime_nw, Path("/session"), Path("/profile"), display)
+                    if allow_game_writes:
+                        # Persistent game view: run from the writable /game
+                        # tree so stock relative paths (path.resolve(''))
+                        # land on the host game root. The overlay manifest
+                        # shadows the writable game package.json so the
+                        # launcher-controlled manifest stays authoritative.
+                        write_manifest(
+                            session.root,
+                            game,
+                            session_descriptor=session.session_descriptor,
+                            game_descriptor=game_descriptor,
+                            devtools=devtools,
+                            filename="game-package.json",
+                            for_game_view=True,
+                        )
+                        overlay = sandbox.keep(
+                            os.open(
+                                "game-package.json",
+                                os.O_RDONLY | os.O_NOFOLLOW,
+                                dir_fd=session.session_descriptor,
+                            )
+                        )
+                        sandbox.bind(overlay, "/game/package.json")
+                        command = build_command(
+                            runtime_nw, Path("/game"), Path("/profile"), display
+                        )
+                    else:
+                        command = build_command(
+                            runtime_nw, Path("/session"), Path("/profile"), display
+                        )
                     command[0] = executable
                     if use_gamemode:
                         command = [str(_gamemode.GAMEMODERUN), *command]
                     validate_game_descriptor(game, game_descriptor)
-                    # Start inside the game view so relative asset paths (such as
-                    # ./www/...) resolve exactly like a stock export launched from
-                    # its own root; /session remains the app directory for NW.js.
-                    full = sandbox.command(command, cwd="/session/game")
+                    # Without game writes the app directory stays /session
+                    # and the game view is entered through the game link so
+                    # relative asset paths resolve like a stock export. With
+                    # game writes the app directory is the writable /game
+                    # tree itself; /session stays bound read-only to protect
+                    # the launcher-owned lock and status files.
+                    if allow_game_writes:
+                        full = sandbox.command(command, cwd="/game")
+                    else:
+                        full = sandbox.command(command, cwd="/session/game")
                     pass_fds = sandbox.pass_fds
                     if ci_mountpoint is not None:
                         handle = spawn_detached(

@@ -101,6 +101,8 @@ def write_manifest(
     session_descriptor: int | None = None,
     game_descriptor: int | None = None,
     devtools: bool = False,
+    filename: str = "package.json",
+    for_game_view: bool = False,
 ) -> Path:
     """Create a wrapper manifest while preserving safe display settings.
 
@@ -109,9 +111,18 @@ def write_manifest(
     opens for this launch only. The value is hardcoded, never derived from
     game files; game-provided Chromium/V8 switches, toolbar flags, or
     injected scripts are never forwarded.
+
+    ``filename`` selects the manifest file inside the session directory
+    (default ``package.json``). ``for_game_view`` writes ``main`` relative
+    to the game root instead of the ``game/`` session link, for use as a
+    read-only overlay over a writable ``/game`` view.
     """
     if game.manifest is None or game.entrypoint is None:
         raise LaunchError(_("a NW.js launch session requires a web game manifest and entrypoint"))
+    if Path(filename).name != filename or filename in {"", ".", ".."}:
+        raise LaunchError(
+            _("invalid session manifest filename: {filename!r}").format(filename=filename)
+        )
     owns_session_descriptor = session_descriptor is None
     owns_game_descriptor = game_descriptor is None
     try:
@@ -120,9 +131,11 @@ def write_manifest(
         if game_descriptor is None:
             game_descriptor = _open_directory(game.root)
         source = _read_game_manifest(game, game_descriptor)
+        relative_entry = game.entrypoint.relative_to(game.root).as_posix()
+        main = relative_entry if for_game_view else f"game/{relative_entry}"
         payload: dict[str, object] = {
             "name": _manifest_name(source, game.root),
-            "main": f"game/{game.entrypoint.relative_to(game.root).as_posix()}",
+            "main": main,
         }
         window = _safe_window(source.get("window"))
         # The game's own presentation settings decide how the window starts;
@@ -135,7 +148,7 @@ def write_manifest(
             payload["chromium-args"] = _DEVTOOLS_CHROMIUM_ARGS
         try:
             descriptor = os.open(
-                "package.json",
+                filename,
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                 0o600,
                 dir_fd=session_descriptor,
@@ -158,7 +171,7 @@ def write_manifest(
             os.close(game_descriptor)
         if owns_session_descriptor and session_descriptor is not None:
             os.close(session_descriptor)
-    manifest = session_root / "package.json"
+    manifest = session_root / filename
     return manifest
 
 
