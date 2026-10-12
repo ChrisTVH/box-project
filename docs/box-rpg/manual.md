@@ -83,6 +83,8 @@ box-rpg launch /path/to/game --allow-game-writes
 
 Only use this with games you trust not to damage their own files.
 
+Without the flag, an NW.js game can only write to its save directory; everything else in the game folder is read-only. With the flag, the whole NW.js game tree is writable and writes persist to the game folder, because the game runs from the game directory itself instead of an isolated session copy. The only exception is `package.json`, which always stays launcher-controlled. EasyRPG writes persist the same way. `--allow-game-writes` cannot be combined with `--ci-mount`: the case-insensitive view is read-only, so that combination is rejected.
+
 On an X11 session the launcher shows a warning and asks for confirmation before continuing, because X11 programs can observe input and screen contents. Wayland is recommended. To give X11 consent directly for one launch:
 
 ```sh
@@ -131,7 +133,7 @@ Some NW.js exports need a helper file from the game root, for example `game_mess
 box-rpg launch --copy-root-file game_messages.csv
 ```
 
-Repeat the option for more files. When `GAME_PATH` is omitted the current directory is used. Only direct regular files from the game root are accepted, up to 16 MiB each. Folders, links, and special files are rejected. The reserved names `game` and `package.json` are also rejected.
+Repeat the option for more files. When `GAME_PATH` is omitted the current directory is used. Only direct regular files from the game root are accepted, up to 16 MiB each. Folders, links, and special files are rejected. The reserved names `game`, `package.json`, `game-package.json`, `session.lock`, and `status.json` are also rejected.
 
 Some NW.js exports reference asset files with the wrong letter case (for example `image.png` on disk as `Image.PNG`). Windows ignores the difference, but Linux does not, so those assets fail to load. Mount the game through a case-insensitive view for one launch with:
 
