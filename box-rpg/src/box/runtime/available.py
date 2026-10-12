@@ -145,7 +145,11 @@ def runtime_archive_available(spec: RuntimeSpec) -> tuple[bool, int | None]:
         with _open_official(request) as response:
             response.read(1)
             return True, _probe_total_size(response)
-    except OSError, URLError, RuntimeError:
+    # Validation errors stay fail-closed; network/absence errors return (False, None).
+    except (
+        OSError,
+        URLError,
+    ):
         return False, None
 
 

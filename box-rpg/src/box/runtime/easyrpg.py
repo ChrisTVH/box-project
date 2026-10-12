@@ -186,7 +186,12 @@ def easyrpg_archive_available(version: str) -> tuple[bool, int | None]:
             validate_source(response.geturl(), OFFICIAL_DOWNLOAD_HOSTS)
             response.read(1)
             return True, _probe_total_size(response)
-    except OSError, URLError, RuntimeError:
+    except (
+        OSError,
+        URLError,
+    ):
+        # Validation errors stay fail-closed while network/absence errors
+        # return a missing archive.
         return False, None
 
 
