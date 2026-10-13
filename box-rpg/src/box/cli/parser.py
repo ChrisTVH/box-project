@@ -200,7 +200,7 @@ def build_parser() -> argparse.ArgumentParser:
     launch.add_argument(
         "--allow-game-writes",
         action="store_true",
-        help=_("allow game directory writes for this launch only"),
+        help=_("allow full writes to the game folder"),
     )
     launch.add_argument(
         "--x11",
