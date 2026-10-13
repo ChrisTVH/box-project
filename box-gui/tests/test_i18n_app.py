@@ -62,8 +62,14 @@ def test_i18n_translates_core_chrome() -> None:
         == "Los permisos se aplican al montar el juego en la caja."
     )
     assert _("Allow network usage") == "Permitir uso de red"
-    assert _("Allow modifying the game") == "Permitir modificar en el juego"
-    assert _("For games with automatic updates.") == "Para juegos con actualizaciones automáticas."
+    assert (
+        _("Allow full writes to the game folder")
+        == "Permitir la escritura completa en la carpeta del juego"
+    )
+    assert (
+        _("For games that need to write to their own folder.")
+        == "Para juegos que necesitan escribir en su propia carpeta."
+    )
     assert _("Allow X11 or XWayland sessions") == "Permitir sesiones de X11 o XWayland"
     assert _("Diagnose") == "Diagnosticar"
     assert _("Launch") == "Iniciar"
