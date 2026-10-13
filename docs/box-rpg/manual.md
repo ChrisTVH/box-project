@@ -64,7 +64,7 @@ By default a game has no network access and cannot change its own files. Saves s
 | Permission | Flag | Default | When asked |
 | --- | --- | --- | --- |
 | Network access | `--allow-network` | denied | share host network for one launch |
-| Game self-writes | `--allow-game-writes` | read-only | let a self-updating game change its own files |
+| Game self-writes | `--allow-game-writes` | read-only | allow full writes to the game folder |
 | X11 display | `--x11` | Wayland only | consent to X11 or XWayland for one launch |
 
 Grant network access:
@@ -75,13 +75,13 @@ box-rpg launch /path/to/game --allow-network
 
 Only use this with games you trust. It shares the host network, including internet, local network, and local services.
 
-Let a self-updating game change its own files:
+Allow full writes to the game folder:
 
 ```sh
 box-rpg launch /path/to/game --allow-game-writes
 ```
 
-Only use this with games you trust not to damage their own files.
+Only use this with games you trust not to damage their own files. It is for games that need to write to their own folder.
 
 Without the flag, an NW.js game can only write to its save directory; everything else in the game folder is read-only. With the flag, the whole NW.js game tree is writable and writes persist to the game folder, because the game runs from the game directory itself instead of an isolated session copy. The only exception is `package.json`, which always stays launcher-controlled. EasyRPG writes persist the same way. Combined with `--ci-mount`, the game runs from the writable case-insensitive view: reads stay case-insensitive while writes persist to the game folder through the mount policy (writes to an existing name keep the on-disk case, new names are created literally).
 
