@@ -83,7 +83,7 @@ box-rpg launch /path/to/game --allow-game-writes
 
 Only use this with games you trust not to damage their own files.
 
-Without the flag, an NW.js game can only write to its save directory; everything else in the game folder is read-only. With the flag, the whole NW.js game tree is writable and writes persist to the game folder, because the game runs from the game directory itself instead of an isolated session copy. The only exception is `package.json`, which always stays launcher-controlled. EasyRPG writes persist the same way. `--allow-game-writes` cannot be combined with `--ci-mount`: the case-insensitive view is read-only, so that combination is rejected.
+Without the flag, an NW.js game can only write to its save directory; everything else in the game folder is read-only. With the flag, the whole NW.js game tree is writable and writes persist to the game folder, because the game runs from the game directory itself instead of an isolated session copy. The only exception is `package.json`, which always stays launcher-controlled. EasyRPG writes persist the same way. Combined with `--ci-mount`, the game runs from the writable case-insensitive view: reads stay case-insensitive while writes persist to the game folder through the mount policy (writes to an existing name keep the on-disk case, new names are created literally).
 
 On an X11 session the launcher shows a warning and asks for confirmation before continuing, because X11 programs can observe input and screen contents. Wayland is recommended. To give X11 consent directly for one launch:
 
@@ -141,7 +141,7 @@ Some NW.js exports reference asset files with the wrong letter case (for example
 box-rpg launch /path/to/game --ci-mount
 ```
 
-The view is read-only and only affects filename lookups; nothing in the game folder is changed. It needs `libfuse3` and `/dev/fuse` on the host, and it is NW.js only: EasyRPG Player already resolves filename case itself since 0.8, so combining it with a 2000/2003 project is rejected.
+The view only affects filename lookups. Without `--allow-game-writes` it is read-only and nothing in the game folder is changed; combined with `--allow-game-writes` writes persist to the game folder (existing names keep their on-disk case, new names are created literally). It needs `libfuse3` and `/dev/fuse` on the host, and it is NW.js only: EasyRPG Player already resolves filename case itself since 0.8, so combining it with a 2000/2003 project is rejected.
 
 If a `--ci-mount` launch fails while validating the game tree (for example `cannot validate sandbox tree at ./www/example/...: [Errno 2] ...`), capture what the mount layer actually saw:
 
