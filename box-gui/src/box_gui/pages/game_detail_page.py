@@ -220,8 +220,8 @@ class GameDetailPage(Adw.NavigationPage):
         self._network_switch = Adw.SwitchRow(title=_("Allow network usage"))
         self._network_switch.connect("notify::active", self._on_network_toggled)
         self._writes_switch = Adw.SwitchRow(
-            title=_("Allow modifying the game"),
-            subtitle=_("For games with automatic updates."),
+            title=_("Allow full writes to the game folder"),
+            subtitle=_("For games that need to write to their own folder."),
         )
         self._writes_switch.connect("notify::active", self._on_writes_toggled)
         self._x11_switch = Adw.SwitchRow(title=_("Allow X11 or XWayland sessions"))
