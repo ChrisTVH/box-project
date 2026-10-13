@@ -285,13 +285,6 @@ def launch(
                 if session_descriptor >= 0:
                     with suppress(OSError):
                         os.close(session_descriptor)
-        if ci_mount and allow_game_writes:
-            raise GameValidationError(
-                _(
-                    "{ci_mount} cannot be combined with {allow_game_writes}; "
-                    "the case-insensitive view is read-only so writes would fail"
-                ).format(ci_mount="--ci-mount", allow_game_writes="--allow-game-writes")
-            )
         runtime_nw = _select_launch_runtime(
             RuntimeCatalog(paths),
             current_architecture(),
@@ -334,10 +327,10 @@ def launch(
             finally:
                 with suppress(OSError):
                     os.close(profile_fd)
-        # The mounted descriptor serves the read-only game view (session
+        # The mounted descriptor serves the game view (session
         # manifest/copies and the sandbox game tree) while GameInfo roots stay
         # on the source tree. Saves and identity checks keep the raw backing
-        # descriptor: saves must stay writable and the mount itself is read-only.
+        # descriptor: saves must stay writable outside the FUSE policy.
         game_view_fd = mounted_fd if ci_session is not None else game_descriptor
         spawned = False
         try:
@@ -365,12 +358,18 @@ def launch(
                         # Persistent whole-tree writable bind: unlike the
                         # tmpfs game view below, new entries (such as a
                         # screenshot folder) land on the host game root
-                        # instead of an ephemeral tmpfs. ci-mount is
-                        # rejected above, so the raw descriptor is the view.
+                        # instead of an ephemeral tmpfs. With --ci-mount the
+                        # view descriptor is the writable FUSE tree, so reads
+                        # stay case-insensitive while writes go through the
+                        # FUSE policy and persist; without it the raw
+                        # descriptor is the view. Binding through
+                        # /proc/self/fd never depends on the source
+                        # descriptor's own access mode, so the O_RDONLY
+                        # mountpoint descriptor is a fine bind source.
                         # Trusted opt-in only: the writable tree shares its
                         # filesystem with the read-only session bind, same as
                         # the existing EasyRPG writable branch.
-                        writable_fd = os.dup(game_descriptor)
+                        writable_fd = os.dup(game_view_fd)
                         try:
                             sandbox.game_writable(writable_fd)
                         except BaseException:

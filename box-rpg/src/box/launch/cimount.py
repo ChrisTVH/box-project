@@ -1,10 +1,12 @@
-"""Read-only case-insensitive FUSE passthrough over the NW.js game root.
+"""Writable case-insensitive FUSE passthrough over the NW.js game root.
 
-This module is the core of the ``--ci-mount`` feature: a read-only FUSE
+This module is the core of the ``--ci-mount`` feature: a writable FUSE
 mount that exposes the game root verbatim except that a failed exact
 lookup falls back to :func:`resolve_insensitive_name`, so games shipped
 with the wrong filename case keep working under a case-sensitive
-filesystem.
+filesystem.  Writes are descriptor-relative and fail closed under a fixed
+policy (see the writable-nature section below); symlinks, hardlinks,
+specials, and xattrs stay unimplemented.
 
 Ownership and handover contract (critical):
 
@@ -46,23 +48,31 @@ Locking discipline:
   ``evb.py`` holds the per-profile lock around publication; this module
   invents no new lock primitive.
 
-Read-only nature: every low-level operation is a 1:1 descriptor-relative
-passthrough (``openat``/``fstatat``/``pread`` against the already-open
-game-root descriptor duplicated into the session, never by absolute
-path) except ``lookup``, which resolves through
-:func:`resolve_insensitive_name`.  Write opens are refused with
-``EROFS``, symlinks are never resolved, and the mount itself carries
-``ro`` plus ``default_permissions``.
+Writable-with-policy nature: every low-level operation is a 1:1
+descriptor-relative passthrough (``openat``/``fstatat``/``pread``/``pwrite``
+against the already-open game-root descriptor duplicated into the session,
+never by absolute path) except ``lookup``, which resolves through
+:func:`resolve_insensitive_name`.  Every mutating operation validates its
+name through one choke point (single component, ``NAME_MAX``), opens
+everything with ``O_NOFOLLOW``, lstat-verifies the leaf kind (symlink
+leaves are refused), and fails closed with precise errnos.  ``setattr``
+only truncates (``ftruncate``) and retimes (``futimens``); chmod/chown
+bits are refused with ``EPERM``.  ``symlink``/``link``/``mknod``/xattrs
+stay NULL so libfuse answers ``ENOSYS``: symlinks and specials never
+resolve, and hardlinks are the classic view<->bind escape.  The mount
+itself carries ``default_permissions`` without ``ro``.
 
 Descriptor economy: directory inodes (plus the game-root descriptor
 itself) retain one open descriptor each; file inodes retain none
 (``fd=-1`` with the resolved basename kept for per-request
-resolution).  File metadata and I/O resolve descriptor-relatively off
-the parent directory descriptor on every request (``fstatat`` for
-``getattr``/``open``, a transient ``openat`` plus ``pread`` for
-``read``), so a full-tree walk holds only directory descriptors and
-cannot exhaust ``RLIMIT_NOFILE`` through file inodes (only live
-directory descriptors accumulate, dropped with their inode).  A rename between ``lookup`` and a
+resolution).  Successful ``open``/``create`` calls additionally retain one
+backing descriptor each in a handle table keyed by the ``fh`` id carried
+in the open reply (closed on ``release``); reads through a live handle use
+it, otherwise they resolve transiently exactly as before, so a full-tree
+walk still holds only directory descriptors and cannot exhaust
+``RLIMIT_NOFILE`` through file inodes (only live directory descriptors
+accumulate, dropped with their inode, plus one descriptor per actually
+open file handle, dropped on release).  A rename between ``lookup`` and a
 later request fails closed exactly like a raw filesystem read.  The
 daemon additionally raises its soft ``RLIMIT_NOFILE`` toward 65536 at
 startup (best effort, never fatal to the mount).
@@ -145,12 +155,48 @@ _READY_TIMEOUT = 10.0
 _READY_POLL_INTERVAL = 0.05
 _UMOUNT_NOFOLLOW = 8
 _FUSE_ROOT_ID = 1
-# fuse_file_info layout is intentionally opaque: replies carry a zeroed
+# fuse_file_info layout is intentionally half-opaque: replies carry a zeroed
 # oversized buffer (libfuse only ever reads its own smaller struct out of
-# it) and the passthrough keeps no per-handle state, so only the stable
-# leading fields (flags at offset 0) are ever inspected, never written.
+# it).  Only two fields are ever touched: flags at offset 0 (read from open
+# and create) and the u64 fh at offset 16 (written into open/create replies,
+# read back from every fh-carrying op).  The fh ids key the retained
+# per-handle descriptor table that release drains.
 _FILE_INFO_REPLY_SIZE = 128
+# Offset of ``fh`` in ``struct fuse_file_info`` (fuse_common.h): int32 flags
+# at 0, then three uint32 words of bitfields/padding at 4/8/12, so fh sits
+# at 16.  Kept as a constant (not a ctypes mirror) because the kernel struct
+# is deliberately never fully modelled here.
+_FH_OFFSET = 16
 _O_TRUNC = 0o1000
+_O_APPEND = 0o2000
+_O_ACCMODE = 0o3
+#: Fallback single-component length cap when ``pathconf`` is unavailable.
+_DEFAULT_NAME_MAX = 255
+#: Group/other write bits are always stripped from created files and dirs.
+_DROPPED_MODE_BITS = 0o022
+# fuse_setattr_in valid bits (fuse_lowlevel.h); only SIZE/ATIME/MTIME are
+# honored, MODE/UID/GID fail closed with EPERM.
+_FUSE_SET_ATTR_MODE = 1 << 0
+_FUSE_SET_ATTR_UID = 1 << 1
+_FUSE_SET_ATTR_GID = 1 << 2
+_FUSE_SET_ATTR_SIZE = 1 << 3
+_FUSE_SET_ATTR_ATIME = 1 << 4
+_FUSE_SET_ATTR_MTIME = 1 << 5
+_FUSE_SET_ATTR_FH = 1 << 6
+_FUSE_SET_ATTR_ATIME_NOW = 1 << 7
+_FUSE_SET_ATTR_MTIME_NOW = 1 << 8
+
+#: setattr bits this layer honors: truncate size, explicit or sender-side
+#: timestamps, and the handle marker (the fh itself travels in file_info,
+#: read separately).  Anything else (locks and future bits) fails closed.
+_HANDLED_SET_ATTR = (
+    _FUSE_SET_ATTR_SIZE
+    | _FUSE_SET_ATTR_ATIME
+    | _FUSE_SET_ATTR_MTIME
+    | _FUSE_SET_ATTR_ATIME_NOW
+    | _FUSE_SET_ATTR_MTIME_NOW
+    | _FUSE_SET_ATTR_FH
+)
 
 #: Env var naming a file for readdir/lookup decision logging (live diagnosis
 #: only).  Unset (or empty) means no logging at all; see :func:`_debug_log`.
@@ -503,7 +549,7 @@ def drop_stale_ci_mount(mountpoint: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# libfuse3 low-level ctypes bindings (minimal read-only passthrough).
+# libfuse3 low-level ctypes bindings (minimal writable-with-policy passthrough).
 # ---------------------------------------------------------------------------
 
 
@@ -610,9 +656,41 @@ class _FuseOps(ctypes.Structure):
 _LookupProto = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_char_p)
 _ForgetProto = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_uint64)
 _GetattrProto = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_void_p)
+_SetattrProto = ctypes.CFUNCTYPE(
+    None, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p
+)
+_UnlinkProto = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_char_p)
+_MkdirProto = ctypes.CFUNCTYPE(
+    None, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_char_p, ctypes.c_uint
+)
+_RenameProto = ctypes.CFUNCTYPE(
+    None,
+    ctypes.c_void_p,
+    ctypes.c_uint64,
+    ctypes.c_char_p,
+    ctypes.c_uint64,
+    ctypes.c_char_p,
+    ctypes.c_uint,
+)
+_CreateProto = ctypes.CFUNCTYPE(
+    None, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_char_p, ctypes.c_uint, ctypes.c_void_p
+)
 _OpenProto = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_void_p)
 _ReadProto = ctypes.CFUNCTYPE(
     None, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_size_t, ctypes.c_int64, ctypes.c_void_p
+)
+_WriteProto = ctypes.CFUNCTYPE(
+    None,
+    ctypes.c_void_p,
+    ctypes.c_uint64,
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+    ctypes.c_int64,
+    ctypes.c_void_p,
+)
+_FlushProto = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_void_p)
+_FsyncProto = ctypes.CFUNCTYPE(
+    None, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_int, ctypes.c_void_p
 )
 _ReleaseProto = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_void_p)
 _ReaddirProto = ctypes.CFUNCTYPE(
@@ -658,6 +736,16 @@ class _InodeRecord:
 
 
 @dataclass(slots=True)
+class _FileHandle:
+    """One retained open file: backing descriptor, modes, owner ino."""
+
+    fd: int
+    append: bool
+    ino: int
+    readable: bool
+
+
+@dataclass(slots=True)
 class _ReaddirListing:
     """One memoized readdir snapshot plus the directory mtime it was taken at."""
 
@@ -682,6 +770,12 @@ class _FuseState:
         # readdir revalidates with a single fstat (same name-freshness as
         # the lookup resolver cache).
         self.listings: dict[int, _ReaddirListing] = {}
+        # Retained per-handle descriptors for successful open/create calls,
+        # keyed by the fh id carried in the open reply and closed on
+        # release.  File *inodes* still retain nothing (fd == -1); only
+        # actually open *handles* hold a descriptor each.
+        self.handles: dict[int, _FileHandle] = {}
+        self.next_fh = 1
         # Lazily opened debug-log descriptor for BOX_CIMOUNT_DEBUG_LOG
         # (see _debug_log); -1 while logging stays disabled or unopened.
         self.debug_fd: int = -1
@@ -758,6 +852,14 @@ class _LibFuse:
         library.fuse_reply_attr.restype = ctypes.c_int
         library.fuse_reply_open.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
         library.fuse_reply_open.restype = ctypes.c_int
+        library.fuse_reply_create.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(_FuseEntryParam),
+            ctypes.c_void_p,
+        ]
+        library.fuse_reply_create.restype = ctypes.c_int
+        library.fuse_reply_write.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+        library.fuse_reply_write.restype = ctypes.c_int
         library.fuse_reply_buf.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t]
         library.fuse_reply_buf.restype = ctypes.c_int
         library.fuse_add_direntry.argtypes = [
@@ -866,6 +968,84 @@ def _open_child(backing_parent_fd: int, name: str) -> _OpenChildResult:
     return _OpenChildResult(fd=child_fd, metadata=metadata)
 
 
+def _read_fh(file_info: int) -> int:
+    """Read the u64 handle id out of a ``fuse_file_info`` pointer (0 when absent)."""
+    if not file_info:
+        return 0
+    return int(ctypes.c_uint64.from_address(file_info + _FH_OFFSET).value)
+
+
+def _open_reply_buffer(handle_id: int) -> ctypes.Array[ctypes.c_char]:
+    """Build the zeroed open/create reply carrying one handle id at ``_FH_OFFSET``."""
+    buffer = ctypes.create_string_buffer(_FILE_INFO_REPLY_SIZE)
+    ctypes.c_uint64.from_address(ctypes.addressof(buffer) + _FH_OFFSET).value = handle_id
+    return buffer
+
+
+def _check_mutation_name(parent_fd: int, name: str) -> int | None:
+    """Return the errno refusing ``name`` for a mutating op, or ``None`` when valid.
+
+    Single choke point for every mutating op: the name must be one path
+    component (no separator, not ``.``/``..``, non-empty, mirroring
+    :func:`resolve_insensitive_name`) and fit ``NAME_MAX`` of the parent
+    filesystem.  Exact names only: mutating ops never resolve
+    case-insensitively, so a delete or rename can never surprise-hit a
+    differently-cased sibling (creation is the one exception, and it fails
+    closed with ``EEXIST`` instead of duplicating).
+    """
+    if not _is_single_component(name):
+        return errno.ENOENT
+    try:
+        limit = os.pathconf(parent_fd, "PC_NAME_MAX")
+    except OSError:
+        limit = _DEFAULT_NAME_MAX
+    if limit <= 0:
+        limit = _DEFAULT_NAME_MAX
+    if len(name.encode("utf-8", "surrogateescape")) > limit:
+        return errno.ENAMETOOLONG
+    return None
+
+
+def _drop_resolver_cache_for(parent_fd: int) -> None:
+    """Drop one mutated parent's resolver-cache entry (belt and suspenders).
+
+    Mutating ops change parent mtimes, so listings and the resolver cache
+    self-invalidate on next use; this explicit keyed drop additionally covers
+    mtime-granularity races.  Keyed, not full-clear: the op already pins the
+    exact parent descriptor, so unrelated hot entries are kept.  Callers pass
+    both parents of a rename.  Callers also drop the parent readdir snapshot
+    (``state.listings.pop(parent_ino, None)``) next to this call: readdir
+    revalidates by mtime alone, so the snapshot needs the same explicit
+    treatment.  No per-op locking is needed: the daemon runs
+    only ``fuse_session_loop`` (never ``loop_mt``/``clone_fd``), so no two
+    ops run concurrently; the cache's own guard suffices.
+    """
+    try:
+        directory = os.fstat(parent_fd)
+    except OSError:
+        clear_resolver_cache()
+        return
+    with _resolver_lock:
+        _resolver_cache.pop((directory.st_dev, directory.st_ino), None)
+
+
+def _sanitize_new_mode(mode: int) -> int:
+    """Requested permission bits minus the umask minus group/other write bits."""
+    previous = os.umask(0)
+    os.umask(previous)
+    return (mode & 0o777 & ~previous) & ~_DROPPED_MODE_BITS
+
+
+def _open_named_child(parent_fd: int, name: str, access: int) -> int:
+    """Open one child descriptor-relative without ever following symlinks.
+
+    Mirrors the ``O_NOFOLLOW`` spine of :func:`_open_child` for mutating
+    paths; raises :class:`OSError` with the raw errno (``ELOOP`` on symlink
+    leaves) so callers fail closed.
+    """
+    return os.open(name, access | os.O_NOFOLLOW, dir_fd=parent_fd)
+
+
 def _scan_readdir_listing(dir_fd: int) -> list[tuple[str, os.stat_result]]:
     """Read one directory once for ``readdir``, sorted by name for stable offsets.
 
@@ -923,12 +1103,25 @@ class _CallbackSet:
         self._install("lookup", _LookupProto(self._on_lookup))
         self._install("forget", _ForgetProto(self._on_forget))
         self._install("getattr", _GetattrProto(self._on_getattr))
+        self._install("setattr", _SetattrProto(self._on_setattr))
+        self._install("mkdir", _MkdirProto(self._on_mkdir))
+        self._install("unlink", _UnlinkProto(self._on_unlink))
+        self._install("rmdir", _UnlinkProto(self._on_rmdir))
+        self._install("rename", _RenameProto(self._on_rename))
+        # symlink/link/mknod/xattrs stay NULL on purpose (libfuse answers
+        # ENOSYS): symlinks and specials never resolve through _open_child,
+        # and hardlinks are the classic view<->bind escape.
         self._install("open", _OpenProto(self._on_open))
+        self._install("create", _CreateProto(self._on_create))
         self._install("read", _ReadProto(self._on_read))
+        self._install("write", _WriteProto(self._on_write))
+        self._install("flush", _FlushProto(self._on_flush))
         self._install("release", _ReleaseProto(self._on_release))
+        self._install("fsync", _FsyncProto(self._on_fsync))
         self._install("opendir", _OpenProto(self._on_opendir))
         self._install("readdir", _ReaddirProto(self._on_readdir))
         self._install("releasedir", _ReleaseProto(self._on_release))
+        self._install("fsyncdir", _FsyncProto(self._on_fsyncdir))
 
     def _install(self, name: str, callback: Any) -> None:
         """Pin one callback and publish its address in the ops struct."""
@@ -975,6 +1168,76 @@ class _CallbackSet:
         state.inodes[ino] = _InodeRecord(child_fd, parent, 1, name=name)
         state.keys[key] = ino
         return ino
+
+    def _alloc_handle(self, fd: int, append: bool, ino: int, readable: bool) -> int:
+        """File one retained descriptor as an fh id for the open/create reply."""
+        state = self._state
+        handle_id = state.next_fh
+        if handle_id >= (1 << 64) - 1:
+            raise OverflowError("handle space exhausted")
+        state.next_fh = handle_id + 1
+        state.handles[handle_id] = _FileHandle(fd, append, ino, readable)
+        return handle_id
+
+    def _close_handle(self, handle_id: int) -> None:
+        """Drop one retained handle, closing its descriptor; unknown ids are ignored."""
+        handle = self._state.handles.pop(handle_id, None)
+        if handle is not None:
+            with suppress(OSError):
+                os.close(handle.fd)
+
+    def _mutation_parent(self, req: int, parent: int) -> _InodeRecord | None:
+        """Fetch a live directory parent for a mutating op, failing closed."""
+        reply_err = self._library.raw.fuse_reply_err
+        record = self._state.inodes.get(parent)
+        if record is None:
+            reply_err(req, errno.ENOENT)
+            return None
+        if record.fd < 0:
+            # Only directories retain descriptors, so an unretained inode is
+            # always a regular file (same convention as _on_opendir).
+            reply_err(req, errno.ENOTDIR)
+            return None
+        try:
+            is_dir = stat.S_ISDIR(os.fstat(record.fd).st_mode)
+        except OSError as exc:
+            reply_err(req, exc.errno or errno.EIO)
+            return None
+        if not is_dir:
+            reply_err(req, errno.ENOTDIR)
+            return None
+        return record
+
+    def _mutation_name(self, req: int, parent_fd: int, raw_name: bytes | None) -> str | None:
+        """Decode and validate one mutating-op name, failing closed with precise errnos."""
+        reply_err = self._library.raw.fuse_reply_err
+        if raw_name is None:
+            reply_err(req, errno.ENOENT)
+            return None
+        try:
+            name = raw_name.decode("utf-8", "surrogateescape")
+        except Exception:
+            reply_err(req, errno.ENOENT)
+            return None
+        refused = _check_mutation_name(parent_fd, name)
+        if refused is not None:
+            reply_err(req, refused)
+            return None
+        return name
+
+    def _lstat_leaf(self, req: int, parent_fd: int, name: str) -> os.stat_result | None:
+        """lstat one exact leaf name without following symlinks, failing closed."""
+        try:
+            return os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        except OSError as exc:
+            self._library.raw.fuse_reply_err(req, exc.errno or errno.ENOENT)
+            return None
+
+    def _drop_child_listing(self, metadata: os.stat_result) -> None:
+        """Drop a removed child's readdir snapshot so it can never resurface stale."""
+        dead = self._state.keys.pop((metadata.st_dev, metadata.st_ino), None)
+        if dead is not None:
+            self._state.listings.pop(dead, None)
 
     def _on_lookup(self, req: int, parent: int, raw_name: bytes | None) -> None:
         reply_err = self._library.raw.fuse_reply_err
@@ -1122,6 +1385,478 @@ class _CallbackSet:
             with suppress(Exception):
                 reply_err(req, errno.EIO)
 
+    def _reply_stat_attr(self, req: int, metadata: os.stat_result) -> None:
+        """Answer one getattr/setattr with fresh kernel-style attributes."""
+        cstat = _Stat()
+        _fill_stat(cstat, metadata)
+        self._library.raw.fuse_reply_attr(req, ctypes.byref(cstat), 0.0)
+
+    def _on_setattr(self, req: int, ino: int, attr_ptr: int, to_set: int, file_info: int) -> None:
+        reply_err = self._library.raw.fuse_reply_err
+        try:
+            record = self._state.inodes.get(ino)
+            if to_set & (_FUSE_SET_ATTR_MODE | _FUSE_SET_ATTR_UID | _FUSE_SET_ATTR_GID):
+                # Ownership and permission bits are never mutated through the
+                # view: chmod/chown fail closed instead of drifting the
+                # backing tree out from under default_permissions.
+                reply_err(req, errno.EPERM)
+                return
+            if to_set & ~_HANDLED_SET_ATTR:
+                # No silent partial application: unhandled bits (locks and
+                # future flags) fail the whole call instead of succeeding
+                # while ignoring part of the request.
+                reply_err(req, errno.EINVAL)
+                return
+            if not attr_ptr:
+                reply_err(req, errno.EIO)
+                return
+            attr = ctypes.cast(attr_ptr, ctypes.POINTER(_Stat)).contents
+            want_size = bool(to_set & _FUSE_SET_ATTR_SIZE)
+            want_atime = bool(to_set & (_FUSE_SET_ATTR_ATIME | _FUSE_SET_ATTR_ATIME_NOW))
+            want_mtime = bool(to_set & (_FUSE_SET_ATTR_MTIME | _FUSE_SET_ATTR_MTIME_NOW))
+            handle_id = _read_fh(file_info)
+            handle = self._state.handles.get(handle_id) if handle_id else None
+            live = handle if (handle is not None and handle.ino == ino) else None
+            if live is None:
+                if record is None:
+                    reply_err(req, errno.ENOENT)
+                    return
+                if handle_id and (handle is None or handle.ino != ino):
+                    reply_err(req, errno.EIO)
+                    return
+            if want_size:
+                size = int(attr.st_size)
+                if size < 0:
+                    reply_err(req, errno.EINVAL)
+                    return
+                if live is not None:
+                    try:
+                        os.ftruncate(live.fd, size)
+                    except OSError as exc:
+                        reply_err(req, exc.errno or errno.EIO)
+                        return
+                else:
+                    if record is None:
+                        reply_err(req, errno.ENOENT)
+                        return
+                    if record.fd >= 0:
+                        reply_err(req, errno.EISDIR)
+                        return
+                    # truncate(2)/open(O_TRUNC) without a live handle: open
+                    # transiently with O_NOFOLLOW and propagate the raw errno
+                    # (ELOOP on symlink leaves, EISDIR on directories).
+                    parent = self._state.inodes.get(record.parent)
+                    if parent is None or parent.fd < 0 or record.name is None:
+                        reply_err(req, errno.EIO)
+                        return
+                    try:
+                        tmp_fd = _open_named_child(
+                            parent.fd, record.name, os.O_WRONLY | os.O_NONBLOCK
+                        )
+                    except OSError as exc:
+                        reply_err(req, exc.errno or errno.EIO)
+                        return
+                    try:
+                        os.ftruncate(tmp_fd, size)
+                    except OSError as exc:
+                        reply_err(req, exc.errno or errno.EIO)
+                        return
+                    finally:
+                        with suppress(OSError):
+                            os.close(tmp_fd)
+            if want_atime or want_mtime:
+                if live is not None:
+                    try:
+                        current = os.fstat(live.fd)
+                    except OSError as exc:
+                        reply_err(req, exc.errno or errno.EIO)
+                        return
+                else:
+                    if record is None:
+                        reply_err(req, errno.ENOENT)
+                        return
+                    try:
+                        current = self._stat_record(record)
+                    except OSError as exc:
+                        reply_err(req, exc.errno or errno.EIO)
+                        return
+                now_ns = time.time_ns()
+                atime_ns = current.st_atime_ns
+                mtime_ns = current.st_mtime_ns
+                if to_set & _FUSE_SET_ATTR_ATIME:
+                    atime_ns = int(attr.st_atim.tv_sec) * 1_000_000_000 + int(attr.st_atim.tv_nsec)
+                elif to_set & _FUSE_SET_ATTR_ATIME_NOW:
+                    atime_ns = now_ns
+                if to_set & _FUSE_SET_ATTR_MTIME:
+                    mtime_ns = int(attr.st_mtim.tv_sec) * 1_000_000_000 + int(attr.st_mtim.tv_nsec)
+                elif to_set & _FUSE_SET_ATTR_MTIME_NOW:
+                    mtime_ns = now_ns
+                if live is not None:
+                    try:
+                        os.utime(live.fd, ns=(atime_ns, mtime_ns))
+                    except OSError as exc:
+                        reply_err(req, exc.errno or errno.EIO)
+                        return
+                else:
+                    if record is None:
+                        reply_err(req, errno.ENOENT)
+                        return
+                    if record.fd >= 0:
+                        # Retained directory descriptor: utime it directly.
+                        try:
+                            os.utime(record.fd, ns=(atime_ns, mtime_ns))
+                        except OSError as exc:
+                            reply_err(req, exc.errno or errno.EIO)
+                            return
+                    else:
+                        parent = self._state.inodes.get(record.parent)
+                        if parent is None or parent.fd < 0 or record.name is None:
+                            reply_err(req, errno.EIO)
+                            return
+                        try:
+                            tmp_fd = _open_named_child(
+                                parent.fd, record.name, os.O_RDONLY | os.O_NONBLOCK
+                            )
+                        except OSError as exc:
+                            reply_err(req, exc.errno or errno.EIO)
+                            return
+                        try:
+                            os.utime(tmp_fd, ns=(atime_ns, mtime_ns))
+                        except OSError as exc:
+                            reply_err(req, exc.errno or errno.EIO)
+                            return
+                        finally:
+                            with suppress(OSError):
+                                os.close(tmp_fd)
+            if live is not None and record is None:
+                # Forgotten inode with a live handle: stat the retained
+                # descriptor instead of the vanished record.
+                try:
+                    metadata = os.fstat(live.fd)
+                except OSError as exc:
+                    reply_err(req, exc.errno or errno.EIO)
+                    return
+            else:
+                if record is None:
+                    reply_err(req, errno.ENOENT)
+                    return
+                try:
+                    metadata = self._stat_record(record)
+                except OSError as exc:
+                    reply_err(req, exc.errno or errno.EIO)
+                    return
+            self._reply_stat_attr(req, metadata)
+        except Exception:
+            with suppress(Exception):
+                reply_err(req, errno.EIO)
+
+    def _on_mkdir(self, req: int, parent: int, raw_name: bytes | None, mode: int) -> None:
+        reply_err = self._library.raw.fuse_reply_err
+        try:
+            record = self._mutation_parent(req, parent)
+            if record is None:
+                return
+            name = self._mutation_name(req, record.fd, raw_name)
+            if name is None:
+                return
+            if resolve_insensitive_name(record.fd, name) is not None:
+                # Never shadow a folded-equal sibling (dir/Dir): fail closed.
+                # Residual: a same-uid host writer editing the backing tree
+                # directly could plant a folded-equal variant in the window
+                # between search and mkdir; that yields a duplicate-cased
+                # name (resolver first-wins), never an escape.
+                reply_err(req, errno.EEXIST)
+                return
+            try:
+                os.mkdir(name, _sanitize_new_mode(mode), dir_fd=record.fd)
+            except OSError as exc:
+                reply_err(req, exc.errno or errno.EIO)
+                return
+            try:
+                child_fd = os.open(
+                    name,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=record.fd,
+                )
+            except OSError as exc:
+                reply_err(req, exc.errno or errno.EIO)
+                return
+            try:
+                metadata = os.fstat(child_fd)
+            except OSError as exc:
+                code = exc.errno or errno.EIO
+                with suppress(OSError):
+                    os.close(child_fd)
+                reply_err(req, code)
+                return
+            if not stat.S_ISDIR(metadata.st_mode):
+                with suppress(OSError):
+                    os.close(child_fd)
+                reply_err(req, errno.EIO)
+                return
+            try:
+                ino = self._register(child_fd, metadata, parent, name)
+            except OverflowError:
+                with suppress(OSError):
+                    os.close(child_fd)
+                reply_err(req, errno.ENOSPC)
+                return
+            _drop_resolver_cache_for(record.fd)
+            self._state.listings.pop(parent, None)
+            _debug_log(self._state, f"mkdir parent={parent} name={name!r} opened ino={ino}")
+            self._reply_entry(req, ino, metadata)
+        except Exception:
+            with suppress(Exception):
+                reply_err(req, errno.EIO)
+
+    def _on_unlink(self, req: int, parent: int, raw_name: bytes | None) -> None:
+        reply_err = self._library.raw.fuse_reply_err
+        try:
+            record = self._mutation_parent(req, parent)
+            if record is None:
+                return
+            name = self._mutation_name(req, record.fd, raw_name)
+            if name is None:
+                return
+            leaf = self._lstat_leaf(req, record.fd, name)
+            if leaf is None:
+                return
+            if stat.S_ISDIR(leaf.st_mode):
+                reply_err(req, errno.EISDIR)
+                return
+            if stat.S_ISLNK(leaf.st_mode) or not stat.S_ISREG(leaf.st_mode):
+                # Symlink and special leaves are never unlinked through the
+                # view: only plain regular files go.
+                reply_err(req, errno.EPERM)
+                return
+            try:
+                os.unlink(name, dir_fd=record.fd)
+            except OSError as exc:
+                reply_err(req, exc.errno or errno.EIO)
+                return
+            self._drop_child_listing(leaf)
+            _drop_resolver_cache_for(record.fd)
+            self._state.listings.pop(parent, None)
+            _debug_log(self._state, f"unlink parent={parent} name={name!r}")
+            reply_err(req, 0)
+        except Exception:
+            with suppress(Exception):
+                reply_err(req, errno.EIO)
+
+    def _on_rmdir(self, req: int, parent: int, raw_name: bytes | None) -> None:
+        reply_err = self._library.raw.fuse_reply_err
+        try:
+            record = self._mutation_parent(req, parent)
+            if record is None:
+                return
+            name = self._mutation_name(req, record.fd, raw_name)
+            if name is None:
+                return
+            leaf = self._lstat_leaf(req, record.fd, name)
+            if leaf is None:
+                return
+            if stat.S_ISLNK(leaf.st_mode):
+                reply_err(req, errno.EPERM)
+                return
+            if not stat.S_ISDIR(leaf.st_mode):
+                reply_err(req, errno.ENOTDIR)
+                return
+            try:
+                os.rmdir(name, dir_fd=record.fd)
+            except OSError as exc:
+                # A non-empty directory surfaces ENOTEMPTY naturally here.
+                reply_err(req, exc.errno or errno.EIO)
+                return
+            self._drop_child_listing(leaf)
+            _drop_resolver_cache_for(record.fd)
+            self._state.listings.pop(parent, None)
+            _debug_log(self._state, f"rmdir parent={parent} name={name!r}")
+            reply_err(req, 0)
+        except Exception:
+            with suppress(Exception):
+                reply_err(req, errno.EIO)
+
+    def _on_rename(
+        self,
+        req: int,
+        oldparent: int,
+        old_name_raw: bytes | None,
+        newparent: int,
+        new_name_raw: bytes | None,
+        flags: int,
+    ) -> None:
+        reply_err = self._library.raw.fuse_reply_err
+        try:
+            old_record = self._mutation_parent(req, oldparent)
+            if old_record is None:
+                return
+            new_record = self._mutation_parent(req, newparent)
+            if new_record is None:
+                return
+            old_name = self._mutation_name(req, old_record.fd, old_name_raw)
+            if old_name is None:
+                return
+            new_name = self._mutation_name(req, new_record.fd, new_name_raw)
+            if new_name is None:
+                return
+            if flags != 0:
+                # Only plain renames: no EXCHANGE/WHITEOUT semantics offered.
+                reply_err(req, errno.EINVAL)
+                return
+            leaf = self._lstat_leaf(req, old_record.fd, old_name)
+            if leaf is None:
+                return
+            if stat.S_ISLNK(leaf.st_mode) or (
+                not stat.S_ISREG(leaf.st_mode) and not stat.S_ISDIR(leaf.st_mode)
+            ):
+                # Only regular files and directories move through the view.
+                reply_err(req, errno.EPERM)
+                return
+            try:
+                replaced = os.stat(new_name, dir_fd=new_record.fd, follow_symlinks=False)
+            except OSError:
+                replaced = None
+            if replaced is not None and (
+                stat.S_ISLNK(replaced.st_mode)
+                or (not stat.S_ISREG(replaced.st_mode) and not stat.S_ISDIR(replaced.st_mode))
+            ):
+                # The destination is replaced, never traversed, but a
+                # symlink or special there must not be silently swapped
+                # for a view-visible entry: fail closed like the source.
+                reply_err(req, errno.EPERM)
+                return
+            try:
+                os.rename(
+                    old_name,
+                    new_name,
+                    src_dir_fd=old_record.fd,
+                    dst_dir_fd=new_record.fd,
+                )
+            except OSError as exc:
+                # Type clashes (EISDIR/ENOTDIR) and occupied directories
+                # (ENOTEMPTY) surface naturally from renameat.
+                reply_err(req, exc.errno or errno.EIO)
+                return
+            # Retarget live records of the moved leaf so later getattr/open
+            # keep resolving.
+            for candidate in self._state.inodes.values():
+                if candidate.parent == oldparent and candidate.name == old_name:
+                    candidate.parent = newparent
+                    candidate.name = new_name
+            if replaced is not None:
+                # An overwritten destination no longer names its old file:
+                # drop its keys/listings entry so the next lookup
+                # re-resolves by name.  The inode entry itself is left to
+                # age out via forget; it resolves by current name exactly
+                # like a fresh lookup would.
+                self._drop_child_listing(replaced)
+            _drop_resolver_cache_for(old_record.fd)
+            self._state.listings.pop(oldparent, None)
+            if new_record.fd != old_record.fd:
+                _drop_resolver_cache_for(new_record.fd)
+            if newparent != oldparent:
+                self._state.listings.pop(newparent, None)
+            _debug_log(
+                self._state,
+                f"rename oldparent={oldparent} old={old_name!r} "
+                f"newparent={newparent} new={new_name!r}",
+            )
+            reply_err(req, 0)
+        except Exception:
+            with suppress(Exception):
+                reply_err(req, errno.EIO)
+
+    def _on_create(
+        self, req: int, parent: int, raw_name: bytes | None, mode: int, file_info: int
+    ) -> None:
+        reply_err = self._library.raw.fuse_reply_err
+        try:
+            record = self._mutation_parent(req, parent)
+            if record is None:
+                return
+            name = self._mutation_name(req, record.fd, raw_name)
+            if name is None:
+                return
+            # Creation honors the requested access mode exactly like open
+            # does; a null file_info (unit-test direct calls only, the
+            # kernel always sends one) defaults to O_RDWR|O_CREAT.
+            create_flags = (
+                ctypes.c_int.from_address(file_info).value
+                if file_info
+                else (os.O_RDWR | os.O_CREAT)
+            )
+            access = os.O_WRONLY if (create_flags & _O_ACCMODE) == os.O_WRONLY else os.O_RDWR
+            readable = (create_flags & _O_ACCMODE) != os.O_WRONLY
+            append = bool(create_flags & _O_APPEND)
+            if resolve_insensitive_name(record.fd, name) is not None:
+                # Never duplicate an existing name under another case
+                # (save/Save): a folded-equal match fails closed with EEXIST.
+                # Residual: a same-uid host writer editing the backing tree
+                # directly could plant a folded-equal variant in the window
+                # between search and O_EXCL open; that yields a
+                # duplicate-cased name (resolver first-wins), never an
+                # escape.  Exact-name races stay atomic via O_EXCL.
+                reply_err(req, errno.EEXIST)
+                return
+            try:
+                child_fd = os.open(
+                    name,
+                    access | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_NONBLOCK,
+                    _sanitize_new_mode(mode),
+                    dir_fd=record.fd,
+                )
+            except OSError as exc:
+                reply_err(req, exc.errno or errno.EIO)
+                return
+            try:
+                metadata = os.fstat(child_fd)
+            except OSError as exc:
+                code = exc.errno or errno.EIO
+                with suppress(OSError):
+                    os.close(child_fd)
+                reply_err(req, code)
+                return
+            if not stat.S_ISREG(metadata.st_mode):
+                # Unreachable paranoia: O_EXCL|O_NOFOLLOW guarantees a fresh
+                # regular file or a failed open.
+                with suppress(OSError):
+                    os.close(child_fd)
+                reply_err(req, errno.EIO)
+                return
+            try:
+                ino = self._register(-1, metadata, parent, name)
+            except OverflowError:
+                with suppress(OSError):
+                    os.close(child_fd)
+                reply_err(req, errno.ENOSPC)
+                return
+            try:
+                handle_id = self._alloc_handle(child_fd, append, ino, readable)
+            except OverflowError:
+                with suppress(OSError):
+                    os.close(child_fd)
+                # Practically unreachable (2**64 fh ids), but do not leave
+                # the just-registered entry behind without a handle.
+                self._state.keys.pop((metadata.st_dev, metadata.st_ino), None)
+                self._state.inodes.pop(ino, None)
+                reply_err(req, errno.ENFILE)
+                return
+            _drop_resolver_cache_for(record.fd)
+            self._state.listings.pop(parent, None)
+            _debug_log(self._state, f"create parent={parent} name={name!r} opened ino={ino}")
+            param = _FuseEntryParam()
+            param.ino = ino
+            param.generation = 0
+            _fill_stat(param.attr, metadata)
+            param.attr_timeout = 0.0
+            param.entry_timeout = 0.0
+            self._library.raw.fuse_reply_create(
+                req, ctypes.byref(param), _open_reply_buffer(handle_id)
+            )
+        except Exception:
+            with suppress(Exception):
+                reply_err(req, errno.EIO)
+
     def _on_open(self, req: int, ino: int, file_info: int) -> None:
         reply_err = self._library.raw.fuse_reply_err
         try:
@@ -1130,8 +1865,12 @@ class _CallbackSet:
                 reply_err(req, errno.ENOENT)
                 return
             flags = ctypes.c_int.from_address(file_info).value if file_info else 0
-            if (flags & 0x3) != 0 or (flags & _O_TRUNC):
-                reply_err(req, errno.EROFS)
+            truncate = bool(flags & _O_TRUNC)
+            want_write = (flags & _O_ACCMODE) != os.O_RDONLY or truncate
+            if truncate and (flags & _O_ACCMODE) == os.O_RDONLY:
+                # Truncating through a read-only open is invalid: fail
+                # closed instead of upgrading the access mode.
+                reply_err(req, errno.EINVAL)
                 return
             try:
                 metadata = self._stat_record(record)
@@ -1144,24 +1883,94 @@ class _CallbackSet:
                 else:
                     reply_err(req, errno.EACCES)
                 return
-            # Stateless I/O: reads transiently open off the parent plus
-            # pread, keeping no handle, so the reply carries no handle,
-            # only default (zeroed) open flags.
-            self._library.raw.fuse_reply_open(
-                req, ctypes.create_string_buffer(_FILE_INFO_REPLY_SIZE)
-            )
+            parent = self._state.inodes.get(record.parent)
+            if parent is None or parent.fd < 0 or record.name is None:
+                reply_err(req, errno.EIO)
+                return
+            if not want_write:
+                # Reads stay handleless: reply a zeroed file_info without
+                # retaining any descriptor (write opens retain below).
+                self._library.raw.fuse_reply_open(
+                    req, ctypes.create_string_buffer(_FILE_INFO_REPLY_SIZE)
+                )
+                return
+            # O_TRUNC passes through to the backing open so truncation stays
+            # atomic; O_APPEND is deliberately not propagated and is emulated
+            # in _on_write at fstat size instead (race-free under the
+            # single-threaded loop; pwrite ignores position anyway).
+            # O_CREAT/O_EXCL never reach open: the kernel routes creation
+            # through create.  SYNC/DIRECT are not propagated either: writes
+            # are synchronous pwrite and durability is offered via fsync.
+            # Past this point every open is a write-mode open: retain one
+            # backing descriptor, closed at release.  The backing open keeps
+            # the requested access mode (never upgraded): a write-only open
+            # stays write-only, so reads through its handle fail below.
+            access = os.O_WRONLY if (flags & _O_ACCMODE) == os.O_WRONLY else os.O_RDWR
+            backing = access | os.O_NOFOLLOW | os.O_NONBLOCK
+            if truncate:
+                backing |= os.O_TRUNC
+            try:
+                child_fd = _open_named_child(parent.fd, record.name, backing)
+            except OSError as exc:
+                reply_err(req, exc.errno or errno.EIO)
+                return
+            try:
+                opened = os.fstat(child_fd)
+            except OSError as exc:
+                code = exc.errno or errno.EIO
+                with suppress(OSError):
+                    os.close(child_fd)
+                reply_err(req, code)
+                return
+            if stat.S_ISDIR(opened.st_mode):
+                with suppress(OSError):
+                    os.close(child_fd)
+                reply_err(req, errno.EISDIR)
+                return
+            if not stat.S_ISREG(opened.st_mode):
+                with suppress(OSError):
+                    os.close(child_fd)
+                reply_err(req, errno.EIO)
+                return
+            try:
+                handle_id = self._alloc_handle(
+                    child_fd, bool(flags & _O_APPEND), ino, (flags & _O_ACCMODE) != os.O_WRONLY
+                )
+            except OverflowError:
+                with suppress(OSError):
+                    os.close(child_fd)
+                reply_err(req, errno.ENFILE)
+                return
+            self._library.raw.fuse_reply_open(req, _open_reply_buffer(handle_id))
         except Exception:
             with suppress(Exception):
                 reply_err(req, errno.EIO)
 
-    def _on_read(self, req: int, ino: int, size: int, offset: int, _file_info: int) -> None:
+    def _on_read(self, req: int, ino: int, size: int, offset: int, file_info: int) -> None:
         reply_err = self._library.raw.fuse_reply_err
         try:
             record = self._state.inodes.get(ino)
-            if record is None:
+            handle_id = _read_fh(file_info)
+            handle = self._state.handles.get(handle_id) if handle_id else None
+            live = handle if (handle is not None and handle.ino == ino) else None
+            if live is not None:
+                # A live handle outlives forget: serve from the retained
+                # descriptor even when the inode record is already gone.
+                if not live.readable:
+                    reply_err(req, errno.EBADF)
+                    return
+                try:
+                    data = os.pread(live.fd, size, offset)
+                except OSError as exc:
+                    reply_err(req, exc.errno or errno.EIO)
+                    return
+            elif record is None:
                 reply_err(req, errno.ENOENT)
                 return
-            if record.fd >= 0:
+            elif handle_id and (handle is None or handle.ino != ino):
+                reply_err(req, errno.EIO)
+                return
+            elif record.fd >= 0:
                 try:
                     data = os.pread(record.fd, size, offset)
                 except OSError as exc:
@@ -1198,8 +2007,182 @@ class _CallbackSet:
             with suppress(Exception):
                 reply_err(req, errno.EIO)
 
-    def _on_release(self, req: int, ino: int, _file_info: int) -> None:
+    def _on_write(
+        self,
+        req: int,
+        ino: int,
+        buf: int | bytes | None,
+        size: int,
+        offset: int,
+        file_info: int,
+    ) -> None:
+        # Deliberately no userspace write-size cap: read already passes the
+        # FUSE size straight through, so there is no mirrored cap to copy;
+        # per-call write size stays kernel-bounded by FUSE max_write.
+        reply_err = self._library.raw.fuse_reply_err
+        reply_write = self._library.raw.fuse_reply_write
         try:
+            record = self._state.inodes.get(ino)
+            handle_id = _read_fh(file_info)
+            handle = self._state.handles.get(handle_id) if handle_id else None
+            live = handle if (handle is not None and handle.ino == ino) else None
+            if live is None:
+                if record is None:
+                    reply_err(req, errno.ENOENT)
+                    return
+                if handle_id and (handle is None or handle.ino != ino):
+                    reply_err(req, errno.EIO)
+                    return
+                # A write with no live handle has no descriptor to write
+                # through (reads stay handleless; every write open retains).
+                reply_err(req, errno.EIO)
+                return
+            # From here the retained descriptor serves, whether or not the
+            # inode record survived a later forget.  Every handle is
+            # writable (backing opens keep O_WRONLY/O_RDWR, never O_RDONLY).
+            if offset < 0:
+                reply_err(req, errno.EINVAL)
+                return
+            if isinstance(buf, bytes):
+                # Direct unit-test invocation bypasses the ctypes conversion.
+                data = buf[:size] if size > 0 else b""
+            else:
+                data = ctypes.string_at(buf, size) if buf and size > 0 else b""
+            if not data:
+                reply_write(req, 0)
+                return
+            if live.append:
+                # O_APPEND is emulated at fstat size: exact under the
+                # single-threaded loop, where no concurrent writer can slip
+                # between the size check and the pwrite below.
+                try:
+                    base = os.fstat(live.fd).st_size
+                except OSError as exc:
+                    reply_err(req, exc.errno or errno.EIO)
+                    return
+            else:
+                base = offset
+            total = 0
+            while total < len(data):
+                try:
+                    written = os.pwrite(live.fd, data[total:], base + total)
+                except OSError as exc:
+                    if total == 0:
+                        reply_err(req, exc.errno or errno.EIO)
+                    else:
+                        reply_write(req, total)
+                    return
+                if written <= 0:
+                    if total == 0:
+                        reply_err(req, errno.EIO)
+                    else:
+                        reply_write(req, total)
+                    return
+                total += written
+            reply_write(req, total)
+        except Exception:
+            with suppress(Exception):
+                reply_err(req, errno.EIO)
+
+    def _on_flush(self, req: int, ino: int, _file_info: int) -> None:
+        # Writes are synchronous pwrite, so there is nothing to flush; always
+        # succeed (flush errors are non-portable by POSIX anyway).
+        try:
+            if self._state.inodes.get(ino) is None:
+                self._library.raw.fuse_reply_err(req, errno.ENOENT)
+                return
+        except Exception:
+            pass
+        with suppress(Exception):
+            self._library.raw.fuse_reply_err(req, 0)
+
+    def _on_fsync(self, req: int, ino: int, _datasync: int, file_info: int) -> None:
+        reply_err = self._library.raw.fuse_reply_err
+        try:
+            record = self._state.inodes.get(ino)
+            handle_id = _read_fh(file_info)
+            handle = self._state.handles.get(handle_id) if handle_id else None
+            live = handle if (handle is not None and handle.ino == ino) else None
+            if live is not None:
+                # A live handle outlives forget: sync the retained
+                # descriptor even when the inode record is already gone.
+                try:
+                    os.fsync(live.fd)
+                except OSError as exc:
+                    reply_err(req, exc.errno or errno.EIO)
+                    return
+            elif record is None:
+                reply_err(req, errno.ENOENT)
+                return
+            elif handle_id and (handle is None or handle.ino != ino):
+                reply_err(req, errno.EIO)
+                return
+            elif record.fd >= 0:
+                try:
+                    os.fsync(record.fd)
+                except OSError as exc:
+                    reply_err(req, exc.errno or errno.EIO)
+                    return
+            else:
+                # No live handle (fh 0): sync transiently with O_NOFOLLOW.
+                parent = self._state.inodes.get(record.parent)
+                if parent is None or parent.fd < 0 or record.name is None:
+                    reply_err(req, errno.EIO)
+                    return
+                try:
+                    tmp_fd = _open_named_child(parent.fd, record.name, os.O_RDONLY | os.O_NONBLOCK)
+                except OSError as exc:
+                    reply_err(req, exc.errno or errno.EIO)
+                    return
+                try:
+                    os.fsync(tmp_fd)
+                except OSError as exc:
+                    reply_err(req, exc.errno or errno.EIO)
+                    return
+                finally:
+                    with suppress(OSError):
+                        os.close(tmp_fd)
+            reply_err(req, 0)
+        except Exception:
+            with suppress(Exception):
+                reply_err(req, errno.EIO)
+
+    def _on_fsyncdir(self, req: int, ino: int, _datasync: int, _file_info: int) -> None:
+        reply_err = self._library.raw.fuse_reply_err
+        try:
+            record = self._state.inodes.get(ino)
+            if record is None:
+                reply_err(req, errno.ENOENT)
+                return
+            if record.fd < 0:
+                # Only directories retain descriptors (see _on_opendir): an
+                # unretained inode is a regular file, never syncable as a dir.
+                reply_err(req, errno.ENOTDIR)
+                return
+            try:
+                os.fsync(record.fd)
+            except OSError as exc:
+                reply_err(req, exc.errno or errno.EIO)
+                return
+            reply_err(req, 0)
+        except Exception:
+            with suppress(Exception):
+                reply_err(req, errno.EIO)
+
+    def _on_release(self, req: int, ino: int, file_info: int) -> None:
+        try:
+            # File handles (open/create) close here: pop the fh id the reply
+            # carried and close its retained descriptor.  Directory opens
+            # reply fh 0, so releasedir is a no-op above and falls through to
+            # the shared listing accounting below (one callback stays
+            # installed for both release and releasedir, as before).
+            handle_id = _read_fh(file_info)
+            if handle_id:
+                if handle_id not in self._state.handles:
+                    # Unknown handle releases stay success (the kernel
+                    # ignores release errors) but are logged for diagnosis.
+                    _debug_log(self._state, f"release unknown fh={handle_id} ino={ino}")
+                self._close_handle(handle_id)
             # Listings are shared per inode, not per handle: only the last
             # release of an open session drops the snapshot, so one handle's
             # release never exposes a rescan to a still-open sibling handle.
@@ -1548,7 +2531,7 @@ def _redirect_stdio_to_null() -> None:
 def mount_ci_mount(
     game_root_fd: int, mountpoint: Path, *, ready_timeout: float = _READY_TIMEOUT
 ) -> CiMountSession:
-    """Mount a read-only case-insensitive view of ``game_root_fd`` at ``mountpoint``.
+    """Mount a writable case-insensitive view of ``game_root_fd`` at ``mountpoint``.
 
     The FUSE loop runs in a double-forked daemon holding its own copies
     of the descriptors, so the mount outlives launcher exit; the
@@ -1608,7 +2591,7 @@ def mount_ci_mount(
             ) from exc
         state = _FuseState(backing_fd)
         callbacks = _CallbackSet(library, state)
-        raw_argv = (b"box-cimount", b"-o", b"ro", b"-o", b"default_permissions")
+        raw_argv = (b"box-cimount", b"-o", b"default_permissions")
         argv = (ctypes.c_char_p * len(raw_argv))(*raw_argv)
         args = _FuseArgs(len(raw_argv), argv, 0)
         raw_library = library.raw
@@ -1685,6 +2668,10 @@ def mount_ci_mount(
                 if fuse_fd >= 0:
                     keep.add(fuse_fd)
                 _retain_only(keep)
+                # Single-threaded loop only: O_APPEND-at-size, the unlocked
+                # tables, check-then-scan readdir, and the rename retarget
+                # walk all assume no two ops run concurrently.  Never switch
+                # to loop_mt/clone_fd without adding locking first.
                 with suppress(Exception):
                     raw_library.fuse_session_loop(session)
                 with suppress(Exception):
