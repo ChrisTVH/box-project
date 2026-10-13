@@ -198,6 +198,11 @@ _HANDLED_SET_ATTR = (
     | _FUSE_SET_ATTR_FH
 )
 
+#: Sustained write rate cap for the FUSE mount (single source of truth).
+_WRITE_RATE_BYTES_PER_SEC = 100 * 1024 * 1024
+#: Burst allowance: rate x 1 s, so short normal saves never sleep.
+_WRITE_BURST_BYTES = _WRITE_RATE_BYTES_PER_SEC * 1
+
 #: Env var naming a file for readdir/lookup decision logging (live diagnosis
 #: only).  Unset (or empty) means no logging at all; see :func:`_debug_log`.
 _DEBUG_LOG_ENV = "BOX_CIMOUNT_DEBUG_LOG"
@@ -779,6 +784,36 @@ class _FuseState:
         # Lazily opened debug-log descriptor for BOX_CIMOUNT_DEBUG_LOG
         # (see _debug_log); -1 while logging stays disabled or unopened.
         self.debug_fd: int = -1
+        # Token bucket for the write throttle: one mount daemon serves one
+        # game, so no cross-game accounting is needed.  Initialized full so
+        # normal saves never sleep from t=0.
+        self.write_tokens: float = float(_WRITE_BURST_BYTES)
+        self.write_last_ns: int = time.monotonic_ns()
+
+
+def _throttle_consume(state: _FuseState, amount: int, now_ns: int) -> float:
+    """Consume ``amount`` bytes from the write bucket; return sleep seconds.
+
+    Pure apart from mutating ``state``: refill on elapsed time since
+    ``write_last_ns`` (capped at the 1 s burst), deduct the full amount
+    (tokens may go negative), and return ``deficit / rate`` (``0.0`` when
+    covered).  Callers pass ``time.monotonic_ns()`` and ``time.sleep()``
+    the result; the injectable ``now_ns`` keeps tests deterministic.
+    """
+    elapsed_ns = now_ns - state.write_last_ns
+    if elapsed_ns > 0:
+        state.write_tokens = min(
+            float(_WRITE_BURST_BYTES),
+            state.write_tokens + (elapsed_ns / 1_000_000_000) * _WRITE_RATE_BYTES_PER_SEC,
+        )
+        # Only ever move the clock forward: a zero or backward timestamp
+        # (hand-injected in tests; monotonic never regresses in production)
+        # must not rewind the refill base and over-refill the next call.
+        state.write_last_ns = now_ns
+    state.write_tokens -= float(amount)
+    if state.write_tokens >= 0:
+        return 0.0
+    return -state.write_tokens / float(_WRITE_RATE_BYTES_PER_SEC)
 
 
 def _debug_log(state: _FuseState, message: str) -> None:
@@ -2051,6 +2086,15 @@ class _CallbackSet:
             if not data:
                 reply_write(req, 0)
                 return
+            # Write throttle: sustained writes are capped at
+            # _WRITE_RATE_BYTES_PER_SEC with a 1 s burst.  Requests stay
+            # kernel-bounded by FUSE max_write (~1 MB), so the worst-case
+            # stall is ~10 ms -- negligible even single-threaded.  Growth
+            # via ftruncate/O_TRUNC is intentionally out of scope (no total
+            # quota); setattr paths are untouched.
+            sleep_seconds = _throttle_consume(self._state, len(data), time.monotonic_ns())
+            if sleep_seconds > 0:
+                time.sleep(sleep_seconds)
             if live.append:
                 # O_APPEND is emulated at fstat size: exact under the
                 # single-threaded loop, where no concurrent writer can slip
