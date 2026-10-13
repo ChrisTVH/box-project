@@ -747,3 +747,133 @@ def test_read_through_write_only_handle_fails_with_ebadf(tmp_path: Path) -> None
         assert (root / "wo.dat").read_bytes() == b"secret-bytes"
     finally:
         _close_all(state)
+
+
+def test_write_throttle_full_bucket_covers_rate(tmp_path: Path) -> None:
+    """A full burst bucket covers one full rate worth of bytes with no sleep."""
+    root = tmp_path / "game"
+    root.mkdir()
+    _callbacks, state, _raw = _harness(root)
+    try:
+        rate = cimount._WRITE_RATE_BYTES_PER_SEC
+        now_ns = 5_000_000_000
+        state.write_tokens = float(cimount._WRITE_BURST_BYTES)
+        state.write_last_ns = now_ns
+        assert cimount._throttle_consume(state, rate, now_ns) == 0.0
+        assert state.write_tokens == 0.0
+    finally:
+        _close_all(state)
+
+
+def test_write_throttle_empty_bucket_deficit_is_one_second(tmp_path: Path) -> None:
+    """An empty bucket turns one rate-sized request into exactly 1.0 s."""
+    root = tmp_path / "game"
+    root.mkdir()
+    _callbacks, state, _raw = _harness(root)
+    try:
+        rate = cimount._WRITE_RATE_BYTES_PER_SEC
+        now_ns = 7_000_000_000
+        state.write_tokens = 0.0
+        state.write_last_ns = now_ns
+        assert cimount._throttle_consume(state, rate, now_ns) == 1.0
+        assert state.write_tokens == float(-rate)
+    finally:
+        _close_all(state)
+
+
+def test_write_throttle_refill_across_calls(tmp_path: Path) -> None:
+    """Elapsed time refills the bucket; same-timestamp overuse sleeps."""
+    root = tmp_path / "game"
+    root.mkdir()
+    _callbacks, state, _raw = _harness(root)
+    try:
+        rate = cimount._WRITE_RATE_BYTES_PER_SEC
+        start_ns = 9_000_000_000
+        state.write_tokens = float(cimount._WRITE_BURST_BYTES)
+        state.write_last_ns = start_ns
+        # Drain the full burst at t=0: covered, bucket now empty.
+        assert cimount._throttle_consume(state, rate, start_ns) == 0.0
+        assert state.write_tokens == 0.0
+        # Half a second later half a rate is covered again by refill.
+        half_ns = start_ns + 500_000_000
+        assert cimount._throttle_consume(state, rate // 2, half_ns) == 0.0
+        assert state.write_tokens == 0.0
+        # Same timestamp with no refill: one more byte must sleep.
+        assert cimount._throttle_consume(state, 1, half_ns) == pytest.approx(1.0 / float(rate))
+    finally:
+        _close_all(state)
+
+
+def test_write_throttle_small_writes_within_burst_never_sleep(tmp_path: Path) -> None:
+    """Small writes well below burst capacity never sleep on a full bucket."""
+    root = tmp_path / "game"
+    root.mkdir()
+    _callbacks, state, _raw = _harness(root)
+    try:
+        now_ns = 11_000_000_000
+        state.write_tokens = float(cimount._WRITE_BURST_BYTES)
+        state.write_last_ns = now_ns
+        chunk = 1024 * 1024
+        for _ in range(10):
+            assert cimount._throttle_consume(state, chunk, now_ns) == 0.0
+        assert state.write_tokens == float(cimount._WRITE_BURST_BYTES - 10 * chunk)
+    finally:
+        _close_all(state)
+
+
+def test_write_throttle_on_write_sleeps_deficit_and_keeps_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A drained bucket sleeps the computed deficit; bytes still land intact."""
+    root = tmp_path / "game"
+    root.mkdir()
+    callbacks, state, raw = _harness(root)
+    try:
+        callbacks._on_create(1, cimount._FUSE_ROOT_ID, b"throttle.dat", 0o644, 0)
+        assert not _failures(raw)
+        child = _ino_of(state, cimount._FUSE_ROOT_ID, "throttle.dat")
+        info = _fi_block(_live_handle_id(raw))
+        info_addr = ctypes.addressof(info)
+        fake_now = 13_000_000_000
+        state.write_tokens = 0.0
+        state.write_last_ns = fake_now
+        monkeypatch.setattr(cimount.time, "monotonic_ns", lambda: fake_now)
+        slept: list[float] = []
+        monkeypatch.setattr(cimount.time, "sleep", slept.append)
+        callbacks._on_write(2, child, b"xy", 2, 0, info_addr)
+        expected = 2.0 / float(cimount._WRITE_RATE_BYTES_PER_SEC)
+        assert slept == pytest.approx([expected])
+        assert raw.writes == [(2, 2)]
+        assert not _failures(raw)
+        assert (root / "throttle.dat").read_bytes() == b"xy"
+    finally:
+        _close_all(state)
+
+
+def test_write_throttle_zero_length_write_skips_sleep(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Zero-length writes reply 0 without consuming tokens or sleeping."""
+    root = tmp_path / "game"
+    root.mkdir()
+    callbacks, state, raw = _harness(root)
+    try:
+        callbacks._on_create(1, cimount._FUSE_ROOT_ID, b"empty.dat", 0o644, 0)
+        assert not _failures(raw)
+        child = _ino_of(state, cimount._FUSE_ROOT_ID, "empty.dat")
+        info = _fi_block(_live_handle_id(raw))
+        info_addr = ctypes.addressof(info)
+        fake_now = 17_000_000_000
+        state.write_tokens = float(cimount._WRITE_BURST_BYTES)
+        state.write_last_ns = fake_now
+        monkeypatch.setattr(cimount.time, "monotonic_ns", lambda: fake_now)
+        slept: list[float] = []
+        monkeypatch.setattr(cimount.time, "sleep", slept.append)
+        callbacks._on_write(2, child, b"", 0, 0, info_addr)
+        assert slept == []
+        assert raw.writes == [(2, 0)]
+        assert raw.errors == []
+        assert state.write_tokens == float(cimount._WRITE_BURST_BYTES)
+        assert (root / "empty.dat").read_bytes() == b""
+    finally:
+        _close_all(state)
