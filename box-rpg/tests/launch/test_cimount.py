@@ -1317,23 +1317,32 @@ def test_file_open_and_read_serve_bytes_without_retained_descriptor(tmp_path: Pa
             assert state.inodes[child].fd == -1
             callbacks._on_open(2, child, 0)
             assert not raw.errors
+            # Write opens succeed and retain a handle, released by fh below.
             write_flags = ctypes.c_int(os.O_WRONLY)
             callbacks._on_open(3, child, ctypes.addressof(write_flags))
-            assert raw.errors[-1] == (3, errno.EROFS)
-            raw.errors.clear()
-            callbacks._on_read(4, child, 4096, 0, 0)
             assert not raw.errors
-            assert raw.bufs[-1] == (4, payload, len(payload))
-            callbacks._on_read(5, child, 4096, 6, 0)
-            assert raw.bufs[-1] == (5, payload[6:], len(payload) - 6)
-            callbacks._on_read(6, child, 4096, len(payload), 0)
-            assert raw.bufs[-1] == (6, b"", 0)
+            (handle,) = list(state.handles)
+            release = ctypes.create_string_buffer(cimount._FILE_INFO_REPLY_SIZE)
+            ctypes.c_uint64.from_address(
+                ctypes.addressof(release) + cimount._FH_OFFSET
+            ).value = handle
+            callbacks._on_release(4, child, ctypes.addressof(release))
+            assert raw.errors == [(4, 0)]
+            assert not state.handles
+            raw.errors.clear()
+            callbacks._on_read(5, child, 4096, 0, 0)
+            assert not raw.errors
+            assert raw.bufs[-1] == (5, payload, len(payload))
+            callbacks._on_read(6, child, 4096, 6, 0)
+            assert raw.bufs[-1] == (6, payload[6:], len(payload) - 6)
+            callbacks._on_read(7, child, 4096, len(payload), 0)
+            assert raw.bufs[-1] == (7, b"", 0)
             # A missing parent fails closed instead of raising.
             state.inodes.pop(ino)
-            callbacks._on_open(7, child, 0)
-            assert raw.errors[-1] == (7, errno.EIO)
-            callbacks._on_read(8, child, 4096, 0, 0)
+            callbacks._on_open(8, child, 0)
             assert raw.errors[-1] == (8, errno.EIO)
+            callbacks._on_read(9, child, 4096, 0, 0)
+            assert raw.errors[-1] == (9, errno.EIO)
         finally:
             _close_state_fds(state)
     finally:

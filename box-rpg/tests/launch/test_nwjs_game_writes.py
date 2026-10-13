@@ -2,7 +2,7 @@
 
 Covers the overlay manifest payload, the API switch between the ephemeral
 /session app directory and the persistent writable /game tree, the
-ci-mount rejection, and real Bubblewrap probes proving screenshot-style
+ci-mount combination, and real Bubblewrap probes proving screenshot-style
 writes persist to the host game root only with the flag on.
 """
 
@@ -21,7 +21,7 @@ import pytest
 from box.api.launch import launch
 from box.config.repository import ConfigRepository
 from box.engines.registry import EngineRegistry
-from box.errors import GameValidationError, LaunchError
+from box.errors import LaunchError
 from box.launch.manifest import write_manifest
 from box.launch.sandbox import Sandbox, clean_environment
 from box.launch.session import create_session
@@ -39,6 +39,7 @@ class FakeSandbox:
         self.allow_game_writes = allow_game_writes
         self.binds: list[tuple[str, bool]] = []
         self.calls: list[str] = []
+        self.writable_targets: list[str] = []
         self.last_cwd = "/"
         self.last_arguments: list[str] = []
         self._kept: list[int] = []
@@ -91,6 +92,8 @@ class FakeSandbox:
 
     def game_writable(self, descriptor: int) -> None:
         self.calls.append("game_writable")
+        with suppress(OSError):
+            self.writable_targets.append(os.readlink(f"/proc/self/fd/{descriptor}"))
         self._kept.append(descriptor)
 
     def nw_game(self, game: GameInfo, descriptor: int, saves: int) -> None:
@@ -299,27 +302,90 @@ def test_launch_with_writes_uses_game_appdir_and_overlay(
     assert session_payload["main"] == "game/index.html"
 
 
-def test_launch_rejects_ci_mount_with_game_writes(
+def test_launch_with_writes_and_ci_mount_uses_view(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """With both flags the writable /game bind serves the mounted view."""
     game = _nwjs_game(tmp_path)
     paths = _paths(tmp_path)
     repository = ConfigRepository(paths)
     repository.add_allowed_root(game.root)
     _install_nwjs(tmp_path, "v0.90.0")
+    sandboxes = _patch_sandbox(monkeypatch)
+    _patch_spawn(monkeypatch)
+
+    class _FakeCiMountSession:
+        def __init__(self, mountpoint: Path) -> None:
+            self._mountpoint = mountpoint
+            self.disown_calls = 0
+            self.unmount_calls = 0
+
+        @property
+        def mountpoint(self) -> Path:
+            return self._mountpoint
+
+        def disown(self) -> None:
+            self.disown_calls += 1
+
+        def unmount(self) -> None:
+            self.unmount_calls += 1
+
+    sessions: list[_FakeCiMountSession] = []
+
+    def fake_mount(game_root_fd: int, mountpoint: Path, **kwargs: object) -> _FakeCiMountSession:
+        # Mirror the fixture game files into the mountpoint, like the real
+        # case-insensitive view would; the view fd then serves package.json.
+        mount_fd = os.open(mountpoint, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            for name in ("package.json", "index.html"):
+                with os.fdopen(
+                    os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=game_root_fd), "rb"
+                ) as src:
+                    data = src.read()
+                with os.fdopen(
+                    os.open(
+                        name,
+                        os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+                        0o600,
+                        dir_fd=mount_fd,
+                    ),
+                    "wb",
+                ) as dst:
+                    dst.write(data)
+        finally:
+            os.close(mount_fd)
+        session = _FakeCiMountSession(mountpoint)
+        sessions.append(session)
+        return session
+
+    from box.launch import cimount as cimount_module
+
+    monkeypatch.setattr(cimount_module, "require_libfuse3", lambda: "libfuse3.so.3")
+    monkeypatch.setattr(cimount_module, "mount_ci_mount", fake_mount)
 
     def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
         return game
 
-    def forbidden_spawn(*args: object, **kwargs: object) -> LaunchedSession:
-        raise AssertionError("rejected ci-mount launch must not run")
-
     monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
-    monkeypatch.setattr("box.api.launch.spawn_detached", forbidden_spawn)
-    with pytest.raises(GameValidationError, match=r"--ci-mount.*--allow-game-writes"):
-        launch(
-            paths, repository, game.root, "v0.90.0", False, ci_mount=True, allow_game_writes=True
-        )
+    monkeypatch.delenv("DISPLAY", raising=False)
+
+    handle = launch(
+        paths, repository, game.root, "v0.90.0", False, ci_mount=True, allow_game_writes=True
+    )
+    assert handle.identifier
+    assert len(sessions) == 1
+    assert sessions[0].disown_calls == 1
+    assert sessions[0].unmount_calls == 0
+    assert len(sandboxes) == 1
+    assert sandboxes[0].calls == ["game_writable"]
+    view = os.path.realpath(sessions[0].mountpoint)
+    assert view != os.path.realpath(game.root)
+    assert [os.path.realpath(target) for target in sandboxes[0].writable_targets] == [view]
+    assert sandboxes[0].last_cwd == "/game"
+    assert sandboxes[0].last_arguments[-1] == "/game"
+    assert ("/game/package.json", False) in sandboxes[0].binds
+    overlay = cast(dict[str, object], json.loads((handle.root / "game-package.json").read_text()))
+    assert overlay["main"] == "index.html"
 
 
 def _make_probe_game(game_root: Path) -> GameInfo:

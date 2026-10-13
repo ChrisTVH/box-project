@@ -60,6 +60,9 @@ class FakeSandbox:
         self.calls: list[str] = []
         self.runtime_paths: list[Path] = []
         self.binds: list[tuple[str, bool]] = []
+        self.writable_targets: list[str] = []
+        self.saves_targets: list[str] = []
+        self.nw_game_targets: list[str] = []
         self.probe = "wayland"
         self.last_cwd = "/"
         self.last_arguments: list[str] = []
@@ -114,6 +117,8 @@ class FakeSandbox:
 
     def game_saves(self, game: GameInfo, descriptor: int) -> int:
         self.calls.append("game_saves")
+        with suppress(OSError):
+            self.saves_targets.append(os.readlink(f"/proc/self/fd/{descriptor}"))
         return descriptor
 
     def game_source_saves(self, source: GameInfo, descriptor: int) -> int:
@@ -122,10 +127,14 @@ class FakeSandbox:
 
     def game_writable(self, descriptor: int) -> None:
         self.calls.append("game_writable")
+        with suppress(OSError):
+            self.writable_targets.append(os.readlink(f"/proc/self/fd/{descriptor}"))
         self._kept.append(descriptor)
 
     def nw_game(self, game: GameInfo, descriptor: int, saves: int) -> None:
         self.calls.append("nw_game")
+        with suppress(OSError):
+            self.nw_game_targets.append(os.readlink(f"/proc/self/fd/{descriptor}"))
 
     def bind(self, descriptor: int, destination: str, *, writable: bool = False) -> None:
         self.calls.append(f"bind:{destination}")
@@ -228,7 +237,9 @@ def _patch_sandbox(monkeypatch: pytest.MonkeyPatch, *, probe: str = "wayland") -
     return sandboxes
 
 
-def _patch_session(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[FakeSession]:
+def _patch_session(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, record: list[str] | None = None
+) -> list[FakeSession]:
     sessions: list[FakeSession] = []
 
     def factory(
@@ -240,6 +251,9 @@ def _patch_session(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[Fake
         game_root: Path | None = None,
         devtools: bool = False,
     ) -> FakeSession:
+        if record is not None and game_descriptor is not None:
+            with suppress(OSError):
+                record.append(os.readlink(f"/proc/self/fd/{game_descriptor}"))
         descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
         session = FakeSession(descriptor, tmp_path / "session")
         sessions.append(session)
@@ -302,6 +316,47 @@ def _patch_spawn_forbidden(monkeypatch: pytest.MonkeyPatch, message: str) -> Non
     monkeypatch.setattr("box.api.launch.spawn_detached", forbidden_spawn)
 
 
+class FakeCiMountSession:
+    """Track launcher-side mount ownership calls without touching FUSE."""
+
+    def __init__(self, mountpoint: Path) -> None:
+        self._mountpoint = mountpoint
+        self.raw_targets: list[str] = []
+        self.disown_calls = 0
+        self.unmount_calls = 0
+
+    @property
+    def mountpoint(self) -> Path:
+        return self._mountpoint
+
+    def disown(self) -> None:
+        self.disown_calls += 1
+
+    def unmount(self) -> None:
+        self.unmount_calls += 1
+
+
+def _patch_fake_cimount(monkeypatch: pytest.MonkeyPatch) -> list[FakeCiMountSession]:
+    """Fake the FUSE mount; the real mountpoint directory still backs the view fd."""
+    sessions: list[FakeCiMountSession] = []
+
+    def fake_require() -> str:
+        return "libfuse3.so.3"
+
+    def fake_mount(game_root_fd: int, mountpoint: Path, **kwargs: object) -> FakeCiMountSession:
+        session = FakeCiMountSession(mountpoint)
+        with suppress(OSError):
+            session.raw_targets.append(os.readlink(f"/proc/self/fd/{game_root_fd}"))
+        sessions.append(session)
+        return session
+
+    from box.launch import cimount as cimount_module
+
+    monkeypatch.setattr(cimount_module, "require_libfuse3", fake_require)
+    monkeypatch.setattr(cimount_module, "mount_ci_mount", fake_mount)
+    return sessions
+
+
 def test_nwjs_launch_returns_handle_and_forwards_flags(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -348,6 +403,203 @@ def test_nwjs_launch_returns_handle_and_forwards_flags(
     assert sandboxes[0].last_cwd == "/game"
     assert sandboxes[0].last_arguments[-1] == "/game"
     assert ("/game/package.json", False) in sandboxes[0].binds
+
+
+def test_nwjs_ci_mount_with_game_writes_uses_view_for_writable_bind(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game = _nwjs_game(tmp_path)
+    paths = _paths(tmp_path)
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(game.root)
+    _install_nwjs(tmp_path, "v0.90.0")
+    sandboxes = _patch_sandbox(monkeypatch, probe="wayland")
+    created: list[str] = []
+    _patch_session(monkeypatch, tmp_path, created)
+    ci_sessions = _patch_fake_cimount(monkeypatch)
+    spawned: list[Path | None] = []
+
+    def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
+        return game
+
+    def fake_spawn(
+        paths: AppPaths,
+        identifier: str,
+        name: str,
+        command: list[str],
+        pass_fds: tuple[int, ...] = (),
+        *,
+        parent_descriptor: int,
+        session_descriptor: int,
+        use_gamemode: bool = False,
+        gamemode_proxy: Path | None = None,
+        ci_mountpoint: Path | None = None,
+    ) -> LaunchedSession:
+        spawned.append(ci_mountpoint)
+        return LaunchedSession(
+            identifier=identifier, name=name, root=paths.sessions_root / identifier / name
+        )
+
+    monkeypatch.setattr("box.api.launch.spawn_detached", fake_spawn)
+    monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
+    monkeypatch.delenv("DISPLAY", raising=False)
+
+    handle = launch(
+        paths, repository, game.root, "v0.90.0", False, allow_game_writes=True, ci_mount=True
+    )
+    assert handle.identifier
+    assert len(ci_sessions) == 1
+    assert ci_sessions[0].disown_calls == 1
+    assert ci_sessions[0].unmount_calls == 0
+    assert spawned == [ci_sessions[0].mountpoint]
+    view = os.path.realpath(ci_sessions[0].mountpoint)
+    raw = os.path.realpath(game.root)
+    assert view != raw
+    # The mount pinned the raw game root.
+    assert [os.path.realpath(target) for target in ci_sessions[0].raw_targets] == [raw]
+    assert len(sandboxes) == 1
+    sandbox = sandboxes[0]
+    # The writable /game bind serves the mounted view, never the raw tree.
+    assert [os.path.realpath(target) for target in sandbox.writable_targets] == [view]
+    assert "game_writable" in sandbox.calls
+    assert "nw_game" not in sandbox.calls
+    # Saves bypass the view and stay on the raw backing tree.
+    assert [os.path.realpath(target) for target in sandbox.saves_targets] == [raw]
+    # The session manifest and copies also consumed the mounted view.
+    assert [os.path.realpath(target) for target in created] == [view]
+    # Persistent game writes run from the writable /game tree itself.
+    assert sandbox.last_cwd == "/game"
+    assert sandbox.last_arguments[-1] == "/game"
+    assert ("/game/package.json", False) in sandbox.binds
+
+
+def test_nwjs_ci_mount_without_game_writes_keeps_readonly_view(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game = _nwjs_game(tmp_path)
+    paths = _paths(tmp_path)
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(game.root)
+    _install_nwjs(tmp_path, "v0.90.0")
+    sandboxes = _patch_sandbox(monkeypatch, probe="wayland")
+    _patch_session(monkeypatch, tmp_path)
+    ci_sessions = _patch_fake_cimount(monkeypatch)
+
+    def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
+        return game
+
+    _patch_spawn(monkeypatch)
+    monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
+    monkeypatch.delenv("DISPLAY", raising=False)
+
+    assert launch(paths, repository, game.root, "v0.90.0", False, ci_mount=True).identifier
+    assert len(ci_sessions) == 1
+    assert len(sandboxes) == 1
+    sandbox = sandboxes[0]
+    assert "nw_game" in sandbox.calls
+    assert "game_writable" not in sandbox.calls
+    assert sandbox.writable_targets == []
+    view = os.path.realpath(ci_sessions[0].mountpoint)
+    assert [os.path.realpath(target) for target in sandbox.nw_game_targets] == [view]
+    assert [os.path.realpath(target) for target in sandbox.saves_targets] == [
+        os.path.realpath(game.root)
+    ]
+    assert sandbox.last_cwd == "/session/game"
+
+
+def test_nwjs_game_writes_without_ci_mount_uses_raw_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game = _nwjs_game(tmp_path)
+    paths = _paths(tmp_path)
+    repository = ConfigRepository(paths)
+    repository.add_allowed_root(game.root)
+    _install_nwjs(tmp_path, "v0.90.0")
+    sandboxes = _patch_sandbox(monkeypatch, probe="wayland")
+    _patch_session(monkeypatch, tmp_path)
+
+    def fake_detect(path: Path, registry: EngineRegistry) -> GameInfo:
+        return game
+
+    _patch_spawn(monkeypatch)
+    monkeypatch.setattr("box.api.launch.detect_game", fake_detect)
+    monkeypatch.delenv("DISPLAY", raising=False)
+
+    assert launch(paths, repository, game.root, "v0.90.0", False, allow_game_writes=True).identifier
+    assert len(sandboxes) == 1
+    sandbox = sandboxes[0]
+    assert "game_writable" in sandbox.calls
+    raw = os.path.realpath(game.root)
+    assert [os.path.realpath(target) for target in sandbox.writable_targets] == [raw]
+    assert [os.path.realpath(target) for target in sandbox.saves_targets] == [raw]
+    assert sandbox.last_cwd == "/game"
+
+
+def test_live_ci_mount_writable_view_persists_to_backing_tree(tmp_path: Path) -> None:
+    """Real FUSE: a write through the writable view persists to the backing tree.
+
+    Needs the writable mount layer; without it the probe write fails.
+    """
+    import subprocess
+
+    from box.launch import cimount as cimount_module
+    from box.launch.sandbox import Sandbox, clean_environment
+
+    if not Path("/dev/fuse").exists():
+        pytest.skip("no /dev/fuse device node")
+    if not cimount_module.is_available():
+        pytest.skip("no libfuse3 backend")
+    if os.uname().machine != "x86_64":
+        pytest.skip("the case-insensitive mount requires an x86_64 host")
+    if not Path("/usr/bin/bwrap").exists():
+        pytest.skip("no Bubblewrap sandbox for the live probe")
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    (game_root / "Image.PNG").write_bytes(b"image-bytes")
+    (game_root / "package.json").write_text('{"name": "fixture"}', encoding="utf-8")
+    mountpoint = tmp_path / "ci-mount"
+    mountpoint.mkdir()
+    cimount_module.drop_stale_ci_mount(mountpoint)
+    game_fd = os.open(game_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        session = cimount_module.mount_ci_mount(game_fd, mountpoint)
+        try:
+            with Sandbox(allow_game_writes=True) as sandbox:
+                view_fd = sandbox.keep(
+                    os.open(mountpoint, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                )
+                sandbox.game_writable(os.dup(view_fd))
+                probe = tmp_path / "probe.py"
+                probe.write_text(
+                    "#!/usr/bin/python3\n"
+                    "from pathlib import Path\n"
+                    "assert Path('/game/image.png').read_bytes() == b'image-bytes'\n"
+                    "Path('/game/shot.txt').write_text('screenshot')\n"
+                    "print('ci-write-ok')\n",
+                    encoding="utf-8",
+                )
+                probe.chmod(0o700)
+                executable = sandbox.runtime(probe)
+                result = subprocess.run(
+                    sandbox.command([executable], cwd="/game"),
+                    pass_fds=sandbox.pass_fds,
+                    env=clean_environment(),
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+            assert result.returncode == 0, result.stderr
+            assert result.stdout == "ci-write-ok\n"
+            assert (game_root / "shot.txt").read_text(encoding="utf-8") == "screenshot"
+        finally:
+            session.disown()
+            session.close()
+            cimount_module.force_unmount(mountpoint)
+    finally:
+        with suppress(OSError):
+            os.close(game_fd)
 
 
 def test_easyrpg_launch_uses_fullscreen_command(
