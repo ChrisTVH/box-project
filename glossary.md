@@ -52,6 +52,7 @@ Shared source of truth for both projects. The first section covers the backend (
 | version list | lista de versiones | |
 | version page | página de versiones | |
 | game directory | directorio del juego | En textos de ayuda; distinto de «managed directory» → «directorio gestionado». |
+| game folder | carpeta del juego | En el interruptor de escritura y la ayuda de `--allow-game-writes`; distinto de «game directory» → «directorio del juego». |
 | current directory | directorio actual | En «(predeterminado: directorio actual)». |
 | runtime version | versión del entorno de ejecución | |
 | configuration key | clave de configuración | Las claves (allowed-game-root, preferred-runtime) y `none` quedan en inglés. |
@@ -118,7 +119,7 @@ Terms taken from the `box-rpg-maker` catalog; if a msgid contains a backend term
 | Preferred EasyRPG runtime | Entorno EasyRPG preferido | Página de ajustes; `EasyRPG` no se traduce. |
 | Sandbox permissions | Permisos de la caja | El catálogo usa «caja»; mantenerlo por coherencia. |
 | Allow network usage | Permitir uso de red | Interruptor de la página de detalle. |
-| Allow modifying the game | Permitir modificar en el juego | Interruptor de la página de detalle; para juegos con actualización automática. |
+| Allow full writes to the game folder | Permitir la escritura completa en la carpeta del juego | Interruptor de la página de detalle; subtítulo con el caso de uso. |
 | Allow X11 or XWayland sessions | Permitir sesiones de X11 o XWayland | `X11` y `XWayland` no se traducen. |
 | Diagnose | Diagnosticar | Botón y diálogo de diagnóstico. |
 | Additional files | Archivos adicionales | Grupo de la página de detalle. |

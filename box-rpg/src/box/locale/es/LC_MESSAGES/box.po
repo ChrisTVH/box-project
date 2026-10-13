@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: box-rpg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-12 20:20-0400\n"
+"POT-Creation-Date: 2026-10-12 23:02-0400\n"
 "PO-Revision-Date: 2026-09-08 00:00+0000\n"
 "Last-Translator: Christopher Herasme <5632734-"
 "christvh@users.noreply.gitlab.com>\n"
@@ -1039,8 +1039,8 @@ msgstr ""
 "servicios locales)"
 
 #: box-rpg/src/box/cli/parser.py:203
-msgid "allow game directory writes for this launch only"
-msgstr "permite la escritura en el directorio del juego solo para este inicio"
+msgid "allow full writes to the game folder"
+msgstr "permite la escritura completa en la carpeta del juego"
 
 #: box-rpg/src/box/cli/parser.py:208
 msgid "use the local X11 display for this launch only (weaker isolation)"
@@ -1248,7 +1248,7 @@ msgstr "manifiesto del juego no válido {path}: {error}"
 msgid "game manifest is not a {format} object: {path}"
 msgstr "el manifiesto del juego no es un objeto {format}: {path}"
 
-#: box-rpg/src/box/launch/cimount.py:291
+#: box-rpg/src/box/launch/cimount.py:342
 msgid ""
 "case-insensitive mount requires libfuse3; install libfuse3 and retry without "
 "--ci-mount"
@@ -1256,34 +1256,34 @@ msgstr ""
 "el montaje insensible a mayúsculas y minúsculas requiere libfuse3; instala "
 "libfuse3 y reintenta sin --ci-mount"
 
-#: box-rpg/src/box/launch/cimount.py:382 box-rpg/src/box/launch/cimount.py:391
+#: box-rpg/src/box/launch/cimount.py:433 box-rpg/src/box/launch/cimount.py:442
 #, python-brace-format
 msgid "cannot unmount the case-insensitive mount at {path}: {error}"
 msgstr ""
 "no se puede desmontar el montaje insensible a mayúsculas y minúsculas en "
 "{path}: {error}"
 
-#: box-rpg/src/box/launch/cimount.py:433 box-rpg/src/box/launch/profiles.py:67
+#: box-rpg/src/box/launch/cimount.py:484 box-rpg/src/box/launch/profiles.py:67
 #, python-brace-format
 msgid "invalid game profile identifier: {identifier}"
 msgstr "identificador del perfil del juego no válido: {identifier}"
 
-#: box-rpg/src/box/launch/cimount.py:464 box-rpg/src/box/launch/cimount.py:482
-#: box-rpg/src/box/launch/cimount.py:495
+#: box-rpg/src/box/launch/cimount.py:515 box-rpg/src/box/launch/cimount.py:533
+#: box-rpg/src/box/launch/cimount.py:546
 #, python-brace-format
 msgid "cannot clear the stale case-insensitive mount at {path}: {error}"
 msgstr ""
 "no se puede borrar el montaje obsoleto insensible a mayúsculas y minúsculas "
 "en {path}: {error}"
 
-#: box-rpg/src/box/launch/cimount.py:488 box-rpg/src/box/launch/cimount.py:501
+#: box-rpg/src/box/launch/cimount.py:539 box-rpg/src/box/launch/cimount.py:552
 #, python-brace-format
 msgid "cannot clear the stale case-insensitive mount at {path}"
 msgstr ""
 "no se puede borrar el montaje obsoleto insensible a mayúsculas y minúsculas "
 "en {path}"
 
-#: box-rpg/src/box/launch/cimount.py:1458
+#: box-rpg/src/box/launch/cimount.py:2485
 #, python-brace-format
 msgid ""
 "case-insensitive mount ownership was handed over; only the supervisor path "
@@ -1292,27 +1292,27 @@ msgstr ""
 "la propiedad del montaje insensible a mayúsculas y minúsculas fue "
 "transferida; solo la ruta del supervisor puede desmontar {path}"
 
-#: box-rpg/src/box/launch/cimount.py:1565
+#: box-rpg/src/box/launch/cimount.py:2592
 msgid "case-insensitive mount requires /dev/fuse; retry without --ci-mount"
 msgstr ""
 "el montaje insensible a mayúsculas y minúsculas requiere /dev/fuse; "
 "reintenta sin --ci-mount"
 
-#: box-rpg/src/box/launch/cimount.py:1570
+#: box-rpg/src/box/launch/cimount.py:2597
 #, python-brace-format
 msgid "case-insensitive mountpoint is missing or unsafe: {path}"
 msgstr ""
 "el punto de montaje insensible a mayúsculas y minúsculas no existe o no es "
 "seguro: {path}"
 
-#: box-rpg/src/box/launch/cimount.py:1574
+#: box-rpg/src/box/launch/cimount.py:2601
 #, python-brace-format
 msgid "case-insensitive mountpoint is not a directory: {path}"
 msgstr ""
 "el punto de montaje insensible a mayúsculas y minúsculas no es un "
 "directorio: {path}"
 
-#: box-rpg/src/box/launch/cimount.py:1578
+#: box-rpg/src/box/launch/cimount.py:2605
 #, python-brace-format
 msgid ""
 "case-insensitive mount already active at {path}; stop it before retrying"
@@ -1320,53 +1320,53 @@ msgstr ""
 "el montaje insensible a mayúsculas y minúsculas ya está activo en {path}; "
 "detenlo antes de reintentar"
 
-#: box-rpg/src/box/launch/cimount.py:1586
-#: box-rpg/src/box/launch/cimount.py:1593
+#: box-rpg/src/box/launch/cimount.py:2613
+#: box-rpg/src/box/launch/cimount.py:2620
 #, python-brace-format
 msgid "cannot pin the game root for the case-insensitive mount: {error}"
 msgstr ""
 "no se puede fijar la raíz del juego para el montaje insensible a mayúsculas "
 "y minúsculas: {error}"
 
-#: box-rpg/src/box/launch/cimount.py:1598
+#: box-rpg/src/box/launch/cimount.py:2625
 msgid "cannot mount a game root that is not a directory"
 msgstr "no se puede montar una raíz del juego que no es un directorio"
 
-#: box-rpg/src/box/launch/cimount.py:1601
+#: box-rpg/src/box/launch/cimount.py:2628
 msgid ""
 "case-insensitive mount requires an x86_64 host; retry without --ci-mount"
 msgstr ""
 "el montaje insensible a mayúsculas y minúsculas requiere un servidor x86_64; "
 "reintenta sin --ci-mount"
 
-#: box-rpg/src/box/launch/cimount.py:1607
+#: box-rpg/src/box/launch/cimount.py:2634
 #, python-brace-format
 msgid "cannot load libfuse3 for the case-insensitive mount: {error}"
 msgstr ""
 "no se puede cargar libfuse3 para el montaje insensible a mayúsculas y "
 "minúsculas: {error}"
 
-#: box-rpg/src/box/launch/cimount.py:1624
+#: box-rpg/src/box/launch/cimount.py:2651
 #, python-brace-format
 msgid "cannot create the case-insensitive mount session for {path}"
 msgstr ""
 "no se puede crear la sesión del montaje insensible a mayúsculas y minúsculas "
 "para {path}"
 
-#: box-rpg/src/box/launch/cimount.py:1632
+#: box-rpg/src/box/launch/cimount.py:2659
 #, python-brace-format
 msgid "cannot mount the case-insensitive view at {path}"
 msgstr ""
 "no se puede montar la vista insensible a mayúsculas y minúsculas en {path}"
 
-#: box-rpg/src/box/launch/cimount.py:1653
+#: box-rpg/src/box/launch/cimount.py:2680
 #, python-brace-format
 msgid "cannot start the case-insensitive mount loop: {error}"
 msgstr ""
 "no se puede iniciar el bucle del montaje insensible a mayúsculas y "
 "minúsculas: {error}"
 
-#: box-rpg/src/box/launch/cimount.py:1717
+#: box-rpg/src/box/launch/cimount.py:2748
 #, python-brace-format
 msgid ""
 "case-insensitive mount did not come up at {path}; retry without --ci-mount"
@@ -2405,6 +2405,10 @@ msgstr "el directorio gestionado tiene permisos no seguros: {path}"
 msgid "cannot safely create managed directory {path}: {error}"
 msgstr ""
 "no se puede crear de forma segura el directorio gestionado {path}: {error}"
+
+#~ msgid "allow game directory writes for this launch only"
+#~ msgstr ""
+#~ "permite la escritura en el directorio del juego solo para este inicio"
 
 #, python-brace-format
 #~ msgid ""
